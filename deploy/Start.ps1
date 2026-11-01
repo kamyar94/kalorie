@@ -171,7 +171,9 @@ foreach ($d in @($photos, $backups)) {
     }
 }
 $locked = @($dbEnv, $appEnv, $vapidEnv)
-if (Test-Path -LiteralPath $tunnelEnv) { $locked += $tunnelEnv }
+# The tunnel file is locked once it holds a token. Before that it stays editable, so the token can
+# still be pasted in, also from another computer through a network share.
+if ((Test-Path -LiteralPath $tunnelEnv) -and (Get-EnvValue $tunnelEnv 'TUNNEL_TOKEN')) { $locked += $tunnelEnv }
 # Folders are locked when they are new; resetting thousands of photo files on every start is slow.
 $locked += $newFolders
 foreach ($p in $locked) { Protect-Path $p }
