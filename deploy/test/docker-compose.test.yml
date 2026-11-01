@@ -1,0 +1,123 @@
+# Override for the full local stack test. deploy/test/Test-Stack.ps1 copies this file to
+# deploy/docker-compose.override.yml for the run and removes it afterwards. Compared with the real
+# stack it only
+#   - adds "gateway", a stand-in for the tunnel connector: it is the one container that publishes a
+#     port (127.0.0.1:3206) and passes the traffic on to app:3000 over the internal tunnel network.
+#     The app itself publishes nothing, as in the real file (Docker cannot publish the port of a
+#     container that is only on internal networks),
+#   - gives the four networks explicit subnets (this PC's default address pools are used up),
+#   - adds "mock", a stand-in for the Google Gemini API, and points the proxy's name lookup for
+#     generativelanguage.googleapis.com at it, so the app and the worker reach it the way they
+#     reach the real API: through the egress proxy, over TLS, to the allowed host name,
+#   - lets the app and the worker trust the stand-in's self-signed certificate,
+#   - plain-http cookies and links for 127.0.0.1, and a cached FoodData Central folder (read only)
+#     instead of the download volume.
+# The run sets COMPOSE_PROJECT_NAME=caltest, CAL_IMAGE, CAL_PHOTOS_DIR, CAL_BACKUP_DIR,
+# CALTEST_DIR and CALTEST_FDC_DIR in its environment.
+services:
+  app:
+    environment:
+      COOKIE_SECURE: "false"
+      BASE_URL: http://127.0.0.1:3206
+      NODE_EXTRA_CA_CERTS: /test/mock-cert.pem
+    volumes:
+      - type: bind
+        source: ${CALTEST_DIR:?set by Test-Stack.ps1}/mock/mock-cert.pem
+        target: /test/mock-cert.pem
+        read_only: true
+      - type: bind
+        source: ${CALTEST_FDC_DIR:?set by Test-Stack.ps1}
+        target: /var/cache/cal-fdc
+        read_only: true
+
+  worker:
+    environment:
+      NODE_EXTRA_CA_CERTS: /test/mock-cert.pem
+    volumes:
+      - type: bind
+        source: ${CALTEST_DIR:?set by Test-Stack.ps1}/mock/mock-cert.pem
+        target: /test/mock-cert.pem
+        read_only: true
+
+  egress:
+    extra_hosts:
+      - "generativelanguage.googleapis.com:10.250.131.20"
+
+  gateway:
+    image: node:${CAL_NODE_VERSION:?set in .env}
+    pull_policy: never
+    user: "1000:1000"
+    read_only: true
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    command: ["node", "/test/gateway.mjs"]
+    ports:
+      - "127.0.0.1:3206:3000"
+    volumes:
+      - type: bind
+        source: ${CALTEST_DIR:?set by Test-Stack.ps1}/mock
+        target: /test
+        read_only: true
+    networks:
+      - tunnel
+      - tunnel-out
+    depends_on:
+      app:
+        condition: service_healthy
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 100
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mock:
+    image: node:${CAL_NODE_VERSION:?set in .env}
+    pull_policy: never
+    user: "1000:1000"
+    read_only: true
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    command: ["node", "/test/mock-ai.mjs"]
+    volumes:
+      - type: bind
+        source: ${CALTEST_DIR:?set by Test-Stack.ps1}/mock
+        target: /test
+        read_only: true
+    networks:
+      backend:
+        ipv4_address: 10.250.131.20
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 100
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  tunnel:
+    ipam:
+      config:
+        - subnet: 10.250.130.0/24
+  backend:
+    ipam:
+      config:
+        - subnet: 10.250.131.0/24
+  egress-out:
+    ipam:
+      config:
+        - subnet: 10.250.132.0/24
+  tunnel-out:
+    ipam:
+      config:
+        - subnet: 10.250.133.0/24

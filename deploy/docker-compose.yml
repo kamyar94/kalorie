@@ -1,0 +1,248 @@
+# Cal, hardened for a home server. Start it with deploy/Start.ps1 (it makes the secret files on
+# the first start, builds the image and checks the tunnel); deploy/README.md explains each step.
+#
+# Nothing here publishes a port. The only way in is a Cloudflare Tunnel: Cloudflare's edge ends
+# HTTPS for your address (for example cal.example.org) and the tunnel container passes the traffic
+# to app:3000 over a private network. The app and the worker have no route to the internet. Their
+# only way out is the egress proxy, which lets HTTPS through to the hosts in squid.conf and
+# nothing else.
+#
+#   tunnel  (tunnel + tunnel-out)       Cloudflare Tunnel connector, token from cloudflared.env
+#   app     (tunnel + backend)          the web app (Next.js); applies the database migrations
+#   worker  (backend)                   background jobs: photo analysis, push messages
+#   db      (backend)                   Postgres, data in the Docker volume "db"
+#   egress  (backend + egress-out)      Squid, allowlist in squid.conf + site.env
+#
+# Networks tunnel and backend are internal (no route to the internet). Only egress-out (for the
+# proxy) and tunnel-out (for the connector) lead out.
+#
+# Versions are pinned in .env. No container gets a TZ setting on purpose: the database stores UTC.
+
+name: cal
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+# The web app and the worker are one image with two commands.
+x-cal: &cal
+  <<: *hardening
+  image: ${CAL_IMAGE:-cal-app:local}
+  pull_policy: never
+  user: "1000:1000"
+  read_only: true
+  # The only writable places: a small /tmp in memory and the photo folder. Next.js wants a cache
+  # folder under /app/.next, which is also memory.
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+    - /app/.next/cache:size=64m,uid=1000,gid=1000,mode=0700
+  # .env holds pinned versions and non-secret defaults, site.env this site's addresses, db.env the
+  # database login, app.env the key that encrypts the saved AI keys and tokens, vapid.env the Web
+  # Push keys. cloudflared.env is read by the tunnel only.
+  env_file:
+    - .env
+    - site.env
+    - db.env
+    - app.env
+    - vapid.env
+  environment:
+    PGHOST: db
+    # Every call that leaves the server (AI providers, Open Food Facts, Mealie, openGym, push
+    # services, FoodData Central) goes through this proxy; if it is down the call fails.
+    EGRESS_PROXY_URL: http://egress:3128
+    PHOTO_ROOT: /data/photos
+    FDC_CACHE_DIR: /var/cache/cal-fdc
+    NEXT_TELEMETRY_DISABLED: "1"
+    WORKER_HEARTBEAT_FILE: /tmp/worker-alive
+  init: true
+  ulimits:
+    core: 0
+    nofile:
+      soft: 4096
+      hard: 4096
+
+services:
+  # Accounts, meals, food data. Runs as the unprivileged postgres user (70) on a read-only root
+  # filesystem; the data lives in a Docker volume. Not published, and not on any network with a
+  # route to the internet.
+  db:
+    <<: *hardening
+    image: postgres:${CAL_POSTGRES_VERSION:?set CAL_POSTGRES_VERSION in .env}
+    pull_policy: missing
+    user: "70:70"
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:size=1m,mode=1777
+      - /tmp:size=64m,mode=1777
+    env_file: db.env
+    volumes:
+      - db:/var/lib/postgresql # THE DATA. Back it up before every update (Backup.ps1).
+      - ${CAL_BACKUP_DIR:-./backups}:/backups
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -q -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    shm_size: 128m
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 1.0
+    pids_limit: 200
+
+  # The web app. `node dist/start.mjs` waits for the database, applies the migrations, then starts
+  # the Next.js server on port 3000 (reachable from the tunnel network only).
+  app:
+    <<: *cal
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        NODE_VERSION: ${CAL_NODE_VERSION:?set CAL_NODE_VERSION in .env}
+    command: ["node", "dist/start.mjs"]
+    volumes:
+      # The photos. Back this folder up together with the database (Backup.ps1 does).
+      - ${CAL_PHOTOS_DIR:-./photos}:/data/photos
+      # Cache of the FoodData Central downloads (Cal.ps1 import-fdc). Can be deleted safely.
+      - fdc-cache:/var/cache/cal-fdc
+    networks:
+      - tunnel
+      - backend
+    depends_on:
+      db:
+        condition: service_healthy
+      egress:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2.0
+    pids_limit: 200
+
+  # The same image, started as the job worker. It waits for the app so the migrations are done.
+  # It writes a heartbeat file every 15 seconds, which the health check reads.
+  worker:
+    <<: *cal
+    command: ["node", "dist/worker.mjs"]
+    volumes:
+      # The worker only reads the photos.
+      - ${CAL_PHOTOS_DIR:-./photos}:/data/photos:ro
+    networks:
+      - backend
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "process.exit(Date.now()-require('fs').statSync('/tmp/worker-alive').mtimeMs<60000?0:1)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    mem_limit: 1g
+    memswap_limit: 1g
+    cpus: 2.0
+    pids_limit: 200
+
+  # Egress proxy. Squid accepts HTTPS tunnels (CONNECT on port 443) to the hosts in squid.conf and
+  # to the Mealie, openGym and extra hosts that start.sh reads from site.env when the container
+  # starts, and refuses everything else. Calls stay encrypted end to end, so the proxy sees only the
+  # host. It writes no cache and no files; its log shows one line per tunnel. The image runs Squid
+  # as its own unprivileged user.
+  egress:
+    <<: *hardening
+    image: ubuntu/squid:${CAL_SQUID_VERSION:?set CAL_SQUID_VERSION in .env}
+    pull_policy: missing
+    entrypoint: ["/bin/sh", "/etc/squid/start.sh"]
+    read_only: true
+    env_file: site.env
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+      - /run:size=1m,mode=1777
+      - /run/squid-allow:size=1m,mode=1777
+      - /var/log/squid:size=1m,mode=1777
+      - /var/spool/squid:size=1m,mode=1777
+    volumes:
+      - ./squid.conf:/etc/squid/squid.conf:ro
+      - ./squid-start.sh:/etc/squid/start.sh:ro
+    networks:
+      - backend
+      - egress-out
+    healthcheck:
+      test: ["CMD", "/usr/sbin/squid-gnutls", "-k", "check", "-f", "/etc/squid/squid.conf"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.5
+    pids_limit: 100
+
+  # Cloudflare Tunnel connector. The token lives only in cloudflared.env, which no other container
+  # reads. The image already runs as a non-root user. "ready" asks the connector's own metrics
+  # port (inside the container) whether it is connected.
+  tunnel:
+    <<: *hardening
+    image: cloudflare/cloudflared:${CAL_CLOUDFLARED_VERSION:?set CAL_CLOUDFLARED_VERSION in .env}
+    pull_policy: missing
+    command: ["tunnel", "--no-autoupdate", "--metrics", "127.0.0.1:20241", "run"]
+    user: "65532:65532"
+    env_file: cloudflared.env
+    read_only: true
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - tunnel
+      - tunnel-out
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:20241", "ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    mem_limit: 256m
+    memswap_limit: 256m
+    cpus: 0.5
+    pids_limit: 100
+
+volumes:
+  db: {}
+  # Cached FoodData Central downloads. Losing it only means they are downloaded again.
+  fdc-cache: {}
+
+# tunnel and backend are internal, so they have no route to the internet. If Docker reports that
+# it has no free address pools, give each network an explicit subnet in a
+# docker-compose.override.yml (deploy/README.md shows how).
+networks:
+  # tunnel <-> app.
+  tunnel:
+    internal: true
+  # app, worker, db and the egress proxy.
+  backend:
+    internal: true
+  # Outbound for the egress proxy only.
+  egress-out: {}
+  # Outbound for the tunnel connector to reach Cloudflare.
+  tunnel-out: {}

@@ -1,0 +1,165 @@
+// The browser's calls to Cal's JSON routes, typed with the contracts. Screens call these and never
+// build requests themselves, so data access stays in one place. Browser only.
+import type { FoodResult } from "@/lib/contracts/food-search";
+import type {
+  MealieRecipeHit,
+  PlanEntryDto,
+  PlanRequestDto,
+  PlanSuggestionDto,
+  RecipeInfoDto,
+  WeightPointDto,
+} from "@/lib/contracts/integrations";
+import type {
+  ItemInput,
+  ItemPatch,
+  MealDto,
+  MealItemDto,
+  MealPatch,
+  MealSlot,
+  MealSummaryDto,
+} from "@/lib/contracts/meals";
+import type { NutrientMap } from "@/lib/contracts/nutrients";
+
+export class ApiError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+const request = async <T>(
+  url: string,
+  init: { method?: string; body?: unknown; signal?: AbortSignal; keepalive?: boolean } = {},
+): Promise<T> => {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: init.method ?? "GET",
+      headers: init.body === undefined ? undefined : { "content-type": "application/json" },
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: init.signal,
+      keepalive: init.keepalive,
+    });
+  } catch (error) {
+    if ((error as Error)?.name === "AbortError") throw error;
+    throw new ApiError("No connection. Check your network and try again.", 0);
+  }
+  const body = (await response.json().catch(() => null)) as (T & { error?: string }) | null;
+  if (!response.ok)
+    throw new ApiError(body?.error ?? "Something went wrong. Try again.", response.status);
+  return body as T;
+};
+
+export type UsedFood = {
+  food: FoodResult;
+  lastGrams: number;
+  lastPortionText: string | null;
+  uses: number;
+};
+
+export type NewFoodInput = {
+  nameEn: string;
+  nameFa?: string | null;
+  brand?: string | null;
+  barcode?: string | null;
+  servingGrams?: number | null;
+  per: "100g" | "serving";
+  nutrients: NutrientMap;
+};
+
+export type NewManualMealInput = {
+  eatenAt: string;
+  tz: string;
+  slot?: MealSlot;
+  title?: string | null;
+  items: ItemInput[];
+};
+
+const id = encodeURIComponent;
+
+export const api = {
+  listDay: (date: string) =>
+    request<{ meals: MealSummaryDto[] }>(`/api/meals?date=${id(date)}`).then((r) => r.meals),
+  getMeal: (mealId: string) => request<MealDto>(`/api/meals/${id(mealId)}`),
+  patchMeal: (mealId: string, patch: MealPatch) =>
+    request<MealDto>(`/api/meals/${id(mealId)}`, { method: "PATCH", body: patch }),
+  deleteMeal: (mealId: string) =>
+    request<{ ok: true }>(`/api/meals/${id(mealId)}`, { method: "DELETE" }),
+  duplicateMeal: (mealId: string, when: { eatenAt: string; tz: string }) =>
+    request<MealDto>(`/api/meals/${id(mealId)}/duplicate`, { method: "POST", body: when }),
+  answer: (mealId: string, questionId: string, answer: string) =>
+    request<MealDto>(`/api/meals/${id(mealId)}/answers`, {
+      method: "POST",
+      body: { questionId, answer },
+    }),
+  correct: (mealId: string, text: string, replaceEdits = false) =>
+    request<MealDto>(`/api/meals/${id(mealId)}/corrections`, {
+      method: "POST",
+      body: { text, replaceEdits },
+    }),
+  retry: (mealId: string) => request<MealDto>(`/api/meals/${id(mealId)}/retry`, { method: "POST" }),
+  addItem: (mealId: string, input: ItemInput) =>
+    request<MealItemDto>(`/api/meals/${id(mealId)}/items`, { method: "POST", body: input }),
+  patchItem: (itemId: string, patch: ItemPatch) =>
+    request<MealItemDto>(`/api/items/${id(itemId)}`, { method: "PATCH", body: patch }),
+  deleteItem: (itemId: string) =>
+    request<{ ok: true }>(`/api/items/${id(itemId)}`, { method: "DELETE" }),
+  rememberItem: (itemId: string) =>
+    request<{ ok: true }>(`/api/items/${id(itemId)}/remember`, {
+      method: "POST",
+      keepalive: true,
+    }),
+  createManualMeal: (input: NewManualMealInput) =>
+    request<MealDto>("/api/manual-meals", { method: "POST", body: input }),
+  searchFoods: (query: string, signal?: AbortSignal) =>
+    request<{ foods: FoodResult[] }>(`/api/foods?q=${id(query)}&limit=25`, { signal }).then(
+      (r) => r.foods,
+    ),
+  /** Foods and, when Mealie is connected, Mealie recipes. */
+  searchAll: (query: string, signal?: AbortSignal) =>
+    request<{ foods: FoodResult[]; recipes?: MealieRecipeHit[] }>(
+      `/api/foods?q=${id(query)}&limit=25`,
+      { signal },
+    ).then((r) => ({ foods: r.foods, recipes: r.recipes ?? [] })),
+  getFood: (foodId: string) => request<FoodResult>(`/api/foods/${id(foodId)}`),
+  usedFoods: () => request<{ recent: UsedFood[]; frequent: UsedFood[] }>("/api/foods/used"),
+  /** The product, or null when Cal does not know the barcode. */
+  barcode: async (code: string) => {
+    try {
+      return await request<FoodResult>(`/api/foods/barcode/${id(code)}`);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return null;
+      throw error;
+    }
+  },
+  createFood: (input: NewFoodInput) =>
+    request<FoodResult>("/api/foods", { method: "POST", body: input }),
+  logPlanned: (plannedId: string, body: { servings: number; eatenAt: string; tz: string }) =>
+    request<{ mealId: string }>(`/api/planned/${id(plannedId)}/log`, { method: "POST", body }),
+  mealieRecipe: (slug: string) => request<RecipeInfoDto>(`/api/mealie/recipes/${id(slug)}`),
+  saveRecipeNutrition: (slug: string) =>
+    request<RecipeInfoDto>(`/api/mealie/recipes/${id(slug)}/nutrition`, { method: "POST" }),
+  suggestPlan: (body: PlanRequestDto) =>
+    request<PlanSuggestionDto>("/api/mealie/plan/suggest", { method: "POST", body }),
+  confirmPlan: (entries: Pick<PlanEntryDto, "date" | "slot" | "recipeId">[]) =>
+    request<{ written: number; failed: number }>("/api/mealie/plan/confirm", {
+      method: "POST",
+      body: { entries },
+    }),
+  connectMealie: (token: string) =>
+    request<{ ok: true }>("/api/integrations/mealie", { method: "POST", body: { token } }),
+  testMealie: () => request<{ ok: true }>("/api/integrations/mealie/test", { method: "POST" }),
+  disconnectMealie: () => request<{ ok: true }>("/api/integrations/mealie", { method: "DELETE" }),
+  pairOpenGym: (code: string) =>
+    request<{ ok: true }>("/api/integrations/opengym", { method: "POST", body: { code } }),
+  syncOpenGym: () =>
+    request<{ ok: true; weighIns: number; workouts: number; latestWeight: WeightPointDto | null }>(
+      "/api/integrations/opengym/sync",
+      { method: "POST" },
+    ),
+  disconnectOpenGym: () => request<{ ok: true }>("/api/integrations/opengym", { method: "DELETE" }),
+};

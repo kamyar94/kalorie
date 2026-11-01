@@ -1,0 +1,1463 @@
+{
+  "version": 1,
+  "about": "Common Persian dishes as recipe estimates for Cal (scripts/seed-dishes.mjs). Each dish lists its components for ONE serving: an SR Legacy food (FoodData Central ID, a frozen dataset, so the IDs never change) and grams. Nutrients are computed from the components; servingGrams is the finished serving's weight, so water lost or gained in cooking changes the values per 100 g but not per serving. Proportions follow published home recipes found by web search on 31 Oct 2026 (sources per dish; a site is named where the quantities were attributed to it); the batch was divided by its servings. Rice dishes use about 80 g raw rice per serving (225 g cooked), close to the 83 g of the BBC Good Food chelow (500 g rice for 6). expectedKcal is a plausibility range for one serving, checked by the seed command.",
+  "dishes": [
+    {
+      "key": "chelow",
+      "nameEn": "Chelow (Persian steamed rice)",
+      "nameFa": "چلو",
+      "synonyms": [
+        "chelo",
+        "chelo rice",
+        "persian rice",
+        "steamed saffron rice",
+        "white rice persian style",
+        "پلو سفید"
+      ],
+      "category": "Persian rice",
+      "servingGrams": 245,
+      "source": "BBC Good Food, Persian basmati rice chelo (500 g basmati, 60 g butter, light olive oil, serves 6; listed 375 kcal per serving).",
+      "expectedKcal": [330, 470],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 245
+        },
+        {
+          "label": "1 cup",
+          "labelFa": "۱ پیمانه",
+          "grams": 165
+        }
+      ],
+      "components": [
+        {
+          "fdc": 168878,
+          "grams": 233,
+          "as": "basmati rice, steamed (83 g raw)"
+        },
+        {
+          "fdc": 173430,
+          "grams": 10,
+          "as": "butter"
+        },
+        {
+          "fdc": 171413,
+          "grams": 4.5,
+          "as": "olive oil"
+        },
+        {
+          "fdc": 170934,
+          "grams": 0.05,
+          "as": "saffron"
+        },
+        {
+          "fdc": 173468,
+          "grams": 0.8,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "tahdig",
+      "nameEn": "Tahdig (crispy rice crust)",
+      "nameFa": "ته‌دیگ",
+      "synonyms": ["tahdeeg", "tah dig", "crispy rice", "rice crust", "ته دیگ برنج"],
+      "category": "Persian rice",
+      "servingGrams": 75,
+      "source": "Delicious magazine, tahdig (500 g basmati, 50 g vegetable oil, 50 g butter); one serving is a piece of the crust, about a sixth of the pot's bottom layer (estimate).",
+      "expectedKcal": [170, 300],
+      "portions": [
+        {
+          "label": "1 piece",
+          "labelFa": "۱ تکه",
+          "grams": 75
+        }
+      ],
+      "components": [
+        {
+          "fdc": 168878,
+          "grams": 85,
+          "as": "basmati rice, steamed"
+        },
+        {
+          "fdc": 172336,
+          "grams": 10,
+          "as": "vegetable oil"
+        },
+        {
+          "fdc": 173430,
+          "grams": 3,
+          "as": "butter"
+        },
+        {
+          "fdc": 170934,
+          "grams": 0.03,
+          "as": "saffron"
+        }
+      ]
+    },
+    {
+      "key": "zereshk-polo",
+      "nameEn": "Zereshk polo (barberry rice)",
+      "nameFa": "زرشک‌پلو",
+      "synonyms": ["zereshk polow", "barberry rice", "saffron rice with barberries", "زرشک پلو"],
+      "category": "Persian rice",
+      "servingGrams": 255,
+      "source": "Published home recipes (one: 400 g basmati, 1/2 cup dried barberries, 3 tbsp butter, 1 tbsp sugar, saffron, slivered almonds and pistachios); 5 servings of 80 g raw rice. Dried barberries use the values of dried currants (barberries are not in FoodData Central). Chicken is a separate item.",
+      "expectedKcal": [380, 560],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 255
+        }
+      ],
+      "components": [
+        {
+          "fdc": 168878,
+          "grams": 225,
+          "as": "basmati rice, steamed (80 g raw)"
+        },
+        {
+          "fdc": 171724,
+          "grams": 9,
+          "as": "dried barberries"
+        },
+        {
+          "fdc": 173430,
+          "grams": 8.5,
+          "as": "butter"
+        },
+        {
+          "fdc": 172336,
+          "grams": 3,
+          "as": "oil"
+        },
+        {
+          "fdc": 169655,
+          "grams": 2.5,
+          "as": "sugar"
+        },
+        {
+          "fdc": 170567,
+          "grams": 3,
+          "as": "slivered almonds"
+        },
+        {
+          "fdc": 170184,
+          "grams": 3,
+          "as": "pistachios"
+        },
+        {
+          "fdc": 170934,
+          "grams": 0.06,
+          "as": "saffron"
+        },
+        {
+          "fdc": 173468,
+          "grams": 0.8,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "sabzi-polo",
+      "nameEn": "Sabzi polo (herb rice)",
+      "nameFa": "سبزی‌پلو",
+      "synonyms": ["sabzi polow", "herb rice", "herbed rice", "rice with herbs", "سبزی پلو"],
+      "category": "Persian rice",
+      "servingGrams": 280,
+      "source": "Typical recipes (for example Choices Markets, sabzi polo: 2 cups basmati, parsley and cilantro, serves 6; most recipes also use dill and chives): per 500 g rice about 100 g dill, 100 g parsley, 50 g cilantro, 50 g chives, 50 g butter, 30 g oil, garlic; 80 g raw rice per serving. Fish is a separate item.",
+      "expectedKcal": [330, 480],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 280
+        }
+      ],
+      "components": [
+        {
+          "fdc": 168878,
+          "grams": 225,
+          "as": "basmati rice, steamed (80 g raw)"
+        },
+        {
+          "fdc": 172233,
+          "grams": 16,
+          "as": "dill"
+        },
+        {
+          "fdc": 170416,
+          "grams": 16,
+          "as": "parsley"
+        },
+        {
+          "fdc": 169997,
+          "grams": 8,
+          "as": "cilantro"
+        },
+        {
+          "fdc": 169994,
+          "grams": 8,
+          "as": "chives"
+        },
+        {
+          "fdc": 169230,
+          "grams": 1.6,
+          "as": "garlic"
+        },
+        {
+          "fdc": 173430,
+          "grams": 8,
+          "as": "butter"
+        },
+        {
+          "fdc": 172336,
+          "grams": 5,
+          "as": "oil"
+        },
+        {
+          "fdc": 173468,
+          "grams": 0.8,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "adas-polo",
+      "nameEn": "Adas polo (lentil rice with dates and raisins)",
+      "nameFa": "عدس‌پلو",
+      "synonyms": ["adas polow", "lentil rice", "rice with lentils", "عدس پلو"],
+      "category": "Persian rice",
+      "servingGrams": 330,
+      "source": "Hamisharafi, adas polo (400 g basmati, 100 g lentils, 1 large onion, 8 Medjool dates, 115 g raisins; 4 portions), butter and oil as in similar recipes (about 30 g each); served as 5 portions of 80 g raw rice.",
+      "expectedKcal": [450, 700],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 330
+        }
+      ],
+      "components": [
+        {
+          "fdc": 168878,
+          "grams": 225,
+          "as": "basmati rice, steamed (80 g raw)"
+        },
+        {
+          "fdc": 172421,
+          "grams": 50,
+          "as": "green lentils, cooked (20 g dry)"
+        },
+        {
+          "fdc": 170000,
+          "grams": 40,
+          "as": "onion, fried"
+        },
+        {
+          "fdc": 168191,
+          "grams": 30,
+          "as": "Medjool dates, pitted"
+        },
+        {
+          "fdc": 168165,
+          "grams": 23,
+          "as": "raisins"
+        },
+        {
+          "fdc": 173430,
+          "grams": 6,
+          "as": "butter"
+        },
+        {
+          "fdc": 172336,
+          "grams": 6,
+          "as": "oil"
+        },
+        {
+          "fdc": 171320,
+          "grams": 0.4,
+          "as": "cinnamon"
+        },
+        {
+          "fdc": 170934,
+          "grams": 0.05,
+          "as": "saffron"
+        },
+        {
+          "fdc": 173468,
+          "grams": 0.8,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "lubia-polo",
+      "nameEn": "Lubia polo (green bean rice with beef)",
+      "nameFa": "لوبیاپلو",
+      "synonyms": [
+        "loobia polo",
+        "lubia polow",
+        "green bean rice",
+        "rice with green beans and meat",
+        "لوبیا پلو"
+      ],
+      "category": "Persian rice",
+      "servingGrams": 380,
+      "source": "Published home recipes (one: 1 lb ground beef or lamb, 1 lb green beans, 6 oz tomato paste, 2 cups basmati), onion, 3 tbsp oil, turmeric, cinnamon; 80 g raw rice per serving.",
+      "expectedKcal": [500, 760],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 380
+        }
+      ],
+      "components": [
+        {
+          "fdc": 168878,
+          "grams": 225,
+          "as": "basmati rice, steamed (80 g raw)"
+        },
+        {
+          "fdc": 174036,
+          "grams": 95,
+          "as": "ground beef, 80% lean, raw"
+        },
+        {
+          "fdc": 169961,
+          "grams": 95,
+          "as": "green beans"
+        },
+        {
+          "fdc": 170459,
+          "grams": 36,
+          "as": "tomato paste"
+        },
+        {
+          "fdc": 170000,
+          "grams": 30,
+          "as": "onion"
+        },
+        {
+          "fdc": 172336,
+          "grams": 9,
+          "as": "oil"
+        },
+        {
+          "fdc": 172231,
+          "grams": 0.6,
+          "as": "turmeric"
+        },
+        {
+          "fdc": 171320,
+          "grams": 0.4,
+          "as": "cinnamon"
+        },
+        {
+          "fdc": 173468,
+          "grams": 1.2,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "ghormeh-sabzi",
+      "nameEn": "Ghormeh sabzi (herb stew with lamb and kidney beans)",
+      "nameFa": "قورمه‌سبزی",
+      "synonyms": [
+        "ghorme sabzi",
+        "qormeh sabzi",
+        "khoresh ghormeh sabzi",
+        "herb stew",
+        "persian herb stew",
+        "قرمه سبزی",
+        "خورش قورمه سبزی"
+      ],
+      "category": "Persian stew",
+      "servingGrams": 330,
+      "source": "Published home recipes (one gram-based version: 800 g lamb shoulder, 400 g mixed fresh herbs including fenugreek, parsley and chives, 150 g dried kidney beans, about 4 dried limes; serves 4 to 6; Tehran Times suggests 200 g each of parsley, coriander and leeks), 1 large onion, oil, turmeric; 6 servings. Stew only; rice is a separate item. Dried fenugreek leaves use the values of fenugreek seed, dried limes those of fresh limes.",
+      "expectedKcal": [280, 480],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 330
+        },
+        {
+          "label": "1 ladle",
+          "labelFa": "۱ ملاقه",
+          "grams": 120
+        }
+      ],
+      "components": [
+        {
+          "fdc": 172508,
+          "grams": 133,
+          "as": "lamb stew meat (leg and shoulder), raw"
+        },
+        {
+          "fdc": 170416,
+          "grams": 30,
+          "as": "parsley"
+        },
+        {
+          "fdc": 169997,
+          "grams": 15,
+          "as": "cilantro"
+        },
+        {
+          "fdc": 169246,
+          "grams": 20,
+          "as": "leeks or chives"
+        },
+        {
+          "fdc": 171324,
+          "grams": 1,
+          "as": "dried fenugreek leaves"
+        },
+        {
+          "fdc": 175194,
+          "grams": 62,
+          "as": "red kidney beans, cooked (25 g dry)"
+        },
+        {
+          "fdc": 170000,
+          "grams": 33,
+          "as": "onion"
+        },
+        {
+          "fdc": 168155,
+          "grams": 4,
+          "as": "dried lime"
+        },
+        {
+          "fdc": 172336,
+          "grams": 10,
+          "as": "oil"
+        },
+        {
+          "fdc": 172231,
+          "grams": 0.8,
+          "as": "turmeric"
+        },
+        {
+          "fdc": 173468,
+          "grams": 1.3,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "gheymeh",
+      "nameEn": "Gheymeh (split pea stew with lamb and fried potatoes)",
+      "nameFa": "قیمه",
+      "synonyms": [
+        "gheimeh",
+        "qeymeh",
+        "khoresh gheymeh",
+        "khoresh gheimeh",
+        "split pea stew",
+        "خورش قیمه"
+      ],
+      "category": "Persian stew",
+      "servingGrams": 320,
+      "source": "Labsalliebe, khoresht-e gheymeh (500 g lamb leg, 80 g yellow split peas, 1 tbsp tomato paste, onion, dried limes, oil; serves 4), topped with fried matchstick potatoes as in most recipes (about 300 g potatoes for 4, fried in oil). Stew only; rice is a separate item.",
+      "expectedKcal": [330, 520],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 320
+        },
+        {
+          "label": "1 ladle",
+          "labelFa": "۱ ملاقه",
+          "grams": 120
+        }
+      ],
+      "components": [
+        {
+          "fdc": 172508,
+          "grams": 125,
+          "as": "lamb stew meat (leg), raw"
+        },
+        {
+          "fdc": 172429,
+          "grams": 50,
+          "as": "yellow split peas, cooked (20 g dry)"
+        },
+        {
+          "fdc": 170459,
+          "grams": 4,
+          "as": "tomato paste"
+        },
+        {
+          "fdc": 170000,
+          "grams": 37,
+          "as": "onion"
+        },
+        {
+          "fdc": 168155,
+          "grams": 4.5,
+          "as": "dried lime"
+        },
+        {
+          "fdc": 172336,
+          "grams": 10,
+          "as": "oil for the stew"
+        },
+        {
+          "fdc": 172231,
+          "grams": 0.8,
+          "as": "turmeric"
+        },
+        {
+          "fdc": 170026,
+          "grams": 75,
+          "as": "potatoes for frying"
+        },
+        {
+          "fdc": 172336,
+          "grams": 8,
+          "as": "oil absorbed by the fried potatoes"
+        },
+        {
+          "fdc": 173468,
+          "grams": 1.3,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "fesenjan",
+      "nameEn": "Fesenjan (walnut and pomegranate stew with chicken)",
+      "nameFa": "فسنجان",
+      "synonyms": [
+        "fesenjoon",
+        "fesenjun",
+        "khoresh fesenjan",
+        "walnut pomegranate stew",
+        "فسنجون",
+        "خورش فسنجان"
+      ],
+      "category": "Persian stew",
+      "servingGrams": 300,
+      "source": "Published home recipes (900 g to 1 kg chicken thighs, about 2 cups ground walnuts, 1 cup pomegranate molasses), onion, oil; 6 servings. Pomegranate molasses is counted as bottled pomegranate juice reduced four to one (the cooking loss is in the serving weight). Stew only; rice is a separate item.",
+      "expectedKcal": [420, 680],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 300
+        },
+        {
+          "label": "1 ladle",
+          "labelFa": "۱ ملاقه",
+          "grams": 120
+        }
+      ],
+      "components": [
+        {
+          "fdc": 173627,
+          "grams": 117,
+          "as": "chicken thigh meat, raw"
+        },
+        {
+          "fdc": 170187,
+          "grams": 40,
+          "as": "walnuts, ground"
+        },
+        {
+          "fdc": 167787,
+          "grams": 213,
+          "as": "pomegranate molasses (53 g), as juice reduced 4:1"
+        },
+        {
+          "fdc": 170000,
+          "grams": 25,
+          "as": "onion"
+        },
+        {
+          "fdc": 172336,
+          "grams": 5,
+          "as": "oil"
+        },
+        {
+          "fdc": 169655,
+          "grams": 2.5,
+          "as": "sugar"
+        },
+        {
+          "fdc": 172231,
+          "grams": 0.5,
+          "as": "turmeric"
+        },
+        {
+          "fdc": 173468,
+          "grams": 1,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "khoresh-bademjan",
+      "nameEn": "Khoresh bademjan (eggplant and lamb stew)",
+      "nameFa": "خورش بادمجان",
+      "synonyms": [
+        "khoresht bademjan",
+        "khoreshe bademjoon",
+        "eggplant stew",
+        "aubergine stew",
+        "خورش بادمجون"
+      ],
+      "category": "Persian stew",
+      "servingGrams": 330,
+      "source": "Published home recipes (one: 2 lb lamb stew meat, 6 oz tomato paste, dried limes or lemon juice; serves 6), with fried eggplants, onion, tomatoes and turmeric. Stew only; rice is a separate item.",
+      "expectedKcal": [350, 560],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 330
+        }
+      ],
+      "components": [
+        {
+          "fdc": 172508,
+          "grams": 150,
+          "as": "lamb stew meat, raw"
+        },
+        {
+          "fdc": 170459,
+          "grams": 28,
+          "as": "tomato paste"
+        },
+        {
+          "fdc": 169228,
+          "grams": 150,
+          "as": "eggplant"
+        },
+        {
+          "fdc": 172336,
+          "grams": 15,
+          "as": "oil absorbed by the fried eggplant"
+        },
+        {
+          "fdc": 172336,
+          "grams": 5,
+          "as": "oil for the onions and meat"
+        },
+        {
+          "fdc": 170000,
+          "grams": 33,
+          "as": "onion"
+        },
+        {
+          "fdc": 170457,
+          "grams": 40,
+          "as": "tomato"
+        },
+        {
+          "fdc": 168155,
+          "grams": 3,
+          "as": "dried lime"
+        },
+        {
+          "fdc": 172231,
+          "grams": 0.5,
+          "as": "turmeric"
+        },
+        {
+          "fdc": 173468,
+          "grams": 1.5,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "kabab-koobideh",
+      "nameEn": "Kabab koobideh (ground lamb and beef kebab)",
+      "nameFa": "کباب کوبیده",
+      "synonyms": [
+        "kabob koobideh",
+        "koobideh",
+        "kubideh",
+        "kebab koobideh",
+        "ground meat kebab",
+        "کوبیده"
+      ],
+      "category": "Persian kebab",
+      "servingGrams": 190,
+      "source": "Published home recipes (one makes 10 kebabs from 1.5 lb beef and 1 lb lamb, about 110 g meat per skewer; onion about 15 % of the mixture, squeezed). One serving is 2 skewers, grilled; fat that drips off is not subtracted.",
+      "expectedKcal": [450, 680],
+      "portions": [
+        {
+          "label": "1 serving (2 skewers)",
+          "labelFa": "۱ پرس (۲ سیخ)",
+          "grams": 190
+        },
+        {
+          "label": "1 skewer",
+          "labelFa": "۱ سیخ",
+          "grams": 95
+        }
+      ],
+      "components": [
+        {
+          "fdc": 174036,
+          "grams": 132,
+          "as": "ground beef, 80% lean, raw"
+        },
+        {
+          "fdc": 174370,
+          "grams": 88,
+          "as": "ground lamb, raw"
+        },
+        {
+          "fdc": 170000,
+          "grams": 40,
+          "as": "grated onion, squeezed"
+        },
+        {
+          "fdc": 173430,
+          "grams": 5,
+          "as": "butter for basting"
+        },
+        {
+          "fdc": 172231,
+          "grams": 0.5,
+          "as": "turmeric"
+        },
+        {
+          "fdc": 170931,
+          "grams": 0.5,
+          "as": "black pepper"
+        },
+        {
+          "fdc": 173468,
+          "grams": 3,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "joojeh-kabab",
+      "nameEn": "Joojeh kabab (saffron chicken kebab)",
+      "nameFa": "جوجه‌کباب",
+      "synonyms": [
+        "jujeh kabab",
+        "joojeh kabob",
+        "jujeh kebab",
+        "chicken kebab",
+        "saffron chicken kebab",
+        "جوجه کباب"
+      ],
+      "category": "Persian kebab",
+      "servingGrams": 160,
+      "source": "Published home recipes (450 to 900 g boneless chicken thigh or breast for 4; yogurt, lemon juice, grated onion, olive oil and saffron marinade; butter for basting). Counted: 200 g raw chicken per serving and the marinade that clings (about a quarter of the yogurt, half the lemon and oil; the onion is discarded); grilled weight about 70 % of raw.",
+      "expectedKcal": [260, 450],
+      "portions": [
+        {
+          "label": "1 serving (1 skewer)",
+          "labelFa": "۱ پرس (۱ سیخ)",
+          "grams": 160
+        }
+      ],
+      "components": [
+        {
+          "fdc": 171077,
+          "grams": 100,
+          "as": "chicken breast, raw"
+        },
+        {
+          "fdc": 173627,
+          "grams": 100,
+          "as": "chicken thigh meat, raw"
+        },
+        {
+          "fdc": 171284,
+          "grams": 15,
+          "as": "yogurt (marinade)"
+        },
+        {
+          "fdc": 167747,
+          "grams": 6,
+          "as": "lemon juice"
+        },
+        {
+          "fdc": 171413,
+          "grams": 5,
+          "as": "olive oil"
+        },
+        {
+          "fdc": 173430,
+          "grams": 7,
+          "as": "butter for basting"
+        },
+        {
+          "fdc": 170934,
+          "grams": 0.08,
+          "as": "saffron"
+        },
+        {
+          "fdc": 173468,
+          "grams": 1.5,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "ash-reshteh",
+      "nameEn": "Ash reshteh (noodle, bean and herb soup)",
+      "nameFa": "آش رشته",
+      "synonyms": [
+        "aash reshteh",
+        "ash e reshteh",
+        "ash-e reshteh",
+        "persian noodle soup",
+        "noodle soup",
+        "آش"
+      ],
+      "category": "Persian soup",
+      "servingGrams": 450,
+      "source": "Denver Center for the Performing Arts, ash reshteh (125 g each of dried chickpeas, kidney beans and green lentils, 150 g reshteh, 400 g mixed herbs, 2 litres stock) and Food and Travel (serves 6); topped with kashk, fried onion and mint oil. Kashk uses the values of plain whole-milk Greek yogurt, reshteh those of cooked pasta.",
+      "expectedKcal": [330, 560],
+      "portions": [
+        {
+          "label": "1 bowl",
+          "labelFa": "۱ کاسه",
+          "grams": 450
+        },
+        {
+          "label": "1 ladle",
+          "labelFa": "۱ ملاقه",
+          "grams": 150
+        }
+      ],
+      "components": [
+        {
+          "fdc": 173757,
+          "grams": 50,
+          "as": "chickpeas, cooked (21 g dry)"
+        },
+        {
+          "fdc": 175194,
+          "grams": 50,
+          "as": "kidney beans, cooked (21 g dry)"
+        },
+        {
+          "fdc": 172421,
+          "grams": 52,
+          "as": "lentils, cooked (21 g dry)"
+        },
+        {
+          "fdc": 169737,
+          "grams": 62,
+          "as": "reshteh noodles, cooked (25 g dry)"
+        },
+        {
+          "fdc": 168462,
+          "grams": 25,
+          "as": "spinach"
+        },
+        {
+          "fdc": 170416,
+          "grams": 17,
+          "as": "parsley"
+        },
+        {
+          "fdc": 169997,
+          "grams": 8,
+          "as": "cilantro"
+        },
+        {
+          "fdc": 172233,
+          "grams": 8,
+          "as": "dill"
+        },
+        {
+          "fdc": 169994,
+          "grams": 9,
+          "as": "chives"
+        },
+        {
+          "fdc": 171304,
+          "grams": 25,
+          "as": "kashk"
+        },
+        {
+          "fdc": 170000,
+          "grams": 40,
+          "as": "onion, fried"
+        },
+        {
+          "fdc": 172336,
+          "grams": 13,
+          "as": "oil (fried onion and mint oil)"
+        },
+        {
+          "fdc": 172239,
+          "grams": 1,
+          "as": "dried mint"
+        },
+        {
+          "fdc": 169230,
+          "grams": 3,
+          "as": "garlic"
+        },
+        {
+          "fdc": 172231,
+          "grams": 0.5,
+          "as": "turmeric"
+        },
+        {
+          "fdc": 173647,
+          "grams": 200,
+          "as": "stock or water"
+        },
+        {
+          "fdc": 173468,
+          "grams": 2,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "kashk-bademjan",
+      "nameEn": "Kashk bademjan (eggplant and kashk dip)",
+      "nameFa": "کشک بادمجان",
+      "synonyms": [
+        "kashke bademjan",
+        "kashk e bademjan",
+        "kashk-e bademjan",
+        "eggplant dip",
+        "aubergine with kashk",
+        "کشک بادمجون"
+      ],
+      "category": "Persian appetiser",
+      "servingGrams": 200,
+      "source": "Kvalifood, kashk-e bademjan (about 600 g eggplant, 150 g onion, 40 g walnuts, 2 tbsp dried mint; serves 4) with kashk as in Sparkpeople's version (200 g for 4); oil for frying the onions and mint about 4 tbsp. Kashk uses the values of plain whole-milk Greek yogurt.",
+      "expectedKcal": [200, 380],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 200
+        }
+      ],
+      "components": [
+        {
+          "fdc": 169228,
+          "grams": 150,
+          "as": "eggplant"
+        },
+        {
+          "fdc": 170000,
+          "grams": 37,
+          "as": "onion, fried"
+        },
+        {
+          "fdc": 170187,
+          "grams": 10,
+          "as": "walnuts"
+        },
+        {
+          "fdc": 171304,
+          "grams": 45,
+          "as": "kashk"
+        },
+        {
+          "fdc": 171413,
+          "grams": 13.5,
+          "as": "olive oil"
+        },
+        {
+          "fdc": 169230,
+          "grams": 2.5,
+          "as": "garlic"
+        },
+        {
+          "fdc": 172239,
+          "grams": 0.75,
+          "as": "dried mint"
+        },
+        {
+          "fdc": 172231,
+          "grams": 0.25,
+          "as": "turmeric"
+        },
+        {
+          "fdc": 173468,
+          "grams": 1,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "mirza-ghasemi",
+      "nameEn": "Mirza ghasemi (smoked eggplant with tomato, garlic and egg)",
+      "nameFa": "میرزاقاسمی",
+      "synonyms": [
+        "mirza ghassemi",
+        "mirzaghasemi",
+        "smoked eggplant dip",
+        "eggplant with egg",
+        "میرزا قاسمی"
+      ],
+      "category": "Persian appetiser",
+      "servingGrams": 280,
+      "source": "Caldron, mirza ghasemi (4 to 5 small eggplants, 4 large tomatoes, 5 garlic cloves, 4 eggs, 3 tbsp oil; serves 4), turmeric as in Labsalliebe's version.",
+      "expectedKcal": [170, 330],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 280
+        }
+      ],
+      "components": [
+        {
+          "fdc": 169228,
+          "grams": 200,
+          "as": "eggplant, grilled and peeled"
+        },
+        {
+          "fdc": 170457,
+          "grams": 180,
+          "as": "tomatoes"
+        },
+        {
+          "fdc": 169230,
+          "grams": 4,
+          "as": "garlic"
+        },
+        {
+          "fdc": 171287,
+          "grams": 50,
+          "as": "egg"
+        },
+        {
+          "fdc": 172336,
+          "grams": 10,
+          "as": "oil"
+        },
+        {
+          "fdc": 172231,
+          "grams": 0.5,
+          "as": "turmeric"
+        },
+        {
+          "fdc": 173468,
+          "grams": 1,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "kuku-sabzi",
+      "nameEn": "Kuku sabzi (herb frittata)",
+      "nameFa": "کوکو سبزی",
+      "synonyms": [
+        "kookoo sabzi",
+        "koo koo sabzi",
+        "kuku",
+        "herb frittata",
+        "persian herb omelette",
+        "کوکوی سبزی"
+      ],
+      "category": "Persian egg dish",
+      "servingGrams": 95,
+      "source": "Waitrose, kuku sabzi (6 eggs, 75 g walnuts, 30 g dried barberries, about 200 g parsley, coriander, dill and chives; serves 4 to 6), with oil, a little flour and turmeric; 6 slices. Dried barberries use the values of dried currants.",
+      "expectedKcal": [170, 320],
+      "portions": [
+        {
+          "label": "1 slice",
+          "labelFa": "۱ تکه",
+          "grams": 95
+        }
+      ],
+      "components": [
+        {
+          "fdc": 171287,
+          "grams": 50,
+          "as": "egg"
+        },
+        {
+          "fdc": 170416,
+          "grams": 13,
+          "as": "parsley"
+        },
+        {
+          "fdc": 169997,
+          "grams": 10,
+          "as": "cilantro"
+        },
+        {
+          "fdc": 172233,
+          "grams": 7,
+          "as": "dill"
+        },
+        {
+          "fdc": 169994,
+          "grams": 3.3,
+          "as": "chives"
+        },
+        {
+          "fdc": 170187,
+          "grams": 12.5,
+          "as": "walnuts"
+        },
+        {
+          "fdc": 171724,
+          "grams": 5,
+          "as": "dried barberries"
+        },
+        {
+          "fdc": 172336,
+          "grams": 6.7,
+          "as": "oil"
+        },
+        {
+          "fdc": 168894,
+          "grams": 1.3,
+          "as": "flour"
+        },
+        {
+          "fdc": 169230,
+          "grams": 1,
+          "as": "garlic"
+        },
+        {
+          "fdc": 172231,
+          "grams": 0.3,
+          "as": "turmeric"
+        },
+        {
+          "fdc": 173468,
+          "grams": 0.5,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "kotlet",
+      "nameEn": "Kotlet (Persian meat and potato patties)",
+      "nameFa": "کتلت",
+      "synonyms": [
+        "cutlet",
+        "kotlet patties",
+        "persian cutlets",
+        "meat and potato patties",
+        "کتلت گوشت"
+      ],
+      "category": "Persian main",
+      "servingGrams": 170,
+      "source": "Published home recipes (one: 1 lb ground beef, 1 lb potatoes, 2 eggs, 1 onion, 18 patties, serves 6; another adds a breadcrumb coating), pan-fried (oil absorbed about 60 g for the batch). One serving is 3 patties.",
+      "expectedKcal": [320, 500],
+      "portions": [
+        {
+          "label": "1 serving (3 patties)",
+          "labelFa": "۱ پرس (۳ عدد)",
+          "grams": 170
+        },
+        {
+          "label": "1 patty",
+          "labelFa": "۱ عدد",
+          "grams": 57
+        }
+      ],
+      "components": [
+        {
+          "fdc": 174036,
+          "grams": 75,
+          "as": "ground beef, 80% lean, raw"
+        },
+        {
+          "fdc": 170440,
+          "grams": 75,
+          "as": "potatoes, boiled"
+        },
+        {
+          "fdc": 171287,
+          "grams": 17,
+          "as": "egg"
+        },
+        {
+          "fdc": 170000,
+          "grams": 25,
+          "as": "onion, grated"
+        },
+        {
+          "fdc": 174928,
+          "grams": 8,
+          "as": "breadcrumbs"
+        },
+        {
+          "fdc": 172336,
+          "grams": 10,
+          "as": "oil absorbed in frying"
+        },
+        {
+          "fdc": 172231,
+          "grams": 0.3,
+          "as": "turmeric"
+        },
+        {
+          "fdc": 173468,
+          "grams": 1,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "olivieh",
+      "nameEn": "Olivieh (chicken and potato salad)",
+      "nameFa": "سالاد الویه",
+      "synonyms": [
+        "salad olivieh",
+        "salad olvieh",
+        "olivier salad",
+        "persian potato salad",
+        "chicken potato salad",
+        "الویه"
+      ],
+      "category": "Persian salad",
+      "servingGrams": 245,
+      "source": "A published gram-based recipe (500 g potatoes, 3 eggs, 150 g peas, 130 g cornichons, 2 chicken thighs, 200 g mayonnaise, 55 g olive oil), lemon juice; 6 servings.",
+      "expectedKcal": [380, 560],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 245
+        },
+        {
+          "label": "1 sandwich filling",
+          "labelFa": "۱ ساندویچ",
+          "grams": 150
+        }
+      ],
+      "components": [
+        {
+          "fdc": 170440,
+          "grams": 83,
+          "as": "potatoes, boiled"
+        },
+        {
+          "fdc": 173424,
+          "grams": 25,
+          "as": "hard-boiled egg"
+        },
+        {
+          "fdc": 170017,
+          "grams": 25,
+          "as": "green peas, cooked"
+        },
+        {
+          "fdc": 168558,
+          "grams": 22,
+          "as": "pickled cucumbers"
+        },
+        {
+          "fdc": 171477,
+          "grams": 42,
+          "as": "chicken, cooked"
+        },
+        {
+          "fdc": 171009,
+          "grams": 33,
+          "as": "mayonnaise"
+        },
+        {
+          "fdc": 171413,
+          "grams": 9,
+          "as": "olive oil"
+        },
+        {
+          "fdc": 167747,
+          "grams": 5,
+          "as": "lemon juice"
+        },
+        {
+          "fdc": 173468,
+          "grams": 1,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "shirazi-salad",
+      "nameEn": "Shirazi salad (cucumber, tomato and onion salad)",
+      "nameFa": "سالاد شیرازی",
+      "synonyms": [
+        "salad shirazi",
+        "salad e shirazi",
+        "cucumber tomato salad",
+        "persian cucumber salad",
+        "شیرازی"
+      ],
+      "category": "Persian salad",
+      "servingGrams": 205,
+      "source": "Published home recipes (one: 4 Persian cucumbers, 4 Roma tomatoes, 1/2 white onion, 1/3 cup lime juice, 2 tbsp olive oil, 2 tbsp dried mint; serves 4).",
+      "expectedKcal": [60, 140],
+      "portions": [
+        {
+          "label": "1 serving",
+          "labelFa": "۱ پرس",
+          "grams": 205
+        },
+        {
+          "label": "1 small bowl",
+          "labelFa": "۱ کاسه کوچک",
+          "grams": 120
+        }
+      ],
+      "components": [
+        {
+          "fdc": 168409,
+          "grams": 100,
+          "as": "cucumber"
+        },
+        {
+          "fdc": 170457,
+          "grams": 62,
+          "as": "tomato"
+        },
+        {
+          "fdc": 170000,
+          "grams": 14,
+          "as": "onion"
+        },
+        {
+          "fdc": 168156,
+          "grams": 20,
+          "as": "lime juice"
+        },
+        {
+          "fdc": 171413,
+          "grams": 6.75,
+          "as": "olive oil"
+        },
+        {
+          "fdc": 172239,
+          "grams": 0.75,
+          "as": "dried mint"
+        },
+        {
+          "fdc": 173468,
+          "grams": 0.75,
+          "as": "salt"
+        }
+      ]
+    },
+    {
+      "key": "sholeh-zard",
+      "nameEn": "Sholeh zard (saffron rice pudding)",
+      "nameFa": "شله‌زرد",
+      "synonyms": [
+        "shole zard",
+        "sholezard",
+        "saffron rice pudding",
+        "persian rice pudding",
+        "شله زرد"
+      ],
+      "category": "Persian dessert",
+      "servingGrams": 150,
+      "source": "Hamisharafi, shole zard (about 200 g basmati, 150 g sugar, 60 ml rosewater, 2 tbsp butter, 2 tbsp slivered almonds, saffron, cinnamon; serves 8); rosewater counted as water, the cooking water in the serving weight.",
+      "expectedKcal": [160, 300],
+      "portions": [
+        {
+          "label": "1 bowl",
+          "labelFa": "۱ کاسه",
+          "grams": 150
+        }
+      ],
+      "components": [
+        {
+          "fdc": 168877,
+          "grams": 25,
+          "as": "rice, raw"
+        },
+        {
+          "fdc": 169655,
+          "grams": 19,
+          "as": "sugar"
+        },
+        {
+          "fdc": 173430,
+          "grams": 3.5,
+          "as": "butter"
+        },
+        {
+          "fdc": 170567,
+          "grams": 1.75,
+          "as": "slivered almonds"
+        },
+        {
+          "fdc": 173647,
+          "grams": 7.5,
+          "as": "rosewater"
+        },
+        {
+          "fdc": 170934,
+          "grams": 0.03,
+          "as": "saffron"
+        },
+        {
+          "fdc": 171320,
+          "grams": 0.15,
+          "as": "cinnamon"
+        }
+      ]
+    },
+    {
+      "key": "doogh",
+      "nameEn": "Doogh (salted yogurt drink with mint)",
+      "nameFa": "دوغ",
+      "synonyms": ["dough", "dugh", "doogh drink", "yogurt drink", "ayran", "دوغ نعنا"],
+      "category": "Persian drink",
+      "servingGrams": 250,
+      "densityGPerMl": 1.02,
+      "source": "Sadaf, doogh (2 cups yogurt to 4 cups still or sparkling water, salt, 1 to 2 tsp dried mint); one glass of 250 ml.",
+      "expectedKcal": [35, 90],
+      "portions": [
+        {
+          "label": "1 glass (250 ml)",
+          "labelFa": "۱ لیوان",
+          "grams": 255
+        },
+        {
+          "label": "1 bottle (1.5 l)",
+          "labelFa": "۱ بطری",
+          "grams": 1530
+        }
+      ],
+      "components": [
+        {
+          "fdc": 171284,
+          "grams": 85,
+          "as": "plain whole-milk yogurt"
+        },
+        {
+          "fdc": 173647,
+          "grams": 170,
+          "as": "water"
+        },
+        {
+          "fdc": 173468,
+          "grams": 1,
+          "as": "salt"
+        },
+        {
+          "fdc": 172239,
+          "grams": 0.5,
+          "as": "dried mint"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,255 @@
+// "Export my data" and "Delete my data" (Settings). The export holds everything Cal keeps about
+// the person except secrets (no keys, no password hash, no integration tokens) and the photo
+// files themselves. Deleting removes every logged meal, photo file, item, personal food,
+// correction memory, key, integration, notification subscription and custom target, and resets
+// the profile; the account itself (name, username, password, role) stays so the person can go on.
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+
+import { db as defaultDb, type DbOrTx } from "@/db";
+import {
+  aiKeys,
+  aiSettings,
+  aiUsage,
+  dishComponents,
+  foodMemory,
+  foods,
+  integrations,
+  jobs,
+  mealItems,
+  mealPhotos,
+  meals,
+  pushSubscriptions,
+  users,
+  userTargets,
+} from "@/db/schema";
+import { audit } from "@/lib/audit";
+import type { MealDto } from "@/lib/contracts/meals";
+import { NUTRIENT_CATALOGUE } from "@/lib/contracts/nutrients";
+import { toMealDto } from "@/lib/meals/dto";
+import { DEFAULT_MEAL_WINDOWS } from "@/lib/meals/time";
+import { removePhotoFiles } from "@/lib/photos/storage";
+
+export type ExportData = {
+  format: "cal-export";
+  version: 1;
+  exportedAt: string;
+  account: {
+    username: string;
+    displayName: string;
+    createdAt: string;
+    profile: Record<string, unknown>;
+    preferences: Record<string, unknown>;
+  };
+  targets: { code: string; target: number | null; upper: number | null; kind: string }[];
+  meals: MealDto[];
+  personalFoods: {
+    id: string;
+    nameEn: string;
+    nameFa: string | null;
+    brand: string | null;
+    barcode: string | null;
+    servingGrams: number | null;
+    per100g: Record<string, number>;
+  }[];
+  memory: { name: string; foodId: string | null; typicalGrams: number | null; count: number }[];
+};
+
+/** Everything about the person as JSON-ready data. Null for an unknown account. */
+export const exportUserData = async (
+  userId: string,
+  dbx: DbOrTx = defaultDb,
+): Promise<ExportData | null> => {
+  const user = (await dbx.select().from(users).where(eq(users.id, userId)).limit(1))[0];
+  if (!user) return null;
+  const mealRows = await dbx
+    .select()
+    .from(meals)
+    .where(and(eq(meals.userId, userId), isNull(meals.deletedAt)))
+    .orderBy(asc(meals.eatenAt));
+  const ids = mealRows.map((m) => m.id);
+  const [photoRows, itemRows, foodRows, memoryRows, targetRows] = await Promise.all([
+    ids.length ? dbx.select().from(mealPhotos).where(inArray(mealPhotos.mealId, ids)) : [],
+    ids.length
+      ? dbx
+          .select({ item: mealItems, foodName: foods.nameEn })
+          .from(mealItems)
+          .leftJoin(foods, eq(foods.id, mealItems.foodId))
+          .where(eq(mealItems.userId, userId))
+      : [],
+    dbx.select().from(foods).where(eq(foods.ownerId, userId)).orderBy(asc(foods.createdAt)),
+    dbx.select().from(foodMemory).where(eq(foodMemory.userId, userId)),
+    dbx
+      .select()
+      .from(userTargets)
+      .where(and(eq(userTargets.userId, userId), eq(userTargets.custom, true))),
+  ]);
+
+  return {
+    format: "cal-export",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    account: {
+      username: user.username,
+      displayName: user.displayName,
+      createdAt: user.createdAt.toISOString(),
+      profile: {
+        sex: user.sex,
+        birthYear: user.birthYear,
+        heightCm: user.heightCm,
+        weightKg: user.weightKg,
+        activityLevel: user.activityLevel,
+        goal: user.goal,
+        goalRateKgPerWeek: user.goalRateKgPerWeek,
+      },
+      preferences: {
+        timeZone: user.timeZone,
+        units: user.units,
+        mealWindows: user.mealWindows,
+        cuisines: user.cuisines,
+        notifications: user.notifications,
+      },
+    },
+    targets: targetRows.map((t) => ({
+      code: t.nutrientCode,
+      target: t.target,
+      upper: t.upper,
+      kind: t.kind,
+    })),
+    meals: mealRows.map((row) =>
+      toMealDto(
+        row,
+        photoRows.filter((p) => p.mealId === row.id),
+        itemRows
+          .filter((i) => i.item.mealId === row.id)
+          .map((i) => ({ row: i.item, foodName: i.foodName })),
+      ),
+    ),
+    personalFoods: foodRows.map((f) => ({
+      id: f.id,
+      nameEn: f.nameEn,
+      nameFa: f.nameFa,
+      brand: f.brand,
+      barcode: f.barcode,
+      servingGrams: f.servingGrams,
+      per100g: f.nutrients,
+    })),
+    memory: memoryRows.map((m) => ({
+      name: m.displayName,
+      foodId: m.foodId,
+      typicalGrams: m.typicalGrams,
+      count: m.count,
+    })),
+  };
+};
+
+/** The nutrients written as CSV columns, in catalogue order. */
+const CSV_NUTRIENTS = NUTRIENT_CATALOGUE.map((n) => n.code);
+
+/** One CSV field, quoted when needed; leading formula characters are neutralised. */
+export const csvField = (value: unknown) => {
+  if (value === null || value === undefined) return "";
+  let text = typeof value === "number" ? String(Math.round(value * 100) / 100) : String(value);
+  if (/^[=+\-@\t\r]/.test(text) && typeof value !== "number") text = `'${text}`;
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+/**
+ * One row per item (a meal without items gets one row with its totals): day, time, meal, food,
+ * amount and every nutrient with its unit in the header.
+ */
+export const mealsToCsv = (data: Pick<ExportData, "meals">) => {
+  const header = [
+    "date",
+    "time",
+    "time_zone",
+    "slot",
+    "meal",
+    "status",
+    "item",
+    "local_name",
+    "matched_food",
+    "grams",
+    "ml",
+    "count",
+    "portion",
+    "nutrient_source",
+    ...CSV_NUTRIENTS.map((code) => {
+      const info = NUTRIENT_CATALOGUE.find((n) => n.code === code)!;
+      return `${code}_${info.unit === "µg" ? "ug" : info.unit}`;
+    }),
+  ];
+  const lines = [header.join(",")];
+  for (const meal of data.meals) {
+    const base = [meal.localDate, meal.localTime, meal.tz, meal.slot, meal.title, meal.status];
+    const rows = meal.items.length
+      ? meal.items.map((item) => [
+          ...base,
+          item.name,
+          item.localName,
+          item.foodName,
+          item.grams,
+          item.ml,
+          item.count,
+          item.portionText,
+          item.nutrientSource,
+          ...CSV_NUTRIENTS.map((code) => item.nutrients[code]),
+        ])
+      : [[...base, "", "", "", "", "", "", "", "", ...CSV_NUTRIENTS.map((c) => meal.totals[c])]];
+    for (const row of rows) lines.push(row.map(csvField).join(","));
+  }
+  return `﻿${lines.join("\r\n")}\r\n`;
+};
+
+/**
+ * Deletes the person's data (see the comment at the top) and returns how many meals went. Photo
+ * files are removed after the rows, so a failure leaves at most unreferenced files behind.
+ */
+export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) => {
+  const photos = await dbx
+    .select({
+      original: mealPhotos.originalPath,
+      analysis: mealPhotos.analysisPath,
+      thumb: mealPhotos.thumbPath,
+    })
+    .from(mealPhotos)
+    .where(eq(mealPhotos.userId, userId));
+  const removed = await dbx.transaction(async (tx) => {
+    // Items first: they may point at the person's own foods.
+    await tx.delete(mealItems).where(eq(mealItems.userId, userId));
+    const gone = await tx.delete(meals).where(eq(meals.userId, userId)).returning({ id: meals.id });
+    await tx.delete(foodMemory).where(eq(foodMemory.userId, userId));
+    // Parts of their own dishes first: a dish part may be another of their own foods, which
+    // dish_components protects (ON DELETE RESTRICT) until the part row is gone.
+    const ownFoods = tx.select({ id: foods.id }).from(foods).where(eq(foods.ownerId, userId));
+    await tx.delete(dishComponents).where(inArray(dishComponents.dishId, ownFoods));
+    await tx.delete(foods).where(eq(foods.ownerId, userId));
+    await tx.delete(aiKeys).where(eq(aiKeys.userId, userId));
+    await tx.delete(aiSettings).where(eq(aiSettings.userId, userId));
+    await tx.delete(aiUsage).where(eq(aiUsage.userId, userId));
+    await tx.delete(integrations).where(eq(integrations.userId, userId));
+    await tx.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, userId));
+    await tx.delete(userTargets).where(eq(userTargets.userId, userId));
+    await tx.delete(jobs).where(and(eq(jobs.userId, userId), eq(jobs.status, "queued")));
+    await tx
+      .update(users)
+      .set({
+        sex: null,
+        birthYear: null,
+        heightCm: null,
+        weightKg: null,
+        activityLevel: null,
+        goal: null,
+        goalRateKgPerWeek: null,
+        cuisines: [],
+        mealWindows: DEFAULT_MEAL_WINDOWS,
+        notifications: { analysisReady: false, questions: false },
+      })
+      .where(eq(users.id, userId));
+    await audit({ userId, action: "data.delete", details: { meals: gone.length } }, tx);
+    return gone.length;
+  });
+  await removePhotoFiles(photos.flatMap((p) => [p.original, p.analysis, p.thumb])).catch(
+    () => undefined,
+  );
+  return { meals: removed };
+};

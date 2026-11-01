@@ -1,0 +1,14 @@
+# Filled-in settings and secrets of a running stack. Only the templates belong in git, plus .env
+# (pinned versions, no secrets) and the docker-compose files.
+*.env
+!*.env.example
+!.env
+site.env
+db.env
+app.env
+vapid.env
+cloudflared.env
+docker-compose.override.yml
+backups/
+photos/
+test/work/
