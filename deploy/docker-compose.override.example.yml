@@ -1,0 +1,21 @@
+# Only needed when Docker says it has no free address pools ("all predefined address pools have
+# been fully subnetted"). Copy to docker-compose.override.yml, pick four unused private subnets and
+# run Start.ps1 again. Start.ps1 and the other scripts load docker-compose.override.yml
+# automatically when it exists; git ignores it. The subnets below are examples.
+networks:
+  tunnel:
+    ipam:
+      config:
+        - subnet: 10.20.1.0/24
+  backend:
+    ipam:
+      config:
+        - subnet: 10.20.2.0/24
+  egress-out:
+    ipam:
+      config:
+        - subnet: 10.20.3.0/24
+  tunnel-out:
+    ipam:
+      config:
+        - subnet: 10.20.4.0/24

@@ -1,0 +1,36 @@
+# Only what the image build needs goes into the build context. Secrets, local data, tests, the
+# design notes and every build output stay out.
+.git
+.gitattributes
+.gitignore
+.worktrees
+.build-notes
+.env
+.env.*
+!.env.example
+**/*.env
+node_modules
+.next
+dist
+out
+coverage
+test-results
+playwright-report
+blob-report
+data
+photos
+docs
+# tests/ stays: Next.js type-checks every .ts file, and unit tests sit next to the code.
+# The standalone trace leaves tests out of the image (outputFileTracingExcludes).
+deploy
+*.tsbuildinfo
+.vscode
+.idea
+**/.DS_Store
+**/Thumbs.db
+playwright.config.ts
+vitest.config.mts
+eslint.config.mjs
+Dockerfile
+.dockerignore
+public/vendor

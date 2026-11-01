@@ -1,0 +1,12 @@
+# Packages whose install scripts may run. sharp ships prebuilt binaries, so none need to.
+allowBuilds:
+  esbuild: false
+  sharp: false
+  unrs-resolver: false
+
+# Also fetch the Linux (musl) builds of native packages such as sharp, so the lockfile serves the
+# Alpine container image as well as development machines.
+supportedArchitectures:
+  os: [current, linux]
+  cpu: [current, x64]
+  libc: [current, musl]

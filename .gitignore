@@ -1,0 +1,26 @@
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# Local settings and data
+.env
+.env.*
+!.env.example
+/data/
+/photos/
+
+# Test output
+test-results/
+playwright-report/
+blob-report/
+
+# Build notes and worktrees of the build agents
+.build-notes/
+.worktrees/
+
+# Assets copied from packages by scripts/vendor-assets.mjs
+/public/vendor/

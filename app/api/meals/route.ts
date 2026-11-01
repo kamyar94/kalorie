@@ -1,0 +1,110 @@
+// GET  /api/meals?date=YYYY-MM-DD  -> { meals: MealSummaryDto[] } for that local day
+// POST /api/meals (multipart)      -> 201 { meal, duplicate: false } | 200 { meal, duplicate: true }
+//   photos   1 to 3 image files (JPEG, PNG or WebP by content), at most 8 MB each, 25 MB in all
+//   eatenAt  ISO time of the first photo      tz  IANA time zone of the device
+//   clientId the device queue's id for the meal (repeat uploads return the first copy)
+//   note     optional, up to 500 characters
+import { eq } from "drizzle-orm";
+import type { NextRequest } from "next/server";
+
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { UPLOAD_LIMITS } from "@/lib/contracts/meals";
+import { apiUser, errorJson, json } from "@/lib/http/route";
+import { createPhotoMeal } from "@/lib/meals/create";
+import { listMealsForDay } from "@/lib/meals/service";
+import { isLocalDate, isValidTimeZone, localParts } from "@/lib/meals/time";
+import { PhotoError } from "@/lib/photos/intake";
+import { ACCEPTED_UPLOAD_TYPES, sniffImageType } from "@/lib/photos/sniff";
+import { takeRateLimit, uploadWindows } from "@/lib/rate-limit";
+
+export const dynamic = "force-dynamic";
+
+const CLIENT_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+export const GET = async (req: NextRequest) => {
+  const { user, error } = await apiUser(req);
+  if (error) return error;
+  const date = req.nextUrl.searchParams.get("date") ?? localParts(new Date(), user.timeZone).date;
+  if (!isLocalDate(date)) return errorJson(400, "Give the day as YYYY-MM-DD.");
+  return json(
+    { meals: await listMealsForDay(user.id, date) },
+    {
+      headers: { "cache-control": "no-store" },
+    },
+  );
+};
+
+export const POST = async (req: NextRequest) => {
+  const { user, error } = await apiUser(req);
+  if (error) return error;
+
+  const length = Number(req.headers.get("content-length") ?? "0");
+  if (length > UPLOAD_LIMITS.maxRequestBytes + 64 * 1024)
+    return errorJson(413, "The photos are too large together (25 MB at most).");
+
+  const limit = await takeRateLimit(`upload:${user.id}`, uploadWindows());
+  if (!limit.ok)
+    return errorJson(429, "Too many uploads in a short time. Try again later.", {
+      "retry-after": String(limit.retryAfter),
+    });
+
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    return errorJson(400, "The upload could not be read.");
+  }
+
+  const files = form.getAll("photos").filter((value): value is File => value instanceof File);
+  if (!files.length) return errorJson(400, "Add at least one photo.");
+  if (files.length > UPLOAD_LIMITS.maxPhotos)
+    return errorJson(400, `Send at most ${UPLOAD_LIMITS.maxPhotos} photos per meal.`);
+  let total = 0;
+  const photos: Buffer[] = [];
+  for (const file of files) {
+    if (file.size > UPLOAD_LIMITS.maxPhotoBytes)
+      return errorJson(413, "A photo is larger than 8 MB.");
+    total += file.size;
+    if (total > UPLOAD_LIMITS.maxRequestBytes)
+      return errorJson(413, "The photos are too large together (25 MB at most).");
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const type = sniffImageType(bytes);
+    if (!type || !ACCEPTED_UPLOAD_TYPES.includes(type))
+      return errorJson(415, "Only JPEG, PNG and WebP photos are accepted.");
+    photos.push(bytes);
+  }
+
+  const eatenAt = new Date(String(form.get("eatenAt") ?? ""));
+  const now = Date.now();
+  if (
+    Number.isNaN(eatenAt.getTime()) ||
+    eatenAt.getTime() > now + 10 * 60_000 ||
+    eatenAt.getTime() < now - 366 * 86_400_000
+  )
+    return errorJson(400, "The meal time is missing or not plausible.");
+
+  const profileTz = (
+    await db.select({ tz: users.timeZone }).from(users).where(eq(users.id, user.id)).limit(1)
+  )[0]?.tz;
+  const tzField = String(form.get("tz") ?? "");
+  const tz = isValidTimeZone(tzField) ? tzField : (profileTz ?? "UTC");
+
+  const clientIdField = form.get("clientId");
+  const clientId =
+    typeof clientIdField === "string" && CLIENT_ID.test(clientIdField) ? clientIdField : null;
+  const noteField = form.get("note");
+  const note =
+    typeof noteField === "string" && noteField.trim()
+      ? noteField.trim().slice(0, UPLOAD_LIMITS.maxNoteChars)
+      : null;
+
+  try {
+    const result = await createPhotoMeal({ userId: user.id, clientId, eatenAt, tz, note, photos });
+    return json(result, result.duplicate ? 200 : 201);
+  } catch (err) {
+    if (err instanceof PhotoError) return errorJson(422, err.message);
+    console.error("Upload failed:", err instanceof Error ? err.message : err);
+    return errorJson(500, "The meal could not be saved. Try again.");
+  }
+};

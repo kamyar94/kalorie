@@ -1,0 +1,250 @@
+@import "tailwindcss";
+
+/*
+ * Cal design tokens. Light values on :root, dark values for the system dark mode unless the
+ * person chose light, and for an explicit dark choice (data-theme on <html>, from Settings).
+ * Text pairs meet WCAG AA (4.5:1) and chart colours 3:1 against the surface; tests/unit/tokens
+ * checks them. Components use the Tailwind names below (bg-surface, text-muted, ...).
+ */
+:root {
+  --bg: #f6f6f3;
+  --surface: #ffffff;
+  --surface-2: #efeee9;
+  --surface-3: #e4e2dc;
+  --border: #dedcd5;
+  --text: #191a17;
+  --text-muted: #5b5c56;
+  --primary: #1d7349;
+  --primary-hover: #175e3b;
+  --on-primary: #ffffff;
+  --primary-soft: #e3f1e9;
+  --on-primary-soft: #14532f;
+  --danger: #b42318;
+  --on-danger: #ffffff;
+  --danger-soft: #fdecea;
+  --on-danger-soft: #8a1a12;
+  --warning-soft: #fff4dc;
+  --on-warning-soft: #7a4a00;
+  --focus: #1b64c8;
+  --scrim: rgb(10 12 10 / 0.45);
+  --energy: #d9480f;
+  --protein: #1864ab;
+  --carbs: #a8710a;
+  --fat: #9c36b5;
+  --fiber: #2b8a3e;
+  --shadow-color: 30 30 20;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e100f;
+    --surface: #171a18;
+    --surface-2: #202421;
+    --surface-3: #2a2f2b;
+    --border: #2f3531;
+    --text: #f1f2ee;
+    --text-muted: #a9ada6;
+    --primary: #4cc38a;
+    --primary-hover: #63d19b;
+    --on-primary: #06210f;
+    --primary-soft: #16301f;
+    --on-primary-soft: #a6e9c4;
+    --danger: #ff7a6e;
+    --on-danger: #2a0805;
+    --danger-soft: #3a1512;
+    --on-danger-soft: #ffb4ab;
+    --warning-soft: #33270f;
+    --on-warning-soft: #ffd88a;
+    --focus: #7cb4ff;
+    --scrim: rgb(0 0 0 / 0.6);
+    --energy: #ff922b;
+    --protein: #4dabf7;
+    --carbs: #fcc419;
+    --fat: #da77f2;
+    --fiber: #69db7c;
+    --shadow-color: 0 0 0;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e100f;
+  --surface: #171a18;
+  --surface-2: #202421;
+  --surface-3: #2a2f2b;
+  --border: #2f3531;
+  --text: #f1f2ee;
+  --text-muted: #a9ada6;
+  --primary: #4cc38a;
+  --primary-hover: #63d19b;
+  --on-primary: #06210f;
+  --primary-soft: #16301f;
+  --on-primary-soft: #a6e9c4;
+  --danger: #ff7a6e;
+  --on-danger: #2a0805;
+  --danger-soft: #3a1512;
+  --on-danger-soft: #ffb4ab;
+  --warning-soft: #33270f;
+  --on-warning-soft: #ffd88a;
+  --focus: #7cb4ff;
+  --scrim: rgb(0 0 0 / 0.6);
+  --energy: #ff922b;
+  --protein: #4dabf7;
+  --carbs: #fcc419;
+  --fat: #da77f2;
+  --fiber: #69db7c;
+  --shadow-color: 0 0 0;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-primary-soft: var(--primary-soft);
+  --color-on-primary-soft: var(--on-primary-soft);
+  --color-danger: var(--danger);
+  --color-on-danger: var(--on-danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-on-danger-soft: var(--on-danger-soft);
+  --color-warning-soft: var(--warning-soft);
+  --color-on-warning-soft: var(--on-warning-soft);
+  --color-focus: var(--focus);
+  --color-scrim: var(--scrim);
+  --color-energy: var(--energy);
+  --color-protein: var(--protein);
+  --color-carbs: var(--carbs);
+  --color-fat: var(--fat);
+  --color-fiber: var(--fiber);
+}
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Arabic",
+    Tahoma, sans-serif;
+
+  /* Type scale: big numbers first, everything readable at arm's length. */
+  --text-display: 3rem;
+  --text-display--line-height: 1;
+  --text-display--font-weight: 700;
+  --text-display--letter-spacing: -0.02em;
+  --text-title: 1.5rem;
+  --text-title--line-height: 1.2;
+  --text-title--font-weight: 700;
+  --text-headline: 1.125rem;
+  --text-headline--line-height: 1.35;
+  --text-headline--font-weight: 600;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.3;
+  --text-label--font-weight: 600;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.35;
+
+  --radius-card: 1.25rem;
+  --radius-control: 0.875rem;
+
+  --shadow-card:
+    0 1px 2px rgb(var(--shadow-color) / 0.06), 0 4px 16px rgb(var(--shadow-color) / 0.06);
+  --shadow-raised: 0 6px 24px rgb(var(--shadow-color) / 0.18);
+
+  --spacing-touch: 2.75rem; /* 44 px minimum target */
+  --spacing-nav: 4.25rem;
+
+  --animate-sheet-in: sheet-in 260ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  --animate-sheet-out: sheet-out 200ms ease-in;
+  --animate-fade-in: fade-in 200ms ease-out;
+  --animate-fade-out: fade-out 160ms ease-in;
+  --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
+
+  @keyframes sheet-in {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+  @keyframes sheet-out {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes pulse-soft {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    min-height: 100dvh;
+    overscroll-behavior-y: none;
+  }
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+  /* Numbers line up in columns and do not jump while they change. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      transition-duration: 1ms !important;
+    }
+  }
+}
+
+@utility safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility safe-top {
+  padding-top: env(safe-area-inset-top);
+}
