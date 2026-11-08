@@ -211,6 +211,50 @@ test("capture three photos with the in-app camera, with a note", async ({ page }
   await expectAccessible(page);
 });
 
+test("a camera that never answers: the phone's camera is offered while it starts", async ({
+  page,
+}, info) => {
+  await signUp(page, info.project.name);
+  await page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = () => new Promise<MediaStream>(() => undefined);
+  });
+  await page.getByRole("button", { name: "Take a photo of a meal" }).click();
+  const camera = page.getByRole("dialog", { name: "Camera" });
+  await expect(page.getByTestId("camera")).toHaveAttribute("data-camera-state", "starting");
+  const fallback = camera.getByRole("button", { name: "Use the phone's camera" });
+  await expect(fallback).toBeVisible();
+  const chooser = page.waitForEvent("filechooser");
+  await fallback.click();
+  await (await chooser).setFiles("tests/fixtures/meal.jpg");
+  await expect(photosInStrip(page)).toHaveCount(1);
+});
+
+test("a camera without a picture (older phones): Cal gives up and offers the phone's camera", async ({
+  page,
+}, info) => {
+  await signUp(page, info.project.name);
+  // A stream whose track never delivers a frame, like a stuck camera driver; count the requests.
+  await page.evaluate(() => {
+    const w = window as unknown as { cameraRequests: number };
+    w.cameraRequests = 0;
+    navigator.mediaDevices.getUserMedia = async () => {
+      w.cameraRequests += 1;
+      return document.createElement("canvas").captureStream(0);
+    };
+  });
+  await page.getByRole("button", { name: "Take a photo of a meal" }).click();
+  const camera = page.getByRole("dialog", { name: "Camera" });
+  await expect(page.getByTestId("camera")).toHaveAttribute("data-camera-state", "unavailable", {
+    timeout: 20_000,
+  });
+  await expect(camera.getByText("The camera did not start")).toBeVisible();
+  expect(
+    await page.evaluate(() => (window as unknown as { cameraRequests: number }).cameraRequests),
+  ).toBe(2);
+  await expect(camera.getByRole("button", { name: "Take a photo", exact: true })).toBeFocused();
+  await expectAccessible(page);
+});
+
 test("offline: the meal waits on the device and uploads when back online", async ({
   page,
   context,

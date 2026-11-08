@@ -25,10 +25,39 @@ const MAX = UPLOAD_LIMITS.maxPhotos;
 /** A press shorter than this is a tap (type the note); longer is hold-to-talk. */
 const HOLD_MS = 280;
 
+/** After this long without a picture, the phone's own camera is offered next to the live one. */
+const SLOW_START_MS = 4000;
+/** How long an opened camera may take to show its first frame before Cal tries the next way. */
+const FIRST_FRAME_MS = 5000;
+/** How long a full sensor photo may take before Cal uses the video frame instead. */
+const STILL_MS = 4000;
+
+/**
+ * The ways to open the camera, tried in order. The live picture only needs to be sharp enough to
+ * aim (stills come from takePhoto or are resized to 2048 px anyway); asking older phones for a
+ * very large one can leave the picture black.
+ */
+const cameraRequests = (facing: "environment" | "user"): MediaTrackConstraints[] => [
+  { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1440 } },
+  { facingMode: { ideal: facing } },
+];
+
 type ImageCaptureLike = { takePhoto: () => Promise<Blob> };
 type ImageCaptureConstructor = new (track: MediaStreamTrack) => ImageCaptureLike;
 
 const stopStream = (stream: MediaStream | null) => stream?.getTracks().forEach((t) => t.stop());
+
+/** The promise's value, or null if it takes longer than `ms`. */
+const within = <T,>(promise: Promise<T>, ms: number) =>
+  Promise.race([promise, new Promise<null>((resolve) => window.setTimeout(resolve, ms, null))]);
+
+/** Resolves once the video has a frame to show. */
+const firstFrame = (video: HTMLVideoElement) =>
+  new Promise<true>((resolve) => {
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0)
+      return resolve(true);
+    video.addEventListener("loadeddata", () => resolve(true), { once: true });
+  });
 
 /** One still from the live camera: the full sensor photo where the browser offers it. */
 const grabStill = async (video: HTMLVideoElement, stream: MediaStream): Promise<Blob> => {
@@ -36,8 +65,9 @@ const grabStill = async (video: HTMLVideoElement, stream: MediaStream): Promise<
   const Ctor = (globalThis as unknown as { ImageCapture?: ImageCaptureConstructor }).ImageCapture;
   if (track && Ctor) {
     try {
-      const blob = await new Ctor(track).takePhoto();
-      if (blob.size > 0) return blob;
+      // Some older phones never finish takePhoto; the video frame is good enough then.
+      const blob = await within(new Ctor(track).takePhoto(), STILL_MS);
+      if (blob && blob.size > 0) return blob;
     } catch {
       // Fall back to the video frame.
     }
@@ -82,6 +112,7 @@ export const CameraScreen = ({
   const gallery = useRef<HTMLInputElement>(null);
   const noteField = useRef<HTMLTextAreaElement>(null);
   const [state, setState] = useState<CameraState>("starting");
+  const [slow, setSlow] = useState(false);
   const [facing, setFacing] = useState<"environment" | "user">("environment");
   const [canFlip, setCanFlip] = useState(false);
   const [shots, setShots] = useState<Shot[]>([]);
@@ -103,44 +134,56 @@ export const CameraScreen = ({
   const full = shots.length >= MAX;
   const label = mode === "label";
 
-  // Start and stop the camera with the screen.
+  // Start and stop the camera with the screen. Each way of opening it must show a frame within
+  // FIRST_FRAME_MS; if none does, the screen offers the phone's own camera instead.
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    const slowTimer = window.setTimeout(() => setSlow(true), SLOW_START_MS);
     const start = async () => {
       setState("starting");
+      setSlow(false);
       if (!navigator.mediaDevices?.getUserMedia) {
         setState("unavailable");
         return;
       }
-      try {
-        const media = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: facing },
-            width: { ideal: 4096 },
-            height: { ideal: 3072 },
-          },
-        });
+      for (const request of cameraRequests(facing)) {
+        let media: MediaStream;
+        try {
+          media = await navigator.mediaDevices.getUserMedia({ audio: false, video: request });
+        } catch (error) {
+          if (cancelled) return;
+          const name = (error as DOMException)?.name;
+          if (name === "NotAllowedError" || name === "SecurityError") return setState("denied");
+          continue;
+        }
         if (cancelled) return stopStream(media);
         stopStream(stream.current);
         stream.current = media;
-        if (video.current) {
-          video.current.srcObject = media;
-          await video.current.play().catch(() => undefined);
+        const element = video.current;
+        if (element) {
+          element.srcObject = media;
+          void element.play().catch(() => undefined);
+          const shown = await within(firstFrame(element), FIRST_FRAME_MS);
+          if (cancelled) return;
+          if (!shown) {
+            stopStream(media);
+            stream.current = null;
+            element.srcObject = null;
+            continue;
+          }
         }
         setState("live");
         const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
         if (!cancelled) setCanFlip(devices.filter((d) => d.kind === "videoinput").length > 1);
-      } catch (error) {
-        if (cancelled) return;
-        const name = (error as DOMException)?.name;
-        setState(name === "NotAllowedError" || name === "SecurityError" ? "denied" : "unavailable");
+        return;
       }
+      if (!cancelled) setState("unavailable");
     };
     void start();
     return () => {
       cancelled = true;
+      window.clearTimeout(slowTimer);
       stopStream(stream.current);
       stream.current = null;
     };
@@ -360,15 +403,27 @@ export const CameraScreen = ({
           {/* Middle: the viewfinder, or what to do without one */}
           <div className="relative flex flex-1 items-center justify-center px-6">
             {state === "starting" && (
-              <p className="text-body text-white/80" role="status">
-                Starting the camera…
-              </p>
+              <div className="max-w-xs text-center">
+                <p className="text-body text-white/80" role="status">
+                  Starting the camera…
+                </p>
+                {slow && (
+                  <button
+                    type="button"
+                    disabled={full || busy}
+                    onClick={() => systemCamera.current?.click()}
+                    className="text-label mt-5 inline-flex min-h-12 items-center gap-2 rounded-full bg-white px-5 text-black disabled:opacity-50"
+                  >
+                    <Camera aria-hidden className="size-5" /> Use the phone&apos;s camera
+                  </button>
+                )}
+              </div>
             )}
             {(state === "unavailable" || state === "denied") && (
               <div className="max-w-xs text-center">
                 <Camera aria-hidden className="mx-auto size-10 text-white/70" />
                 <p className="text-headline mt-3">
-                  {state === "denied" ? "Cal may not use the camera" : "No camera here"}
+                  {state === "denied" ? "Cal may not use the camera" : "The camera did not start"}
                 </p>
                 <p className="text-body mt-1 text-white/75">
                   {state === "denied"
