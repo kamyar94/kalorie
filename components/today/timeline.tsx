@@ -196,21 +196,26 @@ export const Timeline = ({
                     : undefined
               }
               actions={
-                meal.status === "failed" ? (
-                  meal.error?.settingsLink ? (
-                    <Link href="/settings#ai" className={actionClass}>
-                      <Settings aria-hidden className="size-4" /> Open AI settings
-                    </Link>
-                  ) : meal.source === "photo" ? (
-                    <button
-                      type="button"
-                      className={actionClass}
-                      disabled={retrying === meal.id}
-                      onClick={() => void retryServer(meal.id)}
-                    >
-                      <RotateCcw aria-hidden className="size-4" /> Try again
-                    </button>
-                  ) : undefined
+                meal.status === "failed" &&
+                (meal.error?.settingsLink || meal.source === "photo") ? (
+                  <>
+                    {meal.error?.settingsLink && (
+                      <Link href="/settings#ai" className={actionClass}>
+                        <Settings aria-hidden className="size-4" /> Open AI settings
+                      </Link>
+                    )}
+                    {/* After a key problem is fixed in Settings, the meal can go again. */}
+                    {meal.source === "photo" && (
+                      <button
+                        type="button"
+                        className={actionClass}
+                        disabled={retrying === meal.id}
+                        onClick={() => void retryServer(meal.id)}
+                      >
+                        <RotateCcw aria-hidden className="size-4" /> Try again
+                      </button>
+                    )}
+                  </>
                 ) : undefined
               }
             />

@@ -182,7 +182,8 @@ export const planEntriesFor = async (
     async (client) => {
       if (localDate === today) {
         const todays = await client.todayPlan();
-        if (todays.every((e) => e.date === localDate)) return todays;
+        // Mealie's "today" may be another day than the person's; an empty answer proves nothing.
+        if (todays.length && todays.every((e) => e.date === localDate)) return todays;
       }
       return (await client.plans(localDate, localDate)).filter((e) => e.date === localDate);
     },
