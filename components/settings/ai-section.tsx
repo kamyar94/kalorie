@@ -62,9 +62,17 @@ const KeyCard = ({ initial }: { initial: KeyViewDto }) => {
     // The typed key leaves the page either way; only the masked view comes back.
     setValue("");
     if (!result.ok) return show({ title: "Key not saved", body: result.error, tone: "error" });
-    setView(result.data);
+    const { retried, ...saved } = result.data;
+    setView(saved);
     setTested(null);
-    show({ title: `${name} key saved`, tone: "success" });
+    show({
+      title: `${name} key saved`,
+      body:
+        retried > 0
+          ? `${retried === 1 ? "1 meal that" : `${retried} meals that`} stopped without a working key will be analysed again.`
+          : undefined,
+      tone: "success",
+    });
   };
 
   const test = async () => {

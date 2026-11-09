@@ -144,4 +144,19 @@ test("invite, sign in, upload a photo and see it analysed", async ({ page }, tes
   await page.reload();
   await expect(card).toHaveAttribute("data-state", "failed");
   await expect(card.getByTestId("meal-state")).toHaveText("Needs attention");
+  // Both ways out: fix the key in Settings, then send the same photos again.
+  await expect(card.getByRole("link", { name: "Open AI settings" })).toBeVisible();
+  await card.getByRole("button", { name: "Try again" }).click();
+  await expect(card).toHaveAttribute("data-state", /^(queued|analysing|failed)$/);
+  await expect
+    .poll(
+      async () =>
+        (
+          await pool.query("select count(*)::int as n from jobs where payload->>'mealId' = $1", [
+            mealId,
+          ])
+        ).rows[0]?.n,
+      { timeout: 15_000 },
+    )
+    .toBe(2);
 });

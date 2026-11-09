@@ -28,7 +28,12 @@ import type { SessionUser } from "@/lib/auth/accounts";
 import type { FoodResult } from "@/lib/contracts/food-search";
 import type { MealDto, MealItemDto } from "@/lib/contracts/meals";
 import { rememberItem } from "@/lib/analysis/memory";
-import { answerQuestion, correctMeal, retryAnalysis } from "@/lib/analysis/requests";
+import {
+  answerQuestion,
+  correctMeal,
+  retryAnalysis,
+  retryKeyFailures,
+} from "@/lib/analysis/requests";
 import { findFoodByBarcode } from "@/lib/food/barcode-local";
 import { createCustomFood } from "@/lib/food/custom-foods";
 import { searchFoods } from "@/lib/food/search";
@@ -133,6 +138,51 @@ const jobsFor = async (mealId: string) =>
     .select()
     .from(jobs)
     .where(sql`${jobs.payload}->>'mealId' = ${mealId}`);
+
+describe("a saved key analyses again the meals that stopped for a key problem", () => {
+  const failedPhotoMeal = async (userId: string, kind: string, overrides = {}) =>
+    withPhoto(
+      await createMeal(userId, {
+        source: "photo",
+        status: "failed",
+        error: { kind, message: "x" },
+        ...overrides,
+      }),
+    );
+
+  it("queues this person's recent photo meals that failed for no key, a refused key or no credit", async () => {
+    const person = await createUser();
+    const noKey = await failedPhotoMeal(person.id, "no-key");
+    const refused = await failedPhotoMeal(person.id, "auth");
+    const noCredit = await failedPhotoMeal(person.id, "quota");
+    // Not these: another failure, a meal over a week old, a deleted one, a manual one, another person's.
+    const notFood = await failedPhotoMeal(person.id, "not-food");
+    const old = await failedPhotoMeal(person.id, "no-key", {
+      createdAt: new Date(Date.now() - 8 * 86_400_000),
+    });
+    const deleted = await failedPhotoMeal(person.id, "no-key", { deletedAt: new Date() });
+    const manual = await createMeal(person.id, {
+      source: "manual",
+      status: "failed",
+      error: { kind: "no-key", message: "x" },
+    });
+    const others = await failedPhotoMeal(ben.id, "no-key");
+
+    expect(await retryKeyFailures(person.id)).toBe(3);
+    for (const meal of [noKey, refused, noCredit]) {
+      expect((await getMeal(person.id, meal.id))!.status).toBe("queued");
+      const queued = await jobsFor(meal.id);
+      expect(queued).toHaveLength(1);
+      expect(queued[0]!.payload).toMatchObject({ reason: "retry", userId: person.id });
+    }
+    for (const meal of [notFood, old, deleted, manual, others])
+      expect(await jobsFor(meal.id)).toHaveLength(0);
+    expect((await getMeal(ben.id, others.id))!.status).toBe("failed");
+
+    // Saving the key again finds nothing left to do.
+    expect(await retryKeyFailures(person.id)).toBe(0);
+  });
+});
 
 describe("answers and corrections", () => {
   it("stores the answer, queues the meal and a job", async () => {

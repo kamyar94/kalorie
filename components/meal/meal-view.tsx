@@ -239,17 +239,19 @@ export const MealView = ({
                 {meal.error?.message ?? "The analysis did not finish."}
               </p>
               <div className="flex flex-wrap gap-2">
-                {meal.error?.settingsLink ? (
+                {meal.error?.settingsLink && (
                   <Button asChild variant="secondary">
                     <Link href="/settings#ai">
                       <Settings aria-hidden className="size-4" /> Open AI settings
                     </Link>
                   </Button>
-                ) : meal.source === "photo" ? (
+                )}
+                {/* After a key problem is fixed in Settings, the meal can go again. */}
+                {meal.source === "photo" && (
                   <Button variant="secondary" onClick={() => void retry()}>
                     <RotateCcw aria-hidden className="size-4" /> Try again
                   </Button>
-                ) : null}
+                )}
                 <Button asChild variant="ghost">
                   <Link href={`/add?meal=${meal.id}`}>
                     <Plus aria-hidden className="size-4" /> Add foods by hand

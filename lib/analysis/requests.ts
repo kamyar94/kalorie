@@ -2,7 +2,7 @@
 // question, fix the meal with a sentence, or try again. Each stores the person's input on the meal,
 // sets it "queued" and enqueues an analysis in the same transaction; the worker reads the input
 // from the meal row. Scoped by user id: another person's meal behaves like a missing one.
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { mealPhotos, meals } from "@/db/schema";
@@ -129,6 +129,45 @@ export const correctMeal = async (
     }),
     dbx,
   );
+};
+
+/** Failures that a new key can fix: no key, a refused key, or an account out of credit. */
+const KEY_FAILURE_KINDS = ["no-key", "auth", "quota"];
+/** How far back, and how many meals at most, a saved key analyses again. */
+const KEY_RETRY_DAYS = 7;
+const KEY_RETRY_MAX = 10;
+
+/**
+ * After the person saves an AI key: analyses again their photo meals of the last week that stopped
+ * for a key problem, newest first. Returns how many were queued.
+ */
+export const retryKeyFailures = async (
+  userId: string,
+  dbx: DbOrTx = defaultDb,
+): Promise<number> => {
+  if (!isUuid(userId)) return 0;
+  const since = new Date(Date.now() - KEY_RETRY_DAYS * 86_400_000);
+  const failed = await dbx
+    .select({ id: meals.id })
+    .from(meals)
+    .where(
+      and(
+        eq(meals.userId, userId),
+        eq(meals.status, "failed"),
+        eq(meals.source, "photo"),
+        isNull(meals.deletedAt),
+        gte(meals.createdAt, since),
+        inArray(sql<string>`${meals.error}->>'kind'`, KEY_FAILURE_KINDS),
+      ),
+    )
+    .orderBy(desc(meals.createdAt))
+    .limit(KEY_RETRY_MAX);
+  let queued = 0;
+  for (const { id } of failed) {
+    const result = await requestAnalysis(userId, id, "retry", false, () => ({}), dbx);
+    if (result.ok) queued += 1;
+  }
+  return queued;
 };
 
 /** Analyses the meal again with what it already has (after a failure, or to start over). */

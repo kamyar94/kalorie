@@ -22,6 +22,7 @@ import {
   type KeyView,
 } from "@/lib/ai/service";
 import { isAiProvider, isAiTask, isReasoningEffort, type AiProvider } from "@/lib/ai/types";
+import { retryKeyFailures } from "@/lib/analysis/requests";
 import { audit } from "@/lib/audit";
 import { requireUser, secureCookies } from "@/lib/auth/session";
 import { isNutrientCode } from "@/lib/contracts/nutrients";
@@ -107,7 +108,7 @@ export const savePreferencesAction = async (
 export const saveKeyAction = async (
   provider: string,
   apiKey: string,
-): Promise<ActionResult<KeyView>> => {
+): Promise<ActionResult<KeyView & { retried: number }>> => {
   const user = await requireUser();
   if (!isAiProvider(provider)) return { ok: false, error: "Unknown provider." };
   if (await limited(user.id))
@@ -115,7 +116,9 @@ export const saveKeyAction = async (
   try {
     await saveProviderKey(user.id, provider, apiKey);
     await audit({ userId: user.id, action: "ai.key.save", details: { provider } });
-    return { ok: true, data: (await getKeyViews(user.id))[provider] };
+    // Meals that stopped for a missing or refused key are analysed again with the new one.
+    const retried = await retryKeyFailures(user.id).catch(() => 0);
+    return { ok: true, data: { ...(await getKeyViews(user.id))[provider], retried } };
   } catch (error) {
     return failure(error, "The key was not saved.");
   }
