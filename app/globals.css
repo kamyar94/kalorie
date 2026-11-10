@@ -32,6 +32,7 @@
   --carbs: #a8710a;
   --fat: #9c36b5;
   --fiber: #2b8a3e;
+  --water: #0b7285;
   --shadow-color: 30 30 20;
   color-scheme: light;
 }
@@ -63,6 +64,7 @@
     --carbs: #fcc419;
     --fat: #da77f2;
     --fiber: #69db7c;
+    --water: #3bc9db;
     --shadow-color: 0 0 0;
     color-scheme: dark;
   }
@@ -94,6 +96,7 @@
   --carbs: #fcc419;
   --fat: #da77f2;
   --fiber: #69db7c;
+  --water: #3bc9db;
   --shadow-color: 0 0 0;
   color-scheme: dark;
 }
@@ -124,6 +127,7 @@
   --color-carbs: var(--carbs);
   --color-fat: var(--fat);
   --color-fiber: var(--fiber);
+  --color-water: var(--water);
 }
 
 @theme {

@@ -22,7 +22,8 @@ import {
   updateItem,
   updateMeal,
 } from "@/lib/meals/service";
-import { getTargets, resetTarget, setCustomTarget } from "@/lib/targets/service";
+import { createManualMeal } from "@/lib/meals/manual";
+import { getTargets, resetTarget, setCustomTarget, setHydrationGoal } from "@/lib/targets/service";
 import { createFood, createItem, createMeal, createUser } from "@/tests/helpers/factories";
 
 let root: string;
@@ -189,10 +190,10 @@ describe("meal service", () => {
     expect(full.items.map((i) => i.emoji)).toEqual(["🍲", "🍗", "💧", "🍫"]);
     const [summary] = await listMealsForDay(user.id, "2026-10-31");
     expect(summary!.foods).toEqual([
-      { name: "Fesenjan", emoji: "🍲" },
-      { name: "Rice, cooked", emoji: "🍗" },
-      { name: "Glass of water", emoji: "💧" },
-      { name: "Chocolate bar", emoji: "🍫" },
+      { name: "Fesenjan", emoji: "🍲", drink: false },
+      { name: "Rice, cooked", emoji: "🍗", drink: false },
+      { name: "Glass of water", emoji: "💧", drink: true },
+      { name: "Chocolate bar", emoji: "🍫", drink: false },
     ]);
 
     const copy = (await duplicateMeal(user.id, meal.id, {
@@ -318,6 +319,58 @@ describe("food search stub and targets", () => {
     });
     await resetTarget(user.id, "protein");
     expect((await getTargets(user.id)).targets.protein?.target).toBe(96);
+  });
+
+  it("gives a water goal from the profile's sex and keeps the person's own until reset", async () => {
+    const user = await createUser();
+    expect((await getTargets(user.id)).hydration).toEqual({
+      goalMl: 1800,
+      custom: false,
+      basis: "default",
+    });
+    await db.execute(sql`update users set sex = 'male' where id = ${user.id}`);
+    expect((await getTargets(user.id)).hydration).toEqual({
+      goalMl: 2000,
+      custom: false,
+      basis: "profile",
+    });
+    await setHydrationGoal(user.id, 2250);
+    const own = await getTargets(user.id);
+    expect(own.hydration).toEqual({ goalMl: 2250, custom: true, basis: "custom" });
+    // It is not a nutrient target (the water nutrient counts food too).
+    expect(own.targets.water).toBeUndefined();
+    await expect(setHydrationGoal(user.id, 50)).rejects.toThrow();
+    await resetTarget(user.id, "hydration");
+    expect((await getTargets(user.id)).hydration.goalMl).toBe(2000);
+  });
+
+  it("counts the water of a meal's drinks, not food or alcohol", async () => {
+    const user = await createUser();
+    const at = new Date(Date.now() - 3_600_000).toISOString();
+    const water = await createManualMeal(user.id, {
+      eatenAt: at,
+      tz: "UTC",
+      title: "Water",
+      items: [{ name: "Water", kind: "drink", ml: 250, grams: 250, nutrients: { energy: 0 } }],
+    });
+    expect(water.items[0]).toMatchObject({ emoji: "💧", ml: 250, nutrients: { energy: 0 } });
+    const lunch = await createManualMeal(user.id, {
+      eatenAt: at,
+      tz: "UTC",
+      items: [
+        { name: "Rice", grams: 200, nutrients: { energy: 260 } },
+        { name: "Coffee", kind: "drink", ml: 200, nutrients: { energy: 4 } },
+        { name: "Beer", kind: "drink", ml: 330, nutrients: { energy: 140, alcohol: 13 } },
+      ],
+    });
+    const day = await listMealsForDay(user.id, water.localDate);
+    const byId = new Map(day.map((m) => [m.id, m]));
+    expect(byId.get(water.id)).toMatchObject({
+      waterMl: 250,
+      foods: [{ name: "Water", emoji: "💧", drink: true }],
+    });
+    expect(byId.get(lunch.id)!.waterMl).toBe(200);
+    expect(byId.get(lunch.id)!.foods.map((f) => f.drink)).toEqual([false, true, true]);
   });
 
   it("keeps photo rows tied to their owner", async () => {

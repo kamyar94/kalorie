@@ -48,8 +48,23 @@ export type NutrientTarget = {
   basis: "profile" | "dri" | "default" | "custom";
 };
 
+/**
+ * The daily goal for water from drinks (lib/meals/hydration.ts): from the profile's sex
+ * ("profile"), the middle value without one ("default"), or set by the person ("custom", kept in
+ * user_targets under HYDRATION_CODE until reset).
+ */
+export type HydrationTarget = {
+  goalMl: number;
+  custom: boolean;
+  basis: "profile" | "default" | "custom";
+};
+
+/** The user_targets code of the water goal (not a nutrient: it counts drinks only). */
+export const HYDRATION_CODE = "hydration";
+
 export type DailyTargets = {
   /** True when the profile was complete enough for computed energy and macros. */
   fromProfile: boolean;
   targets: Partial<Record<NutrientCode, NutrientTarget>>;
+  hydration: HydrationTarget;
 };

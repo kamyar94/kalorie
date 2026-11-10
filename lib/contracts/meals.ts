@@ -123,8 +123,11 @@ export type MealItemDto = {
   components: ItemComponentDto[];
 };
 
-/** One food of a meal, in item order, for the timeline line and the plate icon. */
-export type MealFoodDto = { name: string; emoji: string };
+/**
+ * One food of a meal, in item order, for the timeline line and the plate icon. drink: a drink
+ * (or plain water by name).
+ */
+export type MealFoodDto = { name: string; emoji: string; drink: boolean };
 
 export type MealSummaryDto = {
   id: string;
@@ -146,6 +149,8 @@ export type MealSummaryDto = {
   itemCount: number;
   /** The meal's foods in item order (empty while it waits for its analysis). */
   foods: MealFoodDto[];
+  /** Millilitres of water from its drinks (alcohol not counted; lib/meals/hydration.ts). */
+  waterMl: number;
   openQuestions: number;
   /** Sum of the items' nutrients. */
   totals: NutrientMap;

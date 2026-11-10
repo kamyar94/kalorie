@@ -7,6 +7,7 @@ import { TodayCapture } from "@/components/app/today-capture";
 import { DayPlanSection } from "@/components/today/day-plan";
 import { DaySwipe } from "@/components/today/day-swipe";
 import { Timeline } from "@/components/today/timeline";
+import { WaterCard } from "@/components/today/water-card";
 import { Card } from "@/components/ui/card";
 import { NutrientBar } from "@/components/ui/nutrient-bar";
 import { NutrientRing } from "@/components/ui/nutrient-ring";
@@ -36,12 +37,13 @@ export default async function TodayPage({
   // The future has nothing to log yet.
   const date = isLocalDate(requested) && requested <= today ? requested : today;
 
-  const [meals, { targets }, plan] = await Promise.all([
+  const [meals, { targets, hydration }, plan] = await Promise.all([
     listMealsForDay(user.id, date),
     getTargets(user.id),
     getDayPlan(user.id, date, { today }),
   ]);
   const totals = sumNutrients(meals.map((m) => m.totals));
+  const waterMl = meals.reduce((sum, meal) => sum + meal.waterMl, 0);
   const pending = meals.some((m) => m.status === "queued" || m.status === "analysing");
   const burned = plan.workouts.reduce((sum, w) => sum + (w.kcalEstimate ?? 0), 0);
   const energyTarget = targets.energy?.target ?? null;
@@ -131,6 +133,7 @@ export default async function TodayPage({
               />
             </div>
           </Card>
+          <WaterCard date={date} today={today} totalMl={waterMl} goalMl={hydration.goalMl} />
           <DayPlanSection plan={plan} />
         </div>
 

@@ -35,6 +35,7 @@ export type MealCardProps = {
     | "totals"
     | "itemCount"
     | "foods"
+    | "waterMl"
     | "error"
   >;
   /** A meal still on the device shows its local state instead of the server status. */
@@ -74,6 +75,7 @@ export const MealCard = ({
   const title = meal.title ?? MEAL_SLOT_LABELS[meal.slot];
   const spoken = `${title} at ${meal.localTime}${STATE_TEXT[state] ? `, ${STATE_TEXT[state].toLowerCase()}` : ""}`;
   const showKcal = typeof kcal === "number" && (state === "ready" || state === "needs_input");
+  const drinksOnly = meal.foods.length > 0 && meal.foods.every((food) => food.drink);
 
   return (
     <Card
@@ -155,6 +157,14 @@ export const MealCard = ({
         ) : (
           <p className="text-caption text-muted mt-0.5 truncate" data-testid="meal-foods">
             {meal.foods.length ? foodsLine(meal.foods) : "No items yet"}
+            {drinksOnly && meal.waterMl > 0 && (
+              <>
+                {" · "}
+                <span className="text-water font-semibold" data-testid="meal-water">
+                  +{Math.round(meal.waterMl).toLocaleString("en-US")} ml water
+                </span>
+              </>
+            )}
           </p>
         )}
         {detail && <p className="text-caption text-muted mt-0.5 line-clamp-2">{detail}</p>}

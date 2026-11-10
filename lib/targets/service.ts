@@ -9,7 +9,14 @@ import { and, eq } from "drizzle-orm";
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { integrations, users, userTargets } from "@/db/schema";
 import { isNutrientCode, type NutrientCode } from "@/lib/contracts/nutrients";
-import type { DailyTargets, NutrientTarget, Profile } from "@/lib/contracts/targets";
+import {
+  HYDRATION_CODE,
+  type DailyTargets,
+  type HydrationTarget,
+  type NutrientTarget,
+  type Profile,
+} from "@/lib/contracts/targets";
+import { WATER_GOAL_LIMITS_ML, waterGoalMl } from "@/lib/meals/hydration";
 
 import { latestWeightOf } from "@/lib/integrations/store";
 
@@ -67,6 +74,14 @@ export const getTargets = async (
     .select()
     .from(userTargets)
     .where(and(eq(userTargets.userId, userId), eq(userTargets.custom, true)));
+  const ownWater = custom.find((row) => row.nutrientCode === HYDRATION_CODE && row.target);
+  const hydration: HydrationTarget = ownWater
+    ? { goalMl: ownWater.target!, custom: true, basis: "custom" }
+    : {
+        goalMl: waterGoalMl(profile?.sex),
+        custom: false,
+        basis: profile?.sex ? "profile" : "default",
+      };
   for (const row of custom) {
     if (!isNutrientCode(row.nutrientCode)) continue;
     targets[row.nutrientCode] = {
@@ -78,7 +93,25 @@ export const getTargets = async (
       basis: "custom",
     };
   }
-  return { fromProfile: base.fromProfile, targets };
+  return { fromProfile: base.fromProfile, targets, hydration };
+};
+
+/** Sets the person's own water goal (ml from drinks a day); it stays until reset. */
+export const setHydrationGoal = async (userId: string, goalMl: number, dbx: DbOrTx = defaultDb) => {
+  if (
+    !Number.isFinite(goalMl) ||
+    goalMl < WATER_GOAL_LIMITS_ML.min ||
+    goalMl > WATER_GOAL_LIMITS_ML.max
+  )
+    throw new Error("Give a goal between 0.25 and 6 litres.");
+  const target = Math.round(goalMl);
+  await dbx
+    .insert(userTargets)
+    .values({ userId, nutrientCode: HYDRATION_CODE, target, kind: "goal", custom: true })
+    .onConflictDoUpdate({
+      target: [userTargets.userId, userTargets.nutrientCode],
+      set: { target, kind: "goal", custom: true, updatedAt: new Date() },
+    });
 };
 
 export const setCustomTarget = async (
@@ -112,7 +145,11 @@ export const setCustomTarget = async (
     });
 };
 
-export const resetTarget = async (userId: string, code: NutrientCode, dbx: DbOrTx = defaultDb) => {
+export const resetTarget = async (
+  userId: string,
+  code: NutrientCode | typeof HYDRATION_CODE,
+  dbx: DbOrTx = defaultDb,
+) => {
   await dbx
     .delete(userTargets)
     .where(and(eq(userTargets.userId, userId), eq(userTargets.nutrientCode, code)));

@@ -33,6 +33,7 @@ type Entry =
         | "totals"
         | "itemCount"
         | "foods"
+        | "waterMl"
         | "error"
       >;
       state: "waiting" | "uploading";
@@ -85,6 +86,7 @@ export const Timeline = ({
           totals: {},
           itemCount: 0,
           foods: [],
+          waterMl: 0,
           error: null,
         },
       });
