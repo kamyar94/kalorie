@@ -1,7 +1,7 @@
 // Reading and editing meals and items (CONTRACT: lib/contracts/meals.ts). Every function takes the
 // signed-in user's id and touches only that person's rows; an id of someone else's meal behaves
 // exactly like an id that does not exist.
-import { and, asc, count, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { foods, mealItems, mealPhotos, meals, users } from "@/db/schema";
@@ -22,6 +22,7 @@ import {
   type NutrientMap,
 } from "@/lib/contracts/nutrients";
 import { rememberItem } from "@/lib/analysis/memory";
+import { emojiFor } from "@/lib/food/emoji";
 import { getFood } from "@/lib/food/search";
 
 import { toItemDto, toMealDto, toSummaryDto } from "./dto";
@@ -48,19 +49,27 @@ export const listMealsForDay = async (
     .orderBy(asc(meals.eatenAt), asc(meals.createdAt));
   if (!rows.length) return [];
   const ids = rows.map((r) => r.id);
-  const [photos, counts] = await Promise.all([
+  const [photos, items] = await Promise.all([
     dbx.select().from(mealPhotos).where(inArray(mealPhotos.mealId, ids)),
     dbx
-      .select({ mealId: mealItems.mealId, n: count() })
+      .select({
+        mealId: mealItems.mealId,
+        position: mealItems.position,
+        name: mealItems.name,
+        localName: mealItems.localName,
+        kind: mealItems.kind,
+        emoji: mealItems.emoji,
+        foodName: foods.nameEn,
+      })
       .from(mealItems)
-      .where(inArray(mealItems.mealId, ids))
-      .groupBy(mealItems.mealId),
+      .leftJoin(foods, eq(foods.id, mealItems.foodId))
+      .where(and(inArray(mealItems.mealId, ids), eq(mealItems.userId, userId))),
   ]);
   return rows.map((row) =>
     toSummaryDto(
       row,
       photos.filter((p) => p.mealId === row.id),
-      counts.find((c) => c.mealId === row.id)?.n ?? 0,
+      items.filter((i) => i.mealId === row.id),
     ),
   );
 };
@@ -239,15 +248,19 @@ export const addItem = async (
     .select({ next: sql<number>`coalesce(max(${mealItems.position}) + 1, 0)::int` })
     .from(mealItems)
     .where(eq(mealItems.mealId, mealId));
+  const name = input.name.trim().slice(0, 120) || food?.nameEn || "Food";
+  const localName = input.localName?.trim().slice(0, 120) || food?.nameFa || null;
+  const kind = input.kind ?? "dish";
   const [row] = await dbx
     .insert(mealItems)
     .values({
       mealId,
       userId,
       position: next,
-      name: input.name.trim().slice(0, 120) || food?.nameEn || "Food",
-      localName: input.localName?.trim().slice(0, 120) || food?.nameFa || null,
-      kind: input.kind ?? "dish",
+      name,
+      localName,
+      kind,
+      emoji: emojiFor(name, kind, [food?.nameEn, localName]),
       foodId: food?.id ?? null,
       grams,
       ml,
@@ -313,10 +326,20 @@ export const updateItem = async (
     }
   }
 
+  const name = patch.name?.trim().slice(0, 120) || row.name;
+  // A new food gets the food's emoji, a new name its own; otherwise the item keeps its emoji.
+  const newFood = (food?.id ?? null) !== row.foodId;
+  const emoji =
+    newFood && food
+      ? emojiFor(food.nameEn, row.kind, [name, row.localName])
+      : newFood || name !== row.name || !row.emoji
+        ? emojiFor(name, row.kind, [food?.nameEn, row.localName])
+        : row.emoji;
   const [updated] = await dbx
     .update(mealItems)
     .set({
-      name: patch.name?.trim().slice(0, 120) || row.name,
+      name,
+      emoji,
       foodId: food?.id ?? null,
       grams,
       ml,

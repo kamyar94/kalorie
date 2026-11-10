@@ -359,7 +359,7 @@ test("a meal in words: Type, a time yesterday, Send; the meal page shows the wor
     },
   ]);
 
-  await card.getByRole("link").click();
+  await card.locator(`a[href^="/meals/"]`).click();
   await expect(page.getByRole("region", { name: "What you wrote" })).toContainText(
     "Two fried eggs, a slice of toast",
   );
@@ -376,6 +376,44 @@ test("a meal in words: Type, a time yesterday, Send; the meal page shows the wor
     userId,
   ]);
   expect(moved.rows[0].day).toBe(localDay());
+});
+
+test("food emojis: the plate of a meal without a photo, its food line and the item tiles", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  const mealId = await meal(userId, { status: "ready", title: "Rice plate", source: "text" });
+  await pool.query(
+    `insert into meal_items (meal_id, user_id, position, name, kind, emoji, grams, nutrients)
+     values ($1, $2, 0, 'Rice, white, cooked', 'dish', '🍚', 180, '{"energy":232}'),
+            ($1, $2, 1, 'Chicken breast, roasted', 'ingredient', null, 120, '{"energy":198}'),
+            ($1, $2, 2, 'Mixed green salad', 'dish', '🥗', 90, '{"energy":18}')`,
+    [mealId, userId],
+  );
+  await pool.query(
+    `update meals set totals = '{"energy":448,"protein":42}',
+       note = 'Rice with roast chicken and a salad' where id = $1`,
+    [mealId],
+  );
+
+  await page.goto("/today");
+  const card = page.locator(`article[data-meal-id="${mealId}"]`);
+  await expect(
+    card.getByRole("img", { name: "Plate with rice, chicken breast and mixed green salad" }),
+  ).toBeVisible();
+  await expect(card.getByTestId("meal-foods")).toHaveText(
+    "🍚 Rice · 🍗 Chicken breast · 🥗 Mixed green salad",
+  );
+  await expectAccessible(page);
+
+  await page.goto(`/meals/${mealId}`);
+  await expect(
+    page.getByTestId("plate-header").getByRole("img", { name: /^Plate with rice, chicken/ }),
+  ).toBeVisible();
+  await expect(page.getByTestId("item-emoji")).toHaveText(["🍚", "🍗", "🥗"]);
+  await expect(page.getByRole("button", { name: /^Rice, white, cooked/ })).toBeVisible();
+  await expect(page.getByRole("region", { name: "What you wrote" })).toContainText("roast chicken");
+  await expectAccessible(page);
 });
 
 test("a camera that never answers: the phone's camera is offered while it starts", async ({

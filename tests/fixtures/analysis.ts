@@ -110,6 +110,7 @@ export const rawItem = (
 ): RawItem => ({
   local_name: "",
   kind: "ingredient",
+  emoji: "",
   preparation: "",
   ml: 0,
   grams_low: overrides.grams * 0.8,

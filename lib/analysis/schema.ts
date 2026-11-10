@@ -79,6 +79,9 @@ const ITEM = object({
     "The name in the cuisine's own language and script (Persian: قورمه سبزی), empty when there is none.",
   ),
   kind: { type: "string", enum: [...ANALYSIS_ITEM_KINDS] },
+  emoji: str(
+    "Exactly one emoji that pictures this food or drink, for example a rice bowl for rice, a poultry leg for chicken, a droplet for water. Empty when none fits.",
+  ),
   preparation: str(
     "How it was prepared: raw, boiled, steamed, fried, deep-fried, grilled, roasted, baked, stewed, sauteed... Empty when it does not apply.",
   ),
@@ -162,6 +165,7 @@ export type RawItem = {
   name: string;
   local_name: string;
   kind: (typeof ANALYSIS_ITEM_KINDS)[number];
+  emoji: string;
   preparation: string;
   grams: number;
   ml: number;

@@ -326,6 +326,8 @@ export const mealItems = pgTable(
     name: text("name").notNull(),
     localName: text("local_name"),
     kind: text("kind", { enum: ITEM_KINDS }).notNull().default("dish"),
+    // One emoji for the food (the model's, else lib/food/emoji.ts); null on rows from before.
+    emoji: text("emoji"),
     preparation: text("preparation"),
     foodId: uuid("food_id").references(() => foods.id, { onDelete: "set null" }),
     grams: real("grams").notNull().default(0),

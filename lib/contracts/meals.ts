@@ -99,6 +99,8 @@ export type MealItemDto = {
   name: string;
   localName: string | null;
   kind: ItemKind;
+  /** One emoji for the food (the model's, else one found from the name). */
+  emoji: string;
   preparation: string | null;
   /** The matched food, when there is one. */
   foodId: string | null;
@@ -121,6 +123,9 @@ export type MealItemDto = {
   components: ItemComponentDto[];
 };
 
+/** One food of a meal, in item order, for the timeline line and the plate icon. */
+export type MealFoodDto = { name: string; emoji: string };
+
 export type MealSummaryDto = {
   id: string;
   /** ISO time the meal was eaten (the first photo). */
@@ -139,6 +144,8 @@ export type MealSummaryDto = {
   error: MealErrorDto | null;
   photos: MealPhotoDto[];
   itemCount: number;
+  /** The meal's foods in item order (empty while it waits for its analysis). */
+  foods: MealFoodDto[];
   openQuestions: number;
   /** Sum of the items' nutrients. */
   totals: NutrientMap;

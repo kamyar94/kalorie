@@ -1,5 +1,6 @@
 // Database rows to the DTOs of lib/contracts/meals.ts.
 import type { mealItems, mealPhotos, meals } from "@/db/schema";
+import { emojiFor } from "@/lib/food/emoji";
 import type {
   MealDto,
   MealErrorDto,
@@ -14,6 +15,14 @@ import { localParts } from "./time";
 type MealRow = typeof meals.$inferSelect;
 type PhotoRow = typeof mealPhotos.$inferSelect;
 type ItemRow = typeof mealItems.$inferSelect;
+
+/** The item columns a meal summary needs (the timeline line and the plate icon). */
+export type SummaryItemRow = Pick<ItemRow, "position" | "name" | "localName" | "kind" | "emoji"> & {
+  foodName: string | null;
+};
+
+const itemEmoji = (row: SummaryItemRow) =>
+  row.emoji ?? emojiFor(row.name, row.kind, [row.foodName, row.localName]);
 
 export const photoUrl = (photoId: string, size: "thumb" | "analysis" | "original") =>
   `/api/photos/${photoId}/${size}`;
@@ -57,6 +66,8 @@ export const toItemDto = (row: ItemRow, foodName: string | null = null): MealIte
   name: row.name,
   localName: row.localName,
   kind: row.kind,
+  // Rows from before emojis were stored get one from their names.
+  emoji: itemEmoji({ ...row, foodName }),
   preparation: row.preparation,
   foodId: row.foodId,
   foodName,
@@ -82,9 +93,10 @@ export const toItemDto = (row: ItemRow, foodName: string | null = null): MealIte
 export const toSummaryDto = (
   row: MealRow,
   photos: PhotoRow[],
-  itemCount: number,
+  items: SummaryItemRow[],
 ): MealSummaryDto => {
   const questions = toQuestionDtos(row);
+  const sorted = [...items].sort((a, b) => a.position - b.position);
   return {
     id: row.id,
     eatenAt: row.eatenAt.toISOString(),
@@ -98,7 +110,8 @@ export const toSummaryDto = (
     source: row.source,
     error: toErrorDto(row.error),
     photos: [...photos].sort((a, b) => a.position - b.position).map(toPhotoDto),
-    itemCount,
+    itemCount: items.length,
+    foods: sorted.map((item) => ({ name: item.name, emoji: itemEmoji(item) })),
     openQuestions: questions.filter((q) => !q.answer).length,
     totals: row.totals ?? {},
     createdAt: row.createdAt.toISOString(),
@@ -111,7 +124,11 @@ export const toMealDto = (
   photos: PhotoRow[],
   items: { row: ItemRow; foodName: string | null }[],
 ): MealDto => ({
-  ...toSummaryDto(row, photos, items.length),
+  ...toSummaryDto(
+    row,
+    photos,
+    items.map(({ row: item, foodName }) => ({ ...item, foodName })),
+  ),
   items: items
     .map(({ row: item, foodName }) => toItemDto(item, foodName))
     .sort((a, b) => a.position - b.position),

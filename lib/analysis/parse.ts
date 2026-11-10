@@ -12,6 +12,7 @@ import type {
   AnalysisQuestion,
 } from "@/lib/contracts/analysis";
 import type { NutrientEstimate } from "@/lib/contracts/nutrients";
+import { cleanEmoji } from "@/lib/food/emoji";
 
 import {
   ANALYSIS_ITEM_KINDS,
@@ -182,6 +183,7 @@ const parseItem = (
     name,
     local_name: orNull(text(raw.local_name, 120)),
     kind,
+    emoji: cleanEmoji(raw.emoji),
     preparation: orNull(text(raw.preparation, 60)),
     grams,
     ml: ml === null ? null : round1(ml),

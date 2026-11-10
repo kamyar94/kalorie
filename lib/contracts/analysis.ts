@@ -71,6 +71,8 @@ export type AnalysisItem = {
   /** The name in the cuisine's own language, for example Persian. */
   local_name: string | null;
   kind: "dish" | "ingredient" | "drink" | "packaged";
+  /** One emoji for the food, null when the model gave none (or not exactly one). */
+  emoji: string | null;
   preparation: string | null;
   grams: number | null;
   ml: number | null;

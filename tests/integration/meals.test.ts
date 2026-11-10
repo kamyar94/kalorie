@@ -157,6 +157,51 @@ describe("meal service", () => {
     expect((await getMeal(user.id, meal.id))!.totals.energy).toBeCloseTo(390);
   });
 
+  it("gives every new or changed item an emoji, and rows from before one from their names", async () => {
+    const user = await createUser();
+    const rice = await createFood({ nameEn: "Rice, cooked", nutrients: { energy: 130 } });
+    const chicken = await createFood({
+      nameEn: "Chicken breast, roasted",
+      nutrients: { energy: 165 },
+    });
+    const meal = await createMeal(user.id);
+    const older = await createItem(user.id, meal.id, { name: "Fesenjan", position: 0 });
+    expect(older.emoji).toBeNull();
+    const added = (await addItem(user.id, meal.id, { name: "", foodId: rice.id, grams: 150 }))!;
+    expect(added).toMatchObject({ name: "Rice, cooked", emoji: "🍚" });
+    const water = (await addItem(user.id, meal.id, {
+      name: "Glass of water",
+      kind: "drink",
+      ml: 250,
+      nutrients: {},
+    }))!;
+    expect(water.emoji).toBe("💧");
+    const unknown = (await addItem(user.id, meal.id, { name: "Mystery bar", nutrients: {} }))!;
+    expect(unknown.emoji).toBe("🍽️");
+
+    // Another food: its emoji. Only the amount: the emoji stays.
+    const changed = (await updateItem(user.id, added.id, { foodId: chicken.id }))!;
+    expect(changed.emoji).toBe("🍗");
+    expect((await updateItem(user.id, added.id, { grams: 200 }))!.emoji).toBe("🍗");
+    expect((await updateItem(user.id, unknown.id, { name: "Chocolate bar" }))!.emoji).toBe("🍫");
+
+    const full = (await getMeal(user.id, meal.id))!;
+    expect(full.items.map((i) => i.emoji)).toEqual(["🍲", "🍗", "💧", "🍫"]);
+    const [summary] = await listMealsForDay(user.id, "2026-10-31");
+    expect(summary!.foods).toEqual([
+      { name: "Fesenjan", emoji: "🍲" },
+      { name: "Rice, cooked", emoji: "🍗" },
+      { name: "Glass of water", emoji: "💧" },
+      { name: "Chocolate bar", emoji: "🍫" },
+    ]);
+
+    const copy = (await duplicateMeal(user.id, meal.id, {
+      eatenAt: new Date().toISOString(),
+      tz: "UTC",
+    }))!;
+    expect(copy.items.map((i) => i.emoji)).toEqual(["🍲", "🍗", "💧", "🍫"]);
+  });
+
   it("moves a meal to another day and slot when its time changes", async () => {
     const user = await createUser();
     const meal = await createMeal(user.id);

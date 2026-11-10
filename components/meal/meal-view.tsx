@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { AutoRefresh } from "@/components/app/auto-refresh";
+import { PlateIcon } from "@/components/app/plate-icon";
 import { WhenSheet } from "@/components/capture/when-sheet";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,9 @@ import { MacroSummary } from "./macro-summary";
 import { NutrientTable } from "./nutrient-table";
 import { PhotoCarousel } from "./photo-carousel";
 import { Questions } from "./questions";
+
+const formatGrams = (value: number | undefined) =>
+  typeof value === "number" ? `${Math.round(value)} g` : "–";
 
 const toInput = (item: MealItemDto): ItemInput => ({
   name: item.name,
@@ -205,6 +209,7 @@ export const MealView = ({
           <p className="text-caption text-muted">
             {dayTitle(meal.localDate, today)} · <span className="tabular">{meal.localTime}</span> ·{" "}
             {MEAL_SLOT_LABELS[meal.slot]}
+            {textMeal && " · typed meal"}
           </p>
         </div>
         <Button
@@ -223,6 +228,28 @@ export const MealView = ({
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-start md:gap-6">
         <div className="flex flex-col gap-4">
           <PhotoCarousel photos={meal.photos} title={title} />
+          {!meal.photos.length && (
+            // Without a photo the meal is a plate with its foods on it.
+            <Card className="flex items-center gap-4" data-testid="plate-header">
+              <PlateIcon
+                size="lg"
+                foods={meal.items}
+                label={meal.items.length ? undefined : "Empty plate"}
+              />
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <p>
+                  <span className="tabular text-[2.25rem] leading-none font-bold tracking-tight">
+                    {formatKcal(totals.energy)}
+                  </span>{" "}
+                  <span className="text-label text-muted font-normal">kcal</span>
+                </p>
+                <p className="text-caption text-muted">
+                  P {formatGrams(totals.protein)} · C {formatGrams(totals.carbs)} · F{" "}
+                  {formatGrams(totals.fat)}
+                </p>
+              </div>
+            </Card>
+          )}
 
           {analysing && (
             <div
@@ -326,8 +353,15 @@ export const MealView = ({
                     <button
                       type="button"
                       onClick={() => setOpenItem(entry.id)}
-                      className="hover:bg-surface-2 flex min-h-16 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors"
+                      className="hover:bg-surface-2 flex min-h-16 w-full items-center gap-3 py-2.5 pr-4 pl-2.5 text-left transition-colors"
                     >
+                      <span
+                        aria-hidden
+                        data-testid="item-emoji"
+                        className="bg-surface-2 grid size-11 shrink-0 place-items-center rounded-xl text-2xl leading-none"
+                      >
+                        {entry.emoji}
+                      </span>
                       <span className="min-w-0 flex-1">
                         <span className="text-body block truncate font-medium" dir="auto">
                           {entry.name}
