@@ -37,7 +37,16 @@ export const MEAL_SLOT_LABELS: Record<MealSlot, string> = {
   snack: "Snack",
 };
 
-export type MealSource = "photo" | "manual" | "mealie" | "duplicate";
+/**
+ * photo: photos from the camera or gallery (a note optional); text: described in words only, no
+ * photo; manual: foods picked by hand; mealie: a planned Mealie recipe; duplicate: "I ate this
+ * again". photo and text meals are analysed by the AI.
+ */
+export const MEAL_SOURCES = ["photo", "text", "manual", "mealie", "duplicate"] as const;
+export type MealSource = (typeof MEAL_SOURCES)[number];
+
+/** Sources the AI analyses (and analyses again after an answer, a correction or a retry). */
+export const ANALYSED_SOURCES: readonly MealSource[] = ["photo", "text"];
 
 export type ItemKind = "dish" | "ingredient" | "drink" | "packaged";
 
@@ -180,7 +189,7 @@ export type ItemPatch = {
   nutrients?: NutrientMap;
 };
 
-/** Response of POST /api/meals. */
+/** Response of POST /api/meals (photos, or a text-only meal: no photo and a note). */
 export type CreateMealResponse = { meal: MealSummaryDto; duplicate: boolean };
 
 /** Upload limits shared by the client helper and the route (docs/DESIGN.md section 12). */

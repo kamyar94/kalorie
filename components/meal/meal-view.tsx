@@ -3,6 +3,7 @@
 import {
   AlertCircle,
   ArrowLeft,
+  Clock,
   Copy,
   Loader2,
   Pencil,
@@ -16,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { AutoRefresh } from "@/components/app/auto-refresh";
+import { WhenSheet } from "@/components/capture/when-sheet";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,7 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/client/api";
 import type { ItemInput, MealDto, MealItemDto, MealPatch } from "@/lib/contracts/meals";
-import { MEAL_SLOT_LABELS } from "@/lib/contracts/meals";
+import { ANALYSED_SOURCES, MEAL_SLOT_LABELS } from "@/lib/contracts/meals";
 import type { NutrientCode } from "@/lib/contracts/nutrients";
 import type { NutrientTarget } from "@/lib/contracts/targets";
 import { dayTitle, formatItemAmount, formatKcal, type Units } from "@/lib/ui/format";
@@ -67,6 +69,7 @@ export const MealView = ({
   const [meal, setMeal] = useState(initial);
   const [openItem, setOpenItem] = useState<string | null>(null);
   const [details, setDetails] = useState(false);
+  const [timeOpen, setTimeOpen] = useState(false);
   const [again, setAgain] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -85,6 +88,9 @@ export const MealView = ({
   const totals = meal.items.length ? totalsOf(meal.items) : meal.totals;
   const item = meal.items.find((i) => i.id === openItem) ?? null;
   const backHref = meal.localDate === today ? "/today" : `/today?date=${meal.localDate}`;
+  // Photo and text meals are analysed by the AI, so they can be analysed again or fixed in words.
+  const analysed = ANALYSED_SOURCES.includes(meal.source);
+  const textMeal = meal.source === "text";
 
   const fail = useCallback(
     (title: string, error: unknown) =>
@@ -201,7 +207,15 @@ export const MealView = ({
             {MEAL_SLOT_LABELS[meal.slot]}
           </p>
         </div>
-        <Button variant="secondary" onClick={() => setDetails(true)}>
+        <Button
+          variant="secondary"
+          className="rounded-full px-3.5"
+          aria-haspopup="dialog"
+          onClick={() => setTimeOpen(true)}
+        >
+          <Clock aria-hidden className="size-4" /> Time
+        </Button>
+        <Button variant="secondary" className="px-3.5" onClick={() => setDetails(true)}>
           <Pencil aria-hidden className="size-4" /> Edit
         </Button>
       </header>
@@ -220,7 +234,9 @@ export const MealView = ({
                 className="text-primary size-6 shrink-0 animate-spin motion-reduce:animate-none"
               />
               <div>
-                <p className="text-label">Analysing your photos</p>
+                <p className="text-label">
+                  {textMeal ? "Working out your meal" : "Analysing your photos"}
+                </p>
                 <p className="text-caption text-muted">
                   {meal.error?.message ??
                     "This usually takes less than a minute. You can leave this page."}
@@ -247,7 +263,7 @@ export const MealView = ({
                   </Button>
                 )}
                 {/* After a key problem is fixed in Settings, the meal can go again. */}
-                {meal.source === "photo" && (
+                {analysed && (
                   <Button variant="secondary" onClick={() => void retry()}>
                     <RotateCcw aria-hidden className="size-4" /> Try again
                   </Button>
@@ -263,14 +279,28 @@ export const MealView = ({
 
           <Questions questions={meal.questions} disabled={analysing} onAnswer={answer} />
 
-          {meal.note && (
-            <p className="text-body text-muted" dir="auto">
-              <span className="text-label text-text">Your note: </span>
-              {meal.note}
-            </p>
+          {textMeal && meal.note ? (
+            <section
+              aria-labelledby="wrote-heading"
+              className="bg-primary-soft text-on-primary-soft flex flex-col gap-1 rounded-2xl px-3.5 py-3"
+            >
+              <h2 id="wrote-heading" className="text-label">
+                What you wrote
+              </h2>
+              <p className="text-body leading-[1.45]" dir="auto" data-testid="meal-text">
+                {meal.note}
+              </p>
+            </section>
+          ) : (
+            meal.note && (
+              <p className="text-body text-muted" dir="auto">
+                <span className="text-label text-text">Your note: </span>
+                {meal.note}
+              </p>
+            )
           )}
 
-          {meal.source === "photo" && (
+          {analysed && (
             <Card as="section">
               <FixSentence disabled={analysing} onSubmit={correct} />
             </Card>
@@ -377,6 +407,18 @@ export const MealView = ({
         }}
       />
       <DetailsSheet meal={meal} open={details} onOpenChange={setDetails} onSave={savePatch} />
+      <WhenSheet
+        open={timeOpen}
+        onOpenChange={setTimeOpen}
+        value={new Date(meal.eatenAt)}
+        tz={meal.tz}
+        description="Moves the meal to that day and time."
+        onDone={async (at) => {
+          // "Now" is a moment like any other here: the meal moves to it.
+          if (await savePatch({ eatenAt: (at ?? new Date()).toISOString(), tz: meal.tz }))
+            setTimeOpen(false);
+        }}
+      />
       <AgainSheet
         open={again}
         onOpenChange={setAgain}

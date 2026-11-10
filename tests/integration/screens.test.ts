@@ -150,11 +150,18 @@ describe("a saved key analyses again the meals that stopped for a key problem", 
       }),
     );
 
-  it("queues this person's recent photo meals that failed for no key, a refused key or no credit", async () => {
+  it("queues this person's recent photo and text meals that failed for no key, a refused key or no credit", async () => {
     const person = await createUser();
     const noKey = await failedPhotoMeal(person.id, "no-key");
     const refused = await failedPhotoMeal(person.id, "auth");
     const noCredit = await failedPhotoMeal(person.id, "quota");
+    // A meal described in words has no photo; its description is analysed instead.
+    const typed = await createMeal(person.id, {
+      source: "text",
+      note: "Two fried eggs and toast",
+      status: "failed",
+      error: { kind: "no-key", message: "x" },
+    });
     // Not these: another failure, a meal over a week old, a deleted one, a manual one, another person's.
     const notFood = await failedPhotoMeal(person.id, "not-food");
     const old = await failedPhotoMeal(person.id, "no-key", {
@@ -168,8 +175,8 @@ describe("a saved key analyses again the meals that stopped for a key problem", 
     });
     const others = await failedPhotoMeal(ben.id, "no-key");
 
-    expect(await retryKeyFailures(person.id)).toBe(3);
-    for (const meal of [noKey, refused, noCredit]) {
+    expect(await retryKeyFailures(person.id)).toBe(4);
+    for (const meal of [noKey, refused, noCredit, typed]) {
       expect((await getMeal(person.id, meal.id))!.status).toBe("queued");
       const queued = await jobsFor(meal.id);
       expect(queued).toHaveLength(1);

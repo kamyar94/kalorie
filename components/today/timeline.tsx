@@ -10,7 +10,7 @@ import { MealCard } from "@/components/app/meal-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/client/api";
-import type { MealSummaryDto } from "@/lib/contracts/meals";
+import { ANALYSED_SOURCES, type MealSummaryDto } from "@/lib/contracts/meals";
 import { localParts, slotFor } from "@/lib/meals/time";
 
 const actionClass =
@@ -197,7 +197,7 @@ export const Timeline = ({
               }
               actions={
                 meal.status === "failed" &&
-                (meal.error?.settingsLink || meal.source === "photo") ? (
+                (meal.error?.settingsLink || ANALYSED_SOURCES.includes(meal.source)) ? (
                   <>
                     {meal.error?.settingsLink && (
                       <Link href="/settings#ai" className={actionClass}>
@@ -205,7 +205,7 @@ export const Timeline = ({
                       </Link>
                     )}
                     {/* After a key problem is fixed in Settings, the meal can go again. */}
-                    {meal.source === "photo" && (
+                    {ANALYSED_SOURCES.includes(meal.source) && (
                       <button
                         type="button"
                         className={actionClass}

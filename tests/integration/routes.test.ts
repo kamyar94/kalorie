@@ -132,6 +132,42 @@ describe("POST /api/meals", () => {
     expect((await post(form([await jpeg()]), "https://evil.example.net")).status).toBe(403);
   });
 
+  it("creates a text-only meal from a description, once per clientId", async () => {
+    const fields = { note: "  Two fried eggs and a slice of toast  ", clientId: "text-meal-123" };
+    const response = await post(form([], fields));
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as CreateMealResponse;
+    expect(body.meal).toMatchObject({
+      status: "queued",
+      source: "text",
+      note: "Two fried eggs and a slice of toast",
+      photos: [],
+    });
+    const again = await post(form([], fields));
+    expect(again.status).toBe(200);
+    expect(((await again.json()) as CreateMealResponse).meal.id).toBe(body.meal.id);
+    const jobs = await db.execute(
+      sql`select payload->>'reason' as reason from jobs where payload->>'mealId' = ${body.meal.id}`,
+    );
+    expect(jobs.rows).toEqual([{ reason: "upload" }]);
+
+    // Neither photos nor words: nothing to log.
+    const empty = await post(form([], { note: "   " }));
+    expect(empty.status).toBe(400);
+    expect(await empty.json()).toEqual({ error: "Add a photo or write what you ate." });
+  });
+
+  it("takes a chosen time in the past for a meal", async () => {
+    const yesterday = new Date(Date.now() - 86_400_000);
+    const response = await post(
+      form([], { note: "lentil soup", eatenAt: yesterday.toISOString(), tz: "UTC" }),
+    );
+    expect(response.status).toBe(201);
+    const { meal } = (await response.json()) as CreateMealResponse;
+    expect(meal.eatenAt).toBe(yesterday.toISOString());
+    expect(meal.localDate).toBe(yesterday.toISOString().slice(0, 10));
+  });
+
   it("refuses photos over 8 MB", async () => {
     const big = Buffer.concat([await jpeg(), Buffer.alloc(8 * 1024 * 1024)]);
     expect((await post(form([big]))).status).toBe(413);

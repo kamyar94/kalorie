@@ -3,7 +3,8 @@
 // link to the AI settings for the kinds needsAiSettings lists (no-key, auth, quota, config).
 //   no-key      no API key saved               auth        the provider refused the key
 //   quota       no credit or quota left        refusal     the model declined the photos
-//   not-food    the photos show no food        timeout     the provider took too long
+//   not-food    the photos (or the words of a text meal) show no food
+//   timeout     the provider took too long
 //   no-photos   the photo files are missing    internal    anything unexpected
 import { isAiError, isRetryableAiError, type AiErrorKind } from "@/lib/ai/errors";
 
@@ -44,12 +45,16 @@ export const isRetryableMealError = (error: unknown, attempt: number) =>
 export const mealErrorKind = (error: unknown): MealErrorKind =>
   isAiError(error) ? error.kind : "internal";
 
+/** The not-food message of a meal described in words (no photo). */
+const NOT_FOOD_TEXT =
+  "This description does not seem to name a food or drink. Fix it with a sentence or add the items by hand.";
+
 /** The message for a meal that stopped; waiting adds when Cal tries again. */
 export const mealError = (
   kind: MealErrorKind,
-  options: { willRetry?: boolean; detail?: string } = {},
+  options: { willRetry?: boolean; detail?: string; textOnly?: boolean } = {},
 ): MealError => {
-  let message = MESSAGES[kind];
+  let message = kind === "not-food" && options.textOnly ? NOT_FOOD_TEXT : MESSAGES[kind];
   if (options.detail) message = `${message} ${options.detail}`;
   if (options.willRetry) message = `${message} Cal will try again shortly.`;
   else if (

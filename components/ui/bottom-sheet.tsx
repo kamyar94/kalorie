@@ -18,6 +18,8 @@ export type BottomSheetProps = {
   children: ReactNode;
   footer?: ReactNode;
   className?: string;
+  /** Above another full-screen dialog (the camera), with its scrim over it. */
+  elevated?: boolean;
 };
 
 /**
@@ -34,14 +36,21 @@ export const BottomSheet = ({
   children,
   footer,
   className,
+  elevated = false,
 }: BottomSheetProps) => (
   <Dialog.Root open={open} onOpenChange={onOpenChange}>
     {trigger && <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>}
     <Dialog.Portal>
-      <Dialog.Overlay className="bg-scrim data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in fixed inset-0 z-40" />
+      <Dialog.Overlay
+        className={cn(
+          "bg-scrim data-[state=closed]:animate-fade-out data-[state=open]:animate-fade-in fixed inset-0",
+          elevated ? "z-[60]" : "z-40",
+        )}
+      />
       <Dialog.Content
         className={cn(
-          "border-border bg-surface shadow-raised fixed inset-x-0 bottom-0 z-50 flex max-h-[92dvh] flex-col rounded-t-[1.75rem] border outline-none",
+          "border-border bg-surface shadow-raised fixed inset-x-0 bottom-0 flex max-h-[92dvh] flex-col rounded-t-[1.75rem] border outline-none",
+          elevated ? "z-[61]" : "z-50",
           "data-[state=closed]:animate-sheet-out data-[state=open]:animate-sheet-in",
           "md:data-[state=closed]:animate-fade-out md:data-[state=open]:animate-fade-in md:inset-x-auto md:top-1/2 md:bottom-auto md:left-1/2 md:w-[min(32rem,calc(100vw-2rem))] md:-translate-x-1/2 md:-translate-y-1/2 md:rounded-[1.75rem]",
           className,

@@ -1,13 +1,27 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { Camera, Check, Images, Mic, RefreshCcw, Send, X } from "lucide-react";
+import {
+  ArrowRight,
+  Camera,
+  CaseSensitive,
+  Check,
+  ChevronDown,
+  Clock,
+  ImageIcon,
+  Mic,
+  RefreshCcw,
+  X,
+} from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { cn } from "@/components/ui/cn";
 import { startDictation, speechSupported, type Dictation } from "@/lib/client/speech";
 import { UPLOAD_LIMITS } from "@/lib/contracts/meals";
-import { preparePhoto } from "@/lib/photos/client";
+import { deviceTimeZone, preparePhoto } from "@/lib/photos/client";
+import { whenLabel, whenSpoken } from "@/lib/ui/when";
+
+import { WhenSheet } from "./when-sheet";
 
 export type Shot = {
   id: string;
@@ -113,10 +127,15 @@ const grabStill = async (video: HTMLVideoElement, stream: MediaStream): Promise<
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 
+const sideButton =
+  "flex min-h-16 w-[3.375rem] flex-col items-center justify-center gap-1 rounded-2xl text-[0.6875rem] leading-none font-semibold disabled:opacity-40";
+
 /**
  * The full-screen in-app camera (docs/DESIGN.md section 3): shutter, up to three thumbnails (tap
- * to remove), gallery, hold-to-talk note with tap-to-type, Send and close. Without camera access
- * it offers the phone's own camera through a file input instead.
+ * to remove), gallery, hold-to-talk note with tap-to-type, the meal's time (the When chip), Send
+ * and close. "Type" switches to a meal described in words: the camera stops and a large text
+ * field takes its place; Send then works with words alone. Without camera access it offers the
+ * phone's own camera through a file input instead.
  */
 export const CameraScreen = ({
   open,
@@ -127,7 +146,8 @@ export const CameraScreen = ({
   open: boolean;
   mode: "meal" | "label";
   onClose: () => void;
-  onSend: (shots: Shot[], note: string) => void;
+  /** at: the time chosen with the When chip, null for the photo's own time (or now). */
+  onSend: (shots: Shot[], note: string, at: Date | null) => void;
 }) => {
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -137,6 +157,7 @@ export const CameraScreen = ({
   const systemCamera = useRef<HTMLInputElement>(null);
   const gallery = useRef<HTMLInputElement>(null);
   const noteField = useRef<HTMLTextAreaElement>(null);
+  const mealText = useRef<HTMLTextAreaElement>(null);
   const [state, setState] = useState<CameraState>("starting");
   const [slow, setSlow] = useState(false);
   const [facing, setFacing] = useState<"environment" | "user">("environment");
@@ -144,6 +165,9 @@ export const CameraScreen = ({
   const [shots, setShots] = useState<Shot[]>([]);
   const [note, setNote] = useState("");
   const [typing, setTyping] = useState(false);
+  const [textMode, setTextMode] = useState(false);
+  const [when, setWhen] = useState<Date | null>(null);
+  const [whenOpen, setWhenOpen] = useState(false);
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState("");
   const [busy, setBusy] = useState(false);
@@ -156,6 +180,8 @@ export const CameraScreen = ({
     suppressClick: false,
   });
   const noteId = useId();
+  const mealTextId = useId();
+  const mealTextHelpId = useId();
 
   // A new video element (each time the dialog opens) shows the running stream at once.
   const attachVideo = useCallback((element: HTMLVideoElement | null) => {
@@ -168,11 +194,17 @@ export const CameraScreen = ({
 
   const full = shots.length >= MAX;
   const label = mode === "label";
+  const tz = deviceTimeZone();
+  const hasText = note.trim().length > 0;
+  // A label photo needs the photo; a meal can also be words alone.
+  const canSend = (shots.length > 0 || (!label && hasText)) && !busy;
+  const cameraOn = open && !textMode;
 
-  // Start and stop the camera with the screen. Each way of opening it must show a frame within
-  // FIRST_FRAME_MS; if none does, the screen offers the phone's own camera instead.
+  // Start and stop the camera with the screen (and stop it while the meal is typed). Each way of
+  // opening it must show a frame within FIRST_FRAME_MS; if none does, the screen offers the
+  // phone's own camera instead.
   useEffect(() => {
-    if (!open) return;
+    if (!cameraOn) return;
     let cancelled = false;
     const slowTimer = window.setTimeout(() => setSlow(true), SLOW_START_MS);
     const start = async () => {
@@ -237,7 +269,7 @@ export const CameraScreen = ({
       stopStream(stream.current);
       stream.current = null;
     };
-  }, [open, facing]);
+  }, [cameraOn, facing]);
 
   // Forget everything when the screen closes (Close, Escape or Send), the shutter flash too: a
   // flash left over from the last meal would cover the next meal's viewfinder.
@@ -249,6 +281,9 @@ export const CameraScreen = ({
     setShots([]);
     setNote("");
     setTyping(false);
+    setTextMode(false);
+    setWhen(null);
+    setWhenOpen(false);
     setListening(false);
     setHeard("");
     setAnnouncement("");
@@ -315,7 +350,7 @@ export const CameraScreen = ({
     setAnnouncement("Photo removed.");
   };
 
-  // ---- Note: hold to talk, tap to type ----
+  // ---- Note: hold to talk, tap to type (and the microphone of the text mode) ----
 
   const startListening = () => {
     const session = startDictation({
@@ -323,11 +358,13 @@ export const CameraScreen = ({
       onEnd: (text) => {
         setListening(false);
         setHeard("");
+        dictation.current = null;
         if (text)
           setNote((current) => `${current} ${text}`.trim().slice(0, UPLOAD_LIMITS.maxNoteChars));
       },
       onError: (reason) => {
         setListening(false);
+        dictation.current = null;
         if (reason === "denied") {
           setAnnouncement("Microphone access was refused. Type the note instead.");
           setTyping(true);
@@ -371,54 +408,126 @@ export const CameraScreen = ({
     setTyping(true);
   };
 
+  /** The text mode's microphone: a tap starts dictation, another tap stops it. */
+  const toggleDictation = () => {
+    if (listening) {
+      dictation.current?.stop();
+      return;
+    }
+    if (startListening()) setAnnouncement("Listening. Tap the microphone again when you are done.");
+  };
+
+  const stopDictation = () => {
+    dictation.current?.abort();
+    dictation.current = null;
+    setListening(false);
+    setHeard("");
+  };
+
+  const switchToText = () => {
+    stopDictation();
+    setTyping(false);
+    setTextMode(true);
+    setAnnouncement("Type what you ate. The camera is off.");
+  };
+
+  const switchToPhoto = () => {
+    stopDictation();
+    setTextMode(false);
+    setAnnouncement("");
+  };
+
   useEffect(() => {
     if (typing) noteField.current?.focus();
   }, [typing]);
 
+  useEffect(() => {
+    if (open && textMode) mealText.current?.focus();
+  }, [open, textMode]);
+
   // Keep focus on the next useful control: the shutter once the camera runs, the phone camera
   // button without one, and Send once three photos are taken.
   useEffect(() => {
-    if (!open || typing) return;
+    if (!open || typing || textMode || whenOpen) return;
     if (full) sendButton.current?.focus();
     else if (state === "live") shutter.current?.focus();
     else if (state === "unavailable" || state === "denied") fallbackButton.current?.focus();
-  }, [open, state, full, typing]);
+  }, [open, state, full, typing, textMode, whenOpen]);
 
   const send = () => {
-    if (!shots.length) return;
+    if (!canSend) return;
     // The provider keeps the photo data; the preview URLs are not needed any more.
-    onSend(shots, note);
+    onSend(shots, note, when);
     reset(true);
   };
 
   const flipLabel = facing === "environment" ? "Use the front camera" : "Use the back camera";
+  const now = new Date();
+  const sendLabel = shots.length
+    ? `Send meal with ${shots.length} ${shots.length === 1 ? "photo" : "photos"}`
+    : hasText && !label
+      ? "Send the meal (text only)"
+      : label
+        ? "Send (take a photo first)"
+        : "Send meal (take a photo or type what you ate first)";
+
+  // Text mode uses the app's own colours; the camera stays dark around the live picture.
+  const round = textMode ? "bg-surface-2 text-text" : "bg-black/50 text-white backdrop-blur-sm";
+  const side = textMode ? "bg-surface-2 text-text hover:bg-surface-3" : "bg-white/15 text-white";
+
+  const thumbnails = (
+    <ul aria-label="Photos of this meal" className="flex items-center gap-2">
+      {shots.map((shot, i) => (
+        <li key={shot.id}>
+          <button
+            type="button"
+            onClick={() => removeShot(shot.id)}
+            aria-label={`Remove photo ${i + 1}`}
+            className="group relative block size-15 overflow-hidden rounded-xl ring-2 ring-white/85"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- local preview */}
+            <img src={shot.url} alt="" className="size-full object-cover" />
+            <span className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-black/70 text-white">
+              <X aria-hidden className="size-3.5" />
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
 
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && close()}>
       <Dialog.Portal>
         <Dialog.Content
           aria-describedby={undefined}
-          className="data-[state=open]:animate-fade-in fixed inset-0 z-50 flex flex-col bg-black text-white outline-none"
+          className={cn(
+            "data-[state=open]:animate-fade-in fixed inset-0 z-50 flex flex-col outline-none",
+            textMode ? "bg-bg text-text" : "bg-black text-white",
+          )}
           data-testid="camera"
-          data-camera-state={state}
+          data-camera-state={textMode ? "off" : state}
+          data-mode={textMode ? "text" : "photo"}
         >
           <Dialog.Title className="sr-only">
             {label ? "Photograph a label or package" : "Camera"}
           </Dialog.Title>
 
-          <video
-            ref={attachVideo}
-            playsInline
-            muted
-            autoPlay
-            aria-hidden
-            className={cn(
-              "absolute inset-0 size-full object-cover",
-              facing === "user" && "-scale-x-100",
-              state !== "live" && "invisible",
-            )}
-          />
-          {flash > 0 && (
+          {!textMode && (
+            <video
+              ref={attachVideo}
+              playsInline
+              muted
+              autoPlay
+              aria-hidden
+              className={cn(
+                "absolute inset-0 size-full object-cover",
+                facing === "user" && "-scale-x-100",
+                state !== "live" && "invisible",
+              )}
+            />
+          )}
+          {flash > 0 && !textMode && (
             // Shown once per shutter press and removed when it has faded: left on screen, the
             // white sheet would hide the camera.
             <div
@@ -430,85 +539,164 @@ export const CameraScreen = ({
             />
           )}
 
-          {/* Top bar */}
-          <div className="relative flex items-center justify-between px-3 pt-[max(env(safe-area-inset-top),0.75rem)]">
+          {/* Top bar: close, when, flip */}
+          <div className="relative flex items-center justify-between gap-2 px-3 pt-[max(env(safe-area-inset-top),0.875rem)]">
             <Dialog.Close
               aria-label="Close the camera"
-              className="grid size-12 place-items-center rounded-full bg-black/45 backdrop-blur-sm"
+              className={cn("grid size-12 shrink-0 place-items-center rounded-full", round)}
             >
               <X aria-hidden className="size-6" />
             </Dialog.Close>
-            <p className="text-label rounded-full bg-black/45 px-3 py-1.5 backdrop-blur-sm">
-              {label ? "Label or package" : `${shots.length} of ${MAX} photos`}
-            </p>
-            {canFlip && state === "live" ? (
+            {label ? (
+              <p className="text-label rounded-full bg-black/50 px-3 py-1.5 backdrop-blur-sm">
+                Label or package
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setWhenOpen(true)}
+                aria-label={`When: ${whenSpoken(when, now, tz)}. Change the time`}
+                aria-haspopup="dialog"
+                data-testid="when-chip"
+                className={cn(
+                  "text-label inline-flex min-h-11 min-w-0 items-center gap-1.5 rounded-full px-3.5",
+                  when ? "bg-primary-soft text-on-primary-soft" : round,
+                )}
+              >
+                <Clock aria-hidden className="size-4 shrink-0" />
+                <span className="truncate">{whenLabel(when, now, tz)}</span>
+                <ChevronDown aria-hidden className="size-3.5 shrink-0" />
+              </button>
+            )}
+            {canFlip && state === "live" && !textMode ? (
               <button
                 type="button"
                 aria-label={flipLabel}
                 title={flipLabel}
                 onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
-                className="grid size-12 place-items-center rounded-full bg-black/45 backdrop-blur-sm"
+                className={cn("grid size-12 shrink-0 place-items-center rounded-full", round)}
               >
                 <RefreshCcw aria-hidden className="size-5" />
               </button>
             ) : (
-              <span aria-hidden className="size-12" />
+              <span aria-hidden className="size-12 shrink-0" />
             )}
           </div>
 
-          {/* Middle: the viewfinder, or what to do without one */}
-          <div className="relative flex flex-1 items-center justify-center px-6">
-            {state === "starting" && (
-              <div className="max-w-xs text-center">
-                <p className="text-body text-white/80" role="status">
-                  Starting the camera…
-                </p>
-                {slow && (
+          {textMode ? (
+            // Middle, text mode: what was eaten, in words.
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pt-7">
+              <label htmlFor={mealTextId} className="text-title">
+                What did you eat?
+              </label>
+              <div className="border-border bg-surface flex flex-col gap-2.5 rounded-[1.25rem] border p-3.5">
+                <textarea
+                  ref={mealText}
+                  id={mealTextId}
+                  dir="auto"
+                  rows={5}
+                  maxLength={UPLOAD_LIMITS.maxNoteChars}
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  aria-describedby={mealTextHelpId}
+                  className="w-full resize-none bg-transparent text-lg leading-[1.45] focus:outline-none"
+                />
+                {(heard || listening) && (
+                  <p className="text-caption text-muted" dir="auto" aria-hidden>
+                    {heard || "Listening…"}
+                  </p>
+                )}
+                <div className="flex items-center justify-between gap-3">
+                  <p id={mealTextHelpId} className="text-caption text-muted">
+                    Name each food and about how much. Cal works out the rest.
+                  </p>
+                  {speechSupported() && (
+                    <button
+                      type="button"
+                      onClick={toggleDictation}
+                      aria-label={listening ? "Stop dictating" : "Dictate instead"}
+                      aria-pressed={listening}
+                      className={cn(
+                        "grid size-12 shrink-0 place-items-center rounded-full transition-colors",
+                        listening
+                          ? "animate-pulse-soft bg-danger text-on-danger"
+                          : "bg-surface-2 hover:bg-surface-3",
+                      )}
+                    >
+                      <Mic aria-hidden className="size-5.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              {shots.length > 0 && (
+                <div className="flex items-center gap-3">
+                  {thumbnails}
+                  <p className="text-caption text-muted">
+                    {shots.length} of {MAX} photos
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            // Middle, photo mode: the viewfinder, or what to do without one.
+            <div className="relative flex flex-1 items-center justify-center px-6">
+              {state === "starting" && (
+                <div className="max-w-xs text-center">
+                  <p className="text-body text-white/80" role="status">
+                    Starting the camera…
+                  </p>
+                  {slow && (
+                    <button
+                      type="button"
+                      disabled={full || busy}
+                      onClick={() => systemCamera.current?.click()}
+                      className="text-label mt-5 inline-flex min-h-12 items-center gap-2 rounded-full bg-white px-5 text-black disabled:opacity-50"
+                    >
+                      <Camera aria-hidden className="size-5" /> Use the phone&apos;s camera
+                    </button>
+                  )}
+                </div>
+              )}
+              {(state === "unavailable" || state === "denied") && (
+                <div className="max-w-xs text-center">
+                  <Camera aria-hidden className="mx-auto size-10 text-white/70" />
+                  <p className="text-headline mt-3">
+                    {state === "denied" ? "Cal may not use the camera" : "The camera did not start"}
+                  </p>
+                  <p className="text-body mt-1 text-white/75">
+                    {state === "denied"
+                      ? "Allow camera access in the browser settings, or take the photo with your phone's camera."
+                      : "Take the photo with your phone's camera, or pick one from the gallery."}
+                  </p>
                   <button
+                    ref={fallbackButton}
                     type="button"
                     disabled={full || busy}
                     onClick={() => systemCamera.current?.click()}
                     className="text-label mt-5 inline-flex min-h-12 items-center gap-2 rounded-full bg-white px-5 text-black disabled:opacity-50"
                   >
-                    <Camera aria-hidden className="size-5" /> Use the phone&apos;s camera
+                    <Camera aria-hidden className="size-5" /> Take a photo
                   </button>
-                )}
-              </div>
-            )}
-            {(state === "unavailable" || state === "denied") && (
-              <div className="max-w-xs text-center">
-                <Camera aria-hidden className="mx-auto size-10 text-white/70" />
-                <p className="text-headline mt-3">
-                  {state === "denied" ? "Cal may not use the camera" : "The camera did not start"}
-                </p>
-                <p className="text-body mt-1 text-white/75">
-                  {state === "denied"
-                    ? "Allow camera access in the browser settings, or take the photo with your phone's camera."
-                    : "Take the photo with your phone's camera, or pick one from the gallery."}
-                </p>
-                <button
-                  ref={fallbackButton}
-                  type="button"
-                  disabled={full || busy}
-                  onClick={() => systemCamera.current?.click()}
-                  className="text-label mt-5 inline-flex min-h-12 items-center gap-2 rounded-full bg-white px-5 text-black disabled:opacity-50"
-                >
-                  <Camera aria-hidden className="size-5" /> Take a photo
-                </button>
-              </div>
-            )}
-            {label && state === "live" && (
-              <div
-                aria-hidden
-                className="pointer-events-none aspect-[3/4] w-[78%] max-w-sm rounded-3xl border-2 border-white/70"
-              />
-            )}
-          </div>
+                </div>
+              )}
+              {label && state === "live" && (
+                <div
+                  aria-hidden
+                  className="pointer-events-none aspect-[3/4] w-[78%] max-w-sm rounded-3xl border-2 border-white/70"
+                />
+              )}
+            </div>
+          )}
 
-          {/* Bottom: thumbnails, note, controls */}
-          <div className="relative bg-gradient-to-t from-black/85 via-black/60 to-transparent px-4 pt-6 pb-[max(env(safe-area-inset-bottom),1rem)]">
-            {typing && (
-              <div className="mb-3 rounded-2xl bg-white/12 p-2 backdrop-blur-md">
+          {/* Bottom: thumbnails and note (photo mode), then the controls */}
+          <div
+            className={cn(
+              "relative flex flex-col gap-3.5 px-4 pt-3.5 pb-[max(env(safe-area-inset-bottom),1.375rem)]",
+              !textMode && "bg-black/72",
+            )}
+          >
+            {!textMode && typing && (
+              <div className="rounded-2xl bg-white/12 p-2 backdrop-blur-md">
                 <label htmlFor={noteId} className="sr-only">
                   Note about the meal
                 </label>
@@ -535,99 +723,108 @@ export const CameraScreen = ({
               </div>
             )}
 
-            <div className="flex items-end gap-2">
-              <ul aria-label="Photos of this meal" className="flex min-h-16 flex-1 items-end gap-2">
-                {shots.map((shot, i) => (
-                  <li key={shot.id}>
-                    <button
-                      type="button"
-                      onClick={() => removeShot(shot.id)}
-                      aria-label={`Remove photo ${i + 1}`}
-                      className="group relative block size-16 overflow-hidden rounded-xl ring-2 ring-white/80"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element -- local preview */}
-                      <img src={shot.url} alt="" className="size-full object-cover" />
-                      <span className="absolute top-1 right-1 grid size-5 place-items-center rounded-full bg-black/70">
-                        <X aria-hidden className="size-3.5" />
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                aria-label={
-                  speechSupported() ? "Note: hold to talk, tap to type" : "Note: tap to type"
-                }
-                aria-pressed={listening || undefined}
-                onPointerDown={onNotePointerDown}
-                onPointerUp={onNotePointerEnd}
-                onPointerCancel={onNotePointerEnd}
-                onPointerLeave={onNotePointerEnd}
-                onContextMenu={(event) => event.preventDefault()}
-                onClick={onNoteClick}
-                className={cn(
-                  "grid size-14 shrink-0 touch-none place-items-center rounded-full bg-white/15 backdrop-blur-sm transition-colors select-none [-webkit-touch-callout:none]",
-                  listening && "animate-pulse-soft bg-red-600",
-                )}
-              >
-                <Mic aria-hidden className="size-6" />
-              </button>
-            </div>
+            {!textMode && (
+              <div className="flex items-center gap-2.5">
+                {thumbnails}
+                <p className="text-caption min-w-0 flex-1 text-white/80">
+                  {shots.length} of {MAX} photos
+                </p>
+                <button
+                  type="button"
+                  aria-label={
+                    speechSupported() ? "Note: hold to talk, tap to type" : "Note: tap to type"
+                  }
+                  aria-pressed={listening || undefined}
+                  onPointerDown={onNotePointerDown}
+                  onPointerUp={onNotePointerEnd}
+                  onPointerCancel={onNotePointerEnd}
+                  onPointerLeave={onNotePointerEnd}
+                  onContextMenu={(event) => event.preventDefault()}
+                  onClick={onNoteClick}
+                  className={cn(
+                    "grid size-13 shrink-0 touch-none place-items-center rounded-full bg-white/15 transition-colors select-none [-webkit-touch-callout:none]",
+                    listening && "animate-pulse-soft bg-red-600",
+                  )}
+                >
+                  <Mic aria-hidden className="size-5.5" />
+                </button>
+              </div>
+            )}
 
-            {(note || heard) && !typing && (
+            {!textMode && (note || heard) && !typing && (
               <p
                 dir="auto"
-                className="text-body mt-2 line-clamp-2 text-white/90"
+                className="text-body -mt-1.5 line-clamp-2 text-white/90"
                 data-testid="capture-note"
               >
                 {heard || note}
               </p>
             )}
-            {listening && !heard && (
-              <p className="text-caption mt-2 text-white/75">
+            {!textMode && listening && !heard && (
+              <p className="text-caption -mt-1.5 text-white/75">
                 Listening… let go when you are done.
               </p>
             )}
 
-            <div className="mt-4 grid grid-cols-3 items-center">
-              <div className="flex justify-start">
+            <div className="grid grid-cols-3 items-center">
+              <div className="flex justify-start gap-2.5">
+                {textMode && (
+                  <button type="button" onClick={switchToPhoto} className={cn(sideButton, side)}>
+                    <Camera aria-hidden className="size-5.5" />
+                    Photo
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => gallery.current?.click()}
                   disabled={full || busy}
-                  aria-label="Pick photos from the gallery"
-                  className="grid size-14 place-items-center rounded-full bg-white/15 backdrop-blur-sm disabled:opacity-40"
+                  aria-label="Gallery: pick photos"
+                  className={cn(sideButton, side)}
                 >
-                  <Images aria-hidden className="size-6" />
+                  <ImageIcon aria-hidden className="size-5.5" />
+                  Gallery
                 </button>
+                {!textMode && !label && (
+                  <button
+                    type="button"
+                    onClick={switchToText}
+                    aria-label="Type: describe the meal in words"
+                    className={cn(sideButton, side)}
+                  >
+                    <CaseSensitive aria-hidden className="size-5.5" />
+                    Type
+                  </button>
+                )}
               </div>
               <div className="flex justify-center">
-                <button
-                  ref={shutter}
-                  type="button"
-                  onClick={() => void takePhoto()}
-                  disabled={state !== "live" || full || busy}
-                  aria-label={full ? "Three photos taken, the most for one meal" : "Take photo"}
-                  className="grid size-20 place-items-center rounded-full border-4 border-white transition-transform active:scale-95 disabled:opacity-40"
-                >
-                  <span className="block size-16 rounded-full bg-white" />
-                </button>
+                {!textMode && (
+                  <button
+                    ref={shutter}
+                    type="button"
+                    onClick={() => void takePhoto()}
+                    disabled={state !== "live" || full || busy}
+                    aria-label={full ? "Three photos taken, the most for one meal" : "Take photo"}
+                    className="grid size-20 place-items-center rounded-full border-4 border-white transition-transform active:scale-95 disabled:opacity-40"
+                  >
+                    <span className="block size-16 rounded-full bg-white" />
+                  </button>
+                )}
               </div>
               <div className="flex justify-end">
                 <button
                   ref={sendButton}
                   type="button"
                   onClick={send}
-                  disabled={!shots.length || busy}
-                  aria-label={
-                    shots.length
-                      ? `Send meal with ${shots.length} ${shots.length === 1 ? "photo" : "photos"}`
-                      : "Send meal (take a photo first)"
-                  }
-                  className="bg-primary text-on-primary text-label inline-flex min-h-14 items-center gap-2 rounded-full px-5 shadow-lg disabled:bg-white/15 disabled:text-white/60"
+                  disabled={!canSend}
+                  aria-label={sendLabel}
+                  className={cn(
+                    "bg-primary text-on-primary inline-flex min-h-14 items-center gap-2 rounded-full px-5 text-[0.9375rem] font-semibold shadow-lg",
+                    textMode
+                      ? "disabled:bg-surface-2 disabled:text-muted disabled:shadow-none"
+                      : "disabled:bg-white/15 disabled:text-white/60",
+                  )}
                 >
-                  Send <Send aria-hidden className="size-4" />
+                  Send <ArrowRight aria-hidden className="size-4" />
                 </button>
               </div>
             </div>
@@ -665,6 +862,22 @@ export const CameraScreen = ({
               void addPhotos(files, null);
             }}
           />
+
+          {!label && (
+            <WhenSheet
+              open={whenOpen}
+              onOpenChange={setWhenOpen}
+              value={when}
+              tz={tz}
+              elevated
+              description="Photos from the gallery keep the time they were taken."
+              onDone={(at) => {
+                setWhen(at);
+                setWhenOpen(false);
+                setAnnouncement(`When: ${whenSpoken(at, new Date(), tz)}.`);
+              }}
+            />
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
