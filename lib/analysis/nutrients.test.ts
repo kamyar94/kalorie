@@ -10,6 +10,7 @@ const item = (overrides: Partial<AnalysisItem> = {}): AnalysisItem => ({
   name: "Item",
   local_name: null,
   kind: "dish",
+  emoji: null,
   preparation: null,
   grams: 200,
   ml: null,

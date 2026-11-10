@@ -64,6 +64,21 @@ describe("parseAnalysis", () => {
     expect(sameAs).toEqual([null]);
   });
 
+  it("keeps one emoji per item and drops anything else", () => {
+    const { output } = parseAnalysis(
+      reply({
+        items: [
+          item({ emoji: "🍚" }),
+          item({ name: "Chicken", emoji: "🍗🍖" }),
+          item({ name: "Salad", emoji: "salad" }),
+          item({ name: "Tea" }),
+        ],
+      }),
+      refs(),
+    );
+    expect(output.items.map((i) => i.emoji)).toEqual(["🍚", null, null, null]);
+  });
+
   it("maps the prompt's short ids back and drops unknown ones", () => {
     const { output, sameAs } = parseAnalysis(
       reply({

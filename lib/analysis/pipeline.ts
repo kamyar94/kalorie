@@ -23,6 +23,7 @@ import {
 } from "@/lib/contracts/analysis";
 import type { FoodResult } from "@/lib/contracts/food-search";
 import type { MealStatus } from "@/lib/contracts/meals";
+import { emojiFor } from "@/lib/food/emoji";
 import { getFood } from "@/lib/food/search";
 import { normalizeFoodText } from "@/lib/food/normalize";
 import { recomputeMealTotals } from "@/lib/meals/service";
@@ -434,6 +435,7 @@ export const analyseMeal = async (
         name: item.name,
         localName: item.local_name,
         kind: item.kind,
+        emoji: item.emoji ?? emojiFor(item.name, item.kind, [item.local_name]),
         preparation: item.preparation,
         foodId: result.foodId,
         grams: result.grams,

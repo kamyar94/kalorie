@@ -183,6 +183,9 @@ test("a meal in words is analysed by the mock provider without a photo", async (
   const card = page.locator('article[data-state="ready"]');
   await expect(card).toHaveCount(1, { timeout: 30_000 });
   await expect(card).toContainText("Chicken with rice");
+  // No photo: a plate with the foods, and the foods with their emojis.
+  await expect(card.getByRole("img", { name: "Plate with rice and chicken breast" })).toBeVisible();
+  await expect(card.getByTestId("meal-foods")).toHaveText("🍚 Rice · 🍗 Chicken breast");
 
   const meal = await pool.query(
     `select m.source, count(i.id)::int as items from meals m join meal_items i on i.meal_id = m.id
@@ -190,7 +193,7 @@ test("a meal in words is analysed by the mock provider without a photo", async (
     [userId],
   );
   expect(meal.rows).toEqual([{ source: "text", items: 2 }]);
-  await card.getByRole("link").click();
+  await card.locator(`a[href^="/meals/"]`).click();
   await expect(page.getByRole("region", { name: "What you wrote" })).toContainText(
     "A cup of white rice",
   );

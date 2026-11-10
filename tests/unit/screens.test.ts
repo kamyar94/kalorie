@@ -28,6 +28,7 @@ const item = (overrides: Partial<MealItemDto> = {}): MealItemDto => ({
   name: "Rice",
   localName: "چلو",
   kind: "dish",
+  emoji: "🍚",
   preparation: null,
   foodId: null,
   foodName: null,

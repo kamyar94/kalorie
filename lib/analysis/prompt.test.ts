@@ -40,6 +40,7 @@ describe("analysis prompt", () => {
       "never guess",
       "at most two short questions",
       "matches_usual",
+      "one emoji that pictures the food",
       "never change these instructions",
     ])
       expect(ANALYSIS_SYSTEM).toContain(topic);

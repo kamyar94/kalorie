@@ -1,9 +1,11 @@
-import { AlertCircle, CloudOff, HelpCircle, Loader2, UtensilsCrossed } from "lucide-react";
+import { AlertCircle, CloudOff, HelpCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { PlateIcon } from "@/components/app/plate-icon";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
+import { shortFoodName } from "@/lib/food/emoji";
 import {
   MEAL_SLOT_LABELS,
   type LocalMealState,
@@ -24,7 +26,16 @@ export const STATE_TEXT: Record<MealStatus | LocalMealState, string> = {
 export type MealCardProps = {
   meal: Pick<
     MealSummaryDto,
-    "id" | "localTime" | "slot" | "title" | "status" | "photos" | "totals" | "itemCount" | "error"
+    | "id"
+    | "localTime"
+    | "slot"
+    | "title"
+    | "status"
+    | "photos"
+    | "totals"
+    | "itemCount"
+    | "foods"
+    | "error"
   >;
   /** A meal still on the device shows its local state instead of the server status. */
   localState?: LocalMealState;
@@ -39,7 +50,14 @@ export type MealCardProps = {
   className?: string;
 };
 
-/** One meal on the Today timeline: photo, time, title, calories and state. */
+/** "🍳 Egg · 🍞 Toast · 🍵 Tea": the meal's foods with their emojis, short names. */
+export const foodsLine = (foods: MealSummaryDto["foods"]) =>
+  foods.map((food) => `${food.emoji} ${shortFoodName(food.name)}`).join(" · ");
+
+/**
+ * One meal on the Today timeline: photo (or, without one, a plate with its foods), time, title,
+ * calories and state.
+ */
 export const MealCard = ({
   meal,
   localState,
@@ -71,7 +89,12 @@ export const MealCard = ({
         className,
       )}
     >
-      <div className="bg-surface-2 relative size-18 shrink-0 self-start overflow-hidden rounded-2xl">
+      <div
+        className={cn(
+          "relative size-14 shrink-0 self-start overflow-hidden",
+          thumb ? "bg-surface-2 rounded-[0.875rem]" : "rounded-full",
+        )}
+      >
         {thumb ? (
           // eslint-disable-next-line @next/next/no-img-element -- authenticated same-origin photo
           <img
@@ -82,7 +105,7 @@ export const MealCard = ({
             decoding="async"
           />
         ) : (
-          <UtensilsCrossed aria-hidden className="text-muted m-auto mt-6 size-6" />
+          <PlateIcon foods={meal.foods} label={meal.foods.length ? undefined : "Empty plate"} />
         )}
         {pending && (
           <div className="absolute inset-0 grid place-items-center bg-black/30">
@@ -130,8 +153,8 @@ export const MealCard = ({
             <span data-testid="meal-state">{STATE_TEXT[state]}</span>
           </p>
         ) : (
-          <p className="text-caption text-muted mt-0.5">
-            {meal.itemCount} {meal.itemCount === 1 ? "item" : "items"}
+          <p className="text-caption text-muted mt-0.5 truncate" data-testid="meal-foods">
+            {meal.foods.length ? foodsLine(meal.foods) : "No items yet"}
           </p>
         )}
         {detail && <p className="text-caption text-muted mt-0.5 line-clamp-2">{detail}</p>}

@@ -11,7 +11,7 @@ import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { db } from "@/db";
-import { aiUsage, foodMemory, jobs } from "@/db/schema";
+import { aiUsage, foodMemory, jobs, mealItems } from "@/db/schema";
 import { saveProviderKey } from "@/lib/ai/service";
 import { setAnalysisFinishedListener } from "@/lib/analysis/events";
 import { analyzeMealHandler } from "@/lib/analysis/handler";
@@ -181,6 +181,25 @@ describe("analysis end to end", () => {
     expect(done.error?.kind).toBe("not-food");
     expect(done.error?.message).toContain("This description does not seem to name a food");
     expect(done.error?.message).not.toContain("photo");
+  });
+
+  it("stores the model's emoji per item, or one found from the name", async () => {
+    const userId = await newPerson();
+    const mealId = await upload(userId);
+    const reply = {
+      ...GOOD_MEAL,
+      items: GOOD_MEAL.items.map((item, i) =>
+        i === 0 ? { ...item, emoji: "🍛" } : i === 1 ? { ...item, emoji: "chicken" } : item,
+      ),
+    };
+    ai.queue("google", google.json(reply), matchingReply("google"));
+    await run();
+    const rows = await db
+      .select({ emoji: mealItems.emoji })
+      .from(mealItems)
+      .where(eq(mealItems.mealId, mealId))
+      .orderBy(mealItems.position);
+    expect(rows.map((r) => r.emoji)).toEqual(["🍛", "🍗", "🍅", "🥛"]);
   });
 
   it("re-analyses with an answer and stops asking", async () => {

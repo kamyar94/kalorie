@@ -68,6 +68,7 @@ describe("analysis schemas", () => {
         "name",
         "local_name",
         "kind",
+        "emoji",
         "preparation",
         "grams",
         "ml",

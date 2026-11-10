@@ -5,10 +5,10 @@
 // (source "text"): the analysis reads its note instead.
 import crypto from "node:crypto";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
-import { mealPhotos, meals, users } from "@/db/schema";
+import { mealItems, mealPhotos, meals, users } from "@/db/schema";
 import { ANALYZE_MEAL_JOB, type AnalyzeMealPayload } from "@/lib/contracts/analysis";
 import type { MealSummaryDto } from "@/lib/contracts/meals";
 import { processPhoto, type PhotoVariant } from "@/lib/photos/intake";
@@ -52,7 +52,18 @@ const existingByClientId = async (userId: string, clientId: string, dbx: DbOrTx)
   )[0];
   if (!row) return null;
   const photos = await dbx.select().from(mealPhotos).where(eq(mealPhotos.mealId, row.id));
-  return toSummaryDto(row, photos, 0);
+  const items = await dbx
+    .select({
+      position: mealItems.position,
+      name: mealItems.name,
+      localName: mealItems.localName,
+      kind: mealItems.kind,
+      emoji: mealItems.emoji,
+      foodName: sql<string | null>`null`,
+    })
+    .from(mealItems)
+    .where(eq(mealItems.mealId, row.id));
+  return toSummaryDto(row, photos, items);
 };
 
 /**
@@ -133,7 +144,7 @@ export const createPhotoMeal = async (
         ? await tx.insert(mealPhotos).values(photoRows).returning()
         : [];
       await enqueueMealAnalysis({ mealId, userId: input.userId, reason: "upload" }, tx);
-      return toSummaryDto(meal, inserted, 0);
+      return toSummaryDto(meal, inserted, []);
     });
 
     if (!result) {
