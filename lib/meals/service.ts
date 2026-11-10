@@ -25,6 +25,7 @@ import { rememberItem } from "@/lib/analysis/memory";
 import { emojiFor } from "@/lib/food/emoji";
 import { getFood } from "@/lib/food/search";
 
+import { classifyMeal } from "./classify";
 import { toItemDto, toMealDto, toSummaryDto } from "./dto";
 import { isLocalDate, isValidTimeZone, localParts, slotFor, type MealWindows } from "./time";
 
@@ -103,23 +104,65 @@ export const getMeal = async (
   );
 };
 
-/** Sums the items into meals.totals and returns the totals. */
-export const recomputeMealTotals = async (mealId: string, dbx: DbOrTx = defaultDb) => {
-  const items = await dbx
-    .select({ nutrients: mealItems.nutrients })
-    .from(mealItems)
-    .where(eq(mealItems.mealId, mealId));
-  const totals = sumNutrients(items.map((i) => i.nutrients ?? {}));
-  await dbx.update(meals).set({ totals }).where(eq(meals.id, mealId));
-  return totals;
-};
-
 const mealWindowsOf = async (userId: string, dbx: DbOrTx) =>
   (await dbx.select({ w: users.mealWindows }).from(users).where(eq(users.id, userId)).limit(1))[0]
     ?.w as MealWindows | undefined;
 
+/**
+ * Sums the items into meals.totals and names the meal again (its slot, lib/meals/classify.ts)
+ * unless the person chose the slot by hand. Runs after every analysis and item change. Returns
+ * the totals.
+ */
+export const recomputeMealTotals = async (mealId: string, dbx: DbOrTx = defaultDb) => {
+  const items = await dbx
+    .select({
+      name: mealItems.name,
+      kind: mealItems.kind,
+      nutrients: mealItems.nutrients,
+      foodName: foods.nameEn,
+    })
+    .from(mealItems)
+    .leftJoin(foods, eq(foods.id, mealItems.foodId))
+    .where(eq(mealItems.mealId, mealId));
+  const totals = sumNutrients(items.map((i) => i.nutrients ?? {}));
+  const meal = (
+    await dbx
+      .select({
+        userId: meals.userId,
+        eatenAt: meals.eatenAt,
+        tz: meals.tz,
+        slot: meals.slot,
+        slotLocked: meals.slotLocked,
+        analysis: meals.analysis,
+      })
+      .from(meals)
+      .where(eq(meals.id, mealId))
+      .limit(1)
+  )[0];
+  const set: Partial<typeof meals.$inferInsert> = { totals };
+  if (meal && !meal.slotLocked) {
+    const slot = classifyMeal({
+      items: items.map((i) => ({
+        name: i.name,
+        foodName: i.foodName,
+        kind: i.kind,
+        energy: i.nutrients?.energy,
+      })),
+      modelType: (meal.analysis as { meal_type?: unknown } | null)?.meal_type as string | null,
+      minutes: localParts(meal.eatenAt, meal.tz).minutes,
+      windows: await mealWindowsOf(meal.userId, dbx),
+    });
+    if (slot !== meal.slot) set.slot = slot;
+  }
+  await dbx.update(meals).set(set).where(eq(meals.id, mealId));
+  return totals;
+};
+
+/** Meal types that name a time of day; they do not carry over to a new time. */
+const TIME_OF_DAY_TYPES = new Set(["breakfast", "lunch", "dinner", "supper"]);
+
 /** Changes time, slot, title or note. A new time moves the meal to its day; the slot follows
- * the time unless one is given. */
+ * the time (and the food) unless one is given now or was chosen before; a slot given locks it. */
 export const updateMeal = async (
   userId: string,
   mealId: string,
@@ -130,6 +173,7 @@ export const updateMeal = async (
   const row = (await dbx.select().from(meals).where(ownMeal(userId, mealId)).limit(1))[0];
   if (!row) return null;
   const set: Partial<typeof meals.$inferInsert> = {};
+  let moved = false;
   if (patch.eatenAt !== undefined || patch.tz !== undefined) {
     const eatenAt = patch.eatenAt ? new Date(patch.eatenAt) : row.eatenAt;
     const tz = patch.tz ?? row.tz;
@@ -137,15 +181,22 @@ export const updateMeal = async (
     set.eatenAt = eatenAt;
     set.tz = tz;
     set.localDate = localParts(eatenAt, tz).date;
-    if (!patch.slot) set.slot = slotFor(eatenAt, tz, await mealWindowsOf(userId, dbx));
+    moved = eatenAt.getTime() !== row.eatenAt.getTime() || tz !== row.tz;
+    // The model named the meal for the old time; a time of day does not carry over.
+    const analysis = row.analysis as { meal_type?: unknown } | null;
+    if (moved && analysis && TIME_OF_DAY_TYPES.has(String(analysis.meal_type)))
+      set.analysis = { ...analysis, meal_type: null };
   }
   if (patch.slot !== undefined) {
     if (!MEAL_SLOTS.includes(patch.slot)) throw new Error("Invalid slot.");
     set.slot = patch.slot;
+    set.slotLocked = true;
   }
   if (patch.title !== undefined) set.title = patch.title?.trim().slice(0, 120) || null;
   if (patch.note !== undefined) set.note = patch.note?.trim().slice(0, 500) || null;
   if (Object.keys(set).length) await dbx.update(meals).set(set).where(ownMeal(userId, mealId));
+  // A new time names the meal again (a slot chosen by hand stays).
+  if (moved && patch.slot === undefined) await recomputeMealTotals(mealId, dbx);
   return getMeal(userId, mealId, dbx);
 };
 
@@ -180,7 +231,9 @@ export const duplicateMeal = async (
         eatenAt,
         tz: at.tz,
         localDate: localParts(eatenAt, at.tz).date,
-        slot: slotFor(eatenAt, at.tz, windows),
+        // A slot chosen by hand goes with the copy; otherwise the copy is named for its time.
+        slot: source.slotLocked ? source.slot : slotFor(eatenAt, at.tz, windows),
+        slotLocked: source.slotLocked,
         title: source.title,
         note: source.note,
         status: "ready",
@@ -196,6 +249,7 @@ export const duplicateMeal = async (
           mealId: meal!.id,
         })),
       );
+    await recomputeMealTotals(meal!.id, tx);
     return meal!.id;
   });
   return getMeal(userId, newId, dbx);

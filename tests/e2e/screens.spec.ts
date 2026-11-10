@@ -329,6 +329,8 @@ test("a meal in words: Type, a time yesterday, Send; the meal page shows the wor
   await sheet.getByRole("button", { name: "Done" }).click();
   await expect(sheet).toBeHidden();
   const chip = camera.getByTestId("when-chip");
+  // Focus goes back to the chip that opened the sheet.
+  await expect(chip).toBeFocused();
   await expect(chip).toHaveAccessibleName(/^When: yesterday at \d\d:\d\d\. Change the time$/);
   await expect(chip).toHaveText(/^Yesterday, \d\d:\d\d$/);
 
@@ -492,6 +494,51 @@ test("water: a glass from Today and undo, a bottle on an earlier day, the goal i
   await page.goto("/settings");
   await goal.getByRole("button", { name: "Reset the water goal" }).click();
   await expect(goal).toContainText("1.8 L");
+});
+
+test("meal names: water alone is a Drink, and a name picked by hand stays", async ({
+  page,
+}, info) => {
+  await signUp(page, info.project.name);
+  await page
+    .getByRole("region", { name: "Water" })
+    .getByRole("button", { name: "+ Glass, 250 ml" })
+    .click();
+  const card = page.locator("article[data-meal-id]");
+  await expect(card.locator("p").first()).toHaveText(/^\d\d:\d\d · Drink$/);
+  const mealId = (await card.getAttribute("data-meal-id"))!;
+
+  await page.goto(`/meals/${mealId}`);
+  await expect(page.getByText(/^Today · \d\d:\d\d · Drink$/)).toBeVisible();
+  await page.getByRole("button", { name: "Edit" }).click();
+  const sheet = page.getByRole("dialog", { name: "Meal details" });
+  const names = sheet.getByRole("radiogroup", { name: "Meal" });
+  await expect(names.getByRole("radio")).toHaveCount(7);
+  await expect(names.getByRole("radio", { name: "Drink" })).toHaveAttribute("aria-checked", "true");
+  await expect(sheet).toContainText(
+    "Cal names the meal from its food and time until you pick one.",
+  );
+  await expectAccessible(page);
+  await names.getByRole("radio", { name: "Supper" }).click();
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(sheet).toBeHidden();
+  await expect(page.getByText(/^Today · \d\d:\d\d · Supper$/)).toBeVisible();
+
+  // Food added now does not rename it.
+  const status = await page.evaluate(
+    async (id) =>
+      (
+        await fetch(`/api/meals/${id}/items`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ name: "Toast", nutrients: { energy: 300 } }),
+        })
+      ).status,
+    mealId,
+  );
+  expect(status).toBe(201);
+  const row = await pool.query("select slot, slot_locked from meals where id = $1", [mealId]);
+  expect(row.rows[0]).toEqual({ slot: "supper", slot_locked: true });
 });
 
 test("a camera that never answers: the phone's camera is offered while it starts", async ({

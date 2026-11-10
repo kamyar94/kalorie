@@ -234,6 +234,8 @@ export const meals = pgTable(
     tz: text("tz").notNull(),
     localDate: date("local_date", { mode: "string" }).notNull(),
     slot: text("slot", { enum: MEAL_SLOTS }).notNull(),
+    // Chosen by hand (PATCH with a slot): lib/meals/classify.ts no longer changes it.
+    slotLocked: boolean("slot_locked").notNull().default(false),
     title: text("title"),
     note: text("note"),
     status: text("status", { enum: MEAL_STATUSES }).notNull().default("analysing"),

@@ -133,6 +133,7 @@ export const rawAnalysis = (overrides: Partial<RawAnalysis>): RawAnalysis => ({
   cuisine: "",
   items: [],
   title: "",
+  meal_type: "",
   questions: [],
   overall_confidence: 0.7,
   ...overrides,

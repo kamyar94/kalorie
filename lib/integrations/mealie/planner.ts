@@ -16,6 +16,10 @@ export const SLOT_SHARES: Record<MealSlot, number> = {
   lunch: 0.35,
   dinner: 0.3,
   snack: 0.1,
+  // Not planned (PLAN_SLOTS), but every slot has a share.
+  supper: 0.2,
+  drink: 0.02,
+  dessert: 0.1,
 };
 
 export const CANDIDATES_PER_SLOT = 10;

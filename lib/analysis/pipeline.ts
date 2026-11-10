@@ -456,7 +456,6 @@ export const analyseMeal = async (
       });
     });
     if (rows.length) await tx.insert(mealItems).values(rows);
-    await recomputeMealTotals(mealId, tx);
 
     const answered = (meal.questions ?? []).filter((q) => q.answer);
     const room = Math.max(0, MAX_QUESTIONS_PER_MEAL - answered.length);
@@ -483,6 +482,8 @@ export const analyseMeal = async (
         analysedAt: new Date(),
       })
       .where(eq(meals.id, mealId));
+    // Totals, and the meal's name from the new items and the model's meal_type.
+    await recomputeMealTotals(mealId, tx);
     return { status, items: kept.length + rows.length, questions: open.length };
   });
   if (!written) return { missing: true, status: "failed", items: 0, questions: 0 };

@@ -95,6 +95,11 @@ export type AnalysisItem = {
 export type AnalysisOutput = {
   is_food: boolean;
   title: string;
+  /**
+   * The model's name for the meal (a slot), judged from the food, the amount and the local time;
+   * null when it gave none. lib/meals/classify.ts decides with it.
+   */
+  meal_type: MealSlot | null;
   cuisine: string | null;
   overall_confidence: number;
   /** At most two short clarifying questions. */

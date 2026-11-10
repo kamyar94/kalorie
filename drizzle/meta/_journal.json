@@ -15,6 +15,13 @@
       "when": 1794352433584,
       "tag": "0001_item_emoji",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794353425755,
+      "tag": "0002_meal_slot_locked",
+      "breakpoints": true
     }
   ]
 }

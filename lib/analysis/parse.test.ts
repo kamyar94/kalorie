@@ -79,6 +79,15 @@ describe("parseAnalysis", () => {
     expect(output.items.map((i) => i.emoji)).toEqual(["🍚", null, null, null]);
   });
 
+  it("keeps a meal_type that is one of the slots", () => {
+    expect(parseAnalysis(reply({ meal_type: "supper" }), refs()).output.meal_type).toBe("supper");
+    expect(parseAnalysis(reply({ meal_type: "brunch" }), refs()).output.meal_type).toBeNull();
+    expect(parseAnalysis(reply(), refs()).output.meal_type).toBeNull();
+    expect(
+      parseAnalysis(reply({ is_food: false, meal_type: "snack" }), refs()).output.meal_type,
+    ).toBeNull();
+  });
+
   it("maps the prompt's short ids back and drops unknown ones", () => {
     const { output, sameAs } = parseAnalysis(
       reply({
