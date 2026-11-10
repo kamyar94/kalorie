@@ -1,7 +1,8 @@
 // Creating a meal from uploaded photos (POST /api/meals). The photos are decoded and re-encoded
 // with sharp and written under PHOTO_ROOT first; then the meal, its photo rows and the analysis
 // job are inserted in one transaction, so the worker never sees a meal without its photos. If the
-// transaction fails, the written files are removed again.
+// transaction fails, the written files are removed again. A meal without photos is a text meal
+// (source "text"): the analysis reads its note instead.
 import crypto from "node:crypto";
 
 import { and, eq, isNull } from "drizzle-orm";
@@ -24,6 +25,7 @@ export type NewPhotoMeal = {
   eatenAt: Date;
   tz: string;
   note: string | null;
+  /** None for a text-only meal (then note is required). */
   photos: Buffer[];
 };
 
@@ -56,7 +58,7 @@ const existingByClientId = async (userId: string, clientId: string, dbx: DbOrTx)
 /**
  * Stores the photos and the meal and queues its analysis. Returns the existing meal with
  * duplicate true when the same clientId was uploaded before. Throws PhotoError for photos that
- * cannot be read.
+ * cannot be read, and an Error for a meal with neither photos nor a note.
  */
 export const createPhotoMeal = async (
   input: NewPhotoMeal,
@@ -67,6 +69,8 @@ export const createPhotoMeal = async (
     if (existing) return { meal: existing, duplicate: true };
   }
 
+  if (!input.photos.length && !input.note?.trim())
+    throw new Error("A meal needs a photo or a description.");
   const processed = [];
   for (const photo of input.photos) processed.push(await processPhoto(photo));
 
@@ -120,12 +124,14 @@ export const createPhotoMeal = async (
           slot: slotFor(input.eatenAt, input.tz, windows),
           note: input.note,
           status: "queued",
-          source: "photo",
+          source: photoRows.length ? "photo" : "text",
         })
         .onConflictDoNothing()
         .returning();
       if (!meal) return null;
-      const inserted = await tx.insert(mealPhotos).values(photoRows).returning();
+      const inserted = photoRows.length
+        ? await tx.insert(mealPhotos).values(photoRows).returning()
+        : [];
       await enqueueMealAnalysis({ mealId, userId: input.userId, reason: "upload" }, tx);
       return toSummaryDto(meal, inserted, 0);
     });

@@ -1,6 +1,6 @@
 // One analysis run of a meal (docs/DESIGN.md section 4 steps 2 to 5): the vision call with the
-// 1280 px analysis copies and the meal's context, matching, nutrients, and writing items, totals,
-// questions and status in one transaction. lib/analysis/handler.ts wraps it with the job's status
+// 1280 px analysis copies and the meal's context (a text meal sends its description and no
+// image), matching, nutrients, and writing items, totals, questions and status in one transaction. lib/analysis/handler.ts wraps it with the job's status
 // changes, retries and error messages.
 //
 // Items the person edited by hand (meal_items.edited) are kept as they are unless the request asked
@@ -338,8 +338,11 @@ export const analyseMeal = async (
   const input = await loadAnalysisInput(userId, mealId, dbx);
   if (!input) return { missing: true, status: "failed", items: 0, questions: 0 };
 
-  const images = await readImages(input.photos);
-  if (!images.length) throw new NoPhotosError();
+  // A text meal is described in words: the model gets the description and no image.
+  const textOnly = input.meal.source === "text" && !input.photos.length;
+  if (textOnly && !input.meal.note?.trim()) throw new NoPhotosError();
+  const images = textOnly ? [] : await readImages(input.photos);
+  if (!textOnly && !images.length) throw new NoPhotosError();
   const context = analysisContext(input, keepEdits);
   context.photoCount = images.length;
   const { prompt, refs } = buildAnalysisPrompt(context);
@@ -363,8 +366,9 @@ export const analyseMeal = async (
   });
 
   if (!output.is_food) {
-    const detail = output.title ? `The photo seems to show: ${output.title}.` : undefined;
-    const error = mealError("not-food", { detail });
+    const detail =
+      output.title && !textOnly ? `The photo seems to show: ${output.title}.` : undefined;
+    const error = mealError("not-food", { detail, textOnly });
     const done = await dbx
       .update(meals)
       .set({

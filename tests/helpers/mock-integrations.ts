@@ -689,7 +689,13 @@ const handleGoogle = (mock: GoogleMock, body: unknown): Reply => {
     (body as { contents?: { parts?: { text?: string; inlineData?: unknown }[] }[] })?.contents ??
     [];
   const parts = contents.at(-1)?.parts ?? [];
-  if (parts.some((p) => p.inlineData)) return googleReply(mock.analyses.shift() ?? E2E_MEAL);
+  // The analysis asks for the meal schema (is_food); a text meal sends no image.
+  const schema = JSON.stringify(
+    (body as { generationConfig?: { responseJsonSchema?: unknown } })?.generationConfig
+      ?.responseJsonSchema ?? {},
+  );
+  if (parts.some((p) => p.inlineData) || schema.includes('"is_food"'))
+    return googleReply(mock.analyses.shift() ?? E2E_MEAL);
   const prompt = parts.find((p) => typeof p.text === "string")?.text ?? "";
   return googleReply(pickMatches(prompt));
 };

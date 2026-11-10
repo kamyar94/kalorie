@@ -169,6 +169,34 @@ test("photo to trends: mock provider, imported foods, an edit", async ({ page },
   await expect(page.getByTestId("average-energy")).toHaveText(kcal.toLocaleString("en-US"));
 });
 
+test("a meal in words is analysed by the mock provider without a photo", async ({ page }, info) => {
+  const userId = await signUp(page, info.project.name);
+  await saveGoogleKey(page);
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Take a photo of a meal" }).click();
+  const camera = page.getByRole("dialog", { name: "Camera" });
+  await camera.getByRole("button", { name: /^Type/ }).click();
+  await camera
+    .getByRole("textbox", { name: "What did you eat?" })
+    .fill("A cup of white rice and a roasted chicken breast");
+  await camera.getByRole("button", { name: "Send the meal (text only)" }).click();
+  const card = page.locator('article[data-state="ready"]');
+  await expect(card).toHaveCount(1, { timeout: 30_000 });
+  await expect(card).toContainText("Chicken with rice");
+
+  const meal = await pool.query(
+    `select m.source, count(i.id)::int as items from meals m join meal_items i on i.meal_id = m.id
+     where m.user_id = $1 group by m.id`,
+    [userId],
+  );
+  expect(meal.rows).toEqual([{ source: "text", items: 2 }]);
+  await card.getByRole("link").click();
+  await expect(page.getByRole("region", { name: "What you wrote" })).toContainText(
+    "A cup of white rice",
+  );
+  await expectAccessible(page);
+});
+
 test("Mealie: connect, then log a planned recipe with servings", async ({ page }, info) => {
   const userId = await signUp(page, info.project.name);
   await connectMealie(page);

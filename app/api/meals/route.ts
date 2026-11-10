@@ -1,9 +1,11 @@
 // GET  /api/meals?date=YYYY-MM-DD  -> { meals: MealSummaryDto[] } for that local day
 // POST /api/meals (multipart)      -> 201 { meal, duplicate: false } | 200 { meal, duplicate: true }
-//   photos   1 to 3 image files (JPEG, PNG or WebP by content), at most 8 MB each, 25 MB in all
-//   eatenAt  ISO time of the first photo      tz  IANA time zone of the device
+//   photos   0 to 3 image files (JPEG, PNG or WebP by content), at most 8 MB each, 25 MB in all;
+//            no photo makes a text-only meal (source "text"), which needs a note
+//   eatenAt  ISO time of the meal (the chosen time, else the first photo)
+//   tz       IANA time zone of the device
 //   clientId the device queue's id for the meal (repeat uploads return the first copy)
-//   note     optional, up to 500 characters
+//   note     up to 500 characters; optional with photos, required without
 import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 
@@ -56,8 +58,15 @@ export const POST = async (req: NextRequest) => {
     return errorJson(400, "The upload could not be read.");
   }
 
+  const noteField = form.get("note");
+  const note =
+    typeof noteField === "string" && noteField.trim()
+      ? noteField.trim().slice(0, UPLOAD_LIMITS.maxNoteChars)
+      : null;
+
   const files = form.getAll("photos").filter((value): value is File => value instanceof File);
-  if (!files.length) return errorJson(400, "Add at least one photo.");
+  // A meal described in words needs no photo, but it needs the words.
+  if (!files.length && !note) return errorJson(400, "Add a photo or write what you ate.");
   if (files.length > UPLOAD_LIMITS.maxPhotos)
     return errorJson(400, `Send at most ${UPLOAD_LIMITS.maxPhotos} photos per meal.`);
   let total = 0;
@@ -93,12 +102,6 @@ export const POST = async (req: NextRequest) => {
   const clientIdField = form.get("clientId");
   const clientId =
     typeof clientIdField === "string" && CLIENT_ID.test(clientIdField) ? clientIdField : null;
-  const noteField = form.get("note");
-  const note =
-    typeof noteField === "string" && noteField.trim()
-      ? noteField.trim().slice(0, UPLOAD_LIMITS.maxNoteChars)
-      : null;
-
   try {
     const result = await createPhotoMeal({ userId: user.id, clientId, eatenAt, tz, note, photos });
     return json(result, result.duplicate ? 200 : 201);

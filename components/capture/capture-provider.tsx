@@ -24,9 +24,10 @@ import {
   type QueuedMeal,
 } from "@/lib/client/capture-queue";
 import { flushQueue, requestBackgroundSync } from "@/lib/client/uploader";
-import type { MealWindows } from "@/lib/meals/time";
+import { localParts, type MealWindows } from "@/lib/meals/time";
 import { deviceTimeZone } from "@/lib/photos/client";
 import { useOnline } from "@/lib/ui/hooks";
+import { mealTime } from "@/lib/ui/when";
 
 import { CameraScreen, type Shot } from "./camera-screen";
 
@@ -177,8 +178,9 @@ export const CaptureProvider = ({
   }, [flush, reload, router]);
 
   const send = useCallback(
-    async (shots: Shot[], note: string, mode: CaptureMode) => {
-      if (!shots.length) return;
+    async (shots: Shot[], note: string, mode: CaptureMode, chosenAt: Date | null) => {
+      // Photos, or a meal described in words (a label photo always needs its photo).
+      if (!shots.length && (mode === "label" || !note.trim())) return;
       const photos = await Promise.all(
         shots.map(async (shot) => ({
           type: shot.blob.type || "image/jpeg",
@@ -188,12 +190,14 @@ export const CaptureProvider = ({
         })),
       );
       const text = [mode === "label" ? LABEL_NOTE : "", note.trim()].filter(Boolean).join(" ");
+      const tz = deviceTimeZone();
+      const eatenAt = mealTime(chosenAt, shots[0]?.capturedAt ?? null, new Date());
       const meal: QueuedMeal = {
         clientId: newClientId(),
         userId,
         createdAt: Date.now(),
-        eatenAt: shots[0]!.capturedAt.toISOString(),
-        tz: deviceTimeZone(),
+        eatenAt: eatenAt.toISOString(),
+        tz,
         note: text,
         photos,
         state: "waiting",
@@ -209,8 +213,10 @@ export const CaptureProvider = ({
           body: "This browser cannot store meals for later.",
           tone: "neutral",
         });
-      // Show the new card: on Today, not on an earlier day.
-      if (pathname !== "/today" || window.location.search.includes("date=")) router.push("/today");
+      // Show the new card on its day: Today, or the earlier day it was eaten on.
+      const day = localParts(eatenAt, tz).date;
+      const target = day === localParts(new Date(), tz).date ? "/today" : `/today?date=${day}`;
+      if (`${pathname}${window.location.search}` !== target) router.push(target);
       void requestBackgroundSync();
       void flush();
     },
@@ -263,10 +269,10 @@ export const CaptureProvider = ({
         open={camera.open}
         mode={camera.mode}
         onClose={() => setCamera((c) => ({ ...c, open: false }))}
-        onSend={(shots, note) => {
+        onSend={(shots, note, at) => {
           const mode = camera.mode;
           setCamera((c) => ({ ...c, open: false }));
-          void send(shots, note, mode).catch(() =>
+          void send(shots, note, mode, at).catch(() =>
             show({
               title: "The meal could not be saved on this device",
               body: "Try again, or pick the photos from the gallery.",

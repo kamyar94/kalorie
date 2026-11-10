@@ -102,6 +102,19 @@ const upload = async (userId: string, options: { note?: string; photos?: number 
 
 const meal = async (userId: string, mealId: string) => (await getMeal(userId, mealId))!;
 
+/** A meal described in words, without a photo. */
+const describeMeal = async (userId: string, note: string) => {
+  const { meal } = await createPhotoMeal({
+    userId,
+    clientId: null,
+    eatenAt: new Date("2026-10-31T05:00:00Z"), // 08:30 in Tehran
+    tz: "Asia/Tehran",
+    note,
+    photos: [],
+  });
+  return meal;
+};
+
 describe("analysis end to end", () => {
   it("analyses an upload: queued, then items, nutrients and totals from one job", async () => {
     const userId = await newPerson({ cuisines: ["Persian home cooking"], units: "imperial" });
@@ -126,6 +139,48 @@ describe("analysis end to end", () => {
     expect(prompt).toContain("Persian home cooking");
     expect(prompt).toContain("imperial");
     expect(prompt).not.toContain("Usual meals");
+  });
+
+  it("analyses a text meal from its description alone, and again after a correction", async () => {
+    const userId = await newPerson();
+    const created = await describeMeal(userId, "Rice with roast chicken, about a cup of rice");
+    expect(created).toMatchObject({ source: "text", status: "queued", photos: [] });
+
+    ai.queue("google", google.json(GOOD_MEAL), matchingReply("google"));
+    expect(await run()).toBe(1);
+    const done = await meal(userId, created.id);
+    expect(done.status).toBe("ready");
+    expect(done.items.length).toBeGreaterThan(0);
+    expect(done.totals.energy).toBeGreaterThan(0);
+
+    const request = ai.requests[0]!;
+    expect(imagesOf("google", request)).toBe(0);
+    const prompt = promptOf("google", request);
+    expect(prompt).toContain("No photo: the person described this meal in words.");
+    expect(prompt).toContain(
+      `The person's description of the meal: "Rice with roast chicken, about a cup of rice"`,
+    );
+    expect(prompt).toContain("Analyse the description");
+    expect(prompt).not.toContain("Photos:");
+
+    // A text meal can be fixed with a sentence and analysed again, like a photo meal.
+    expect(await correctMeal(userId, created.id, "Only half the rice")).toMatchObject({ ok: true });
+    ai.queue("google", google.json(GOOD_MEAL), matchingReply("google"));
+    await run();
+    expect(promptOf("google", ai.requests.at(-2)!)).toContain('"Only half the rice"');
+    expect(await retryAnalysis(userId, created.id)).toMatchObject({ ok: true });
+  });
+
+  it("tells a text meal that names no food apart from a photo of no food", async () => {
+    const userId = await newPerson();
+    const created = await describeMeal(userId, "hello there");
+    ai.queue("google", google.json(rawAnalysis({ is_food: false, title: "A greeting" })));
+    await run();
+    const done = await meal(userId, created.id);
+    expect(done.status).toBe("failed");
+    expect(done.error?.kind).toBe("not-food");
+    expect(done.error?.message).toContain("This description does not seem to name a food");
+    expect(done.error?.message).not.toContain("photo");
   });
 
   it("re-analyses with an answer and stops asking", async () => {

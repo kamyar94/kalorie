@@ -19,10 +19,11 @@ export type QueuedMeal = {
   /** Only this account uploads it (a shared device may switch accounts). */
   userId: string;
   createdAt: number;
-  /** ISO time of the first photo. */
+  /** ISO time of the meal: the time chosen in the camera, else the first photo's. */
   eatenAt: string;
   tz: string;
   note: string;
+  /** Empty for a meal described in words (then note holds the description). */
   photos: QueuedPhoto[];
   /** waiting: will be sent; failed: the server refused it, the person decides. */
   state: "waiting" | "failed";

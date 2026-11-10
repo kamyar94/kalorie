@@ -285,6 +285,99 @@ test("camera: send a meal, open the camera again, and it is live for the next me
   await expect(camera).toBeHidden();
 });
 
+/** The browser's local day, shifted by some days (it runs in this machine's time zone). */
+const localDay = (days = 0) => {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const day = new Date(`${today}T12:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + days);
+  return day.toISOString().slice(0, 10);
+};
+
+test("a meal in words: Type, a time yesterday, Send; the meal page shows the words and moves it", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  const camera = await openCamera(page);
+
+  // The When chip opens the time sheet over the camera; Yesterday is the same clock time.
+  await camera.getByRole("button", { name: "When: now. Change the time" }).click();
+  const sheet = page.getByRole("dialog", { name: "When did you eat this?" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Now" })).toHaveAttribute("aria-pressed", "true");
+  await expect(sheet.getByLabel("Date")).toHaveValue(localDay());
+  await expectAccessible(page);
+  await sheet.getByRole("button", { name: "Yesterday" }).click();
+  await expect(sheet.getByRole("button", { name: "Yesterday" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(sheet.getByLabel("Date")).toHaveValue(localDay(-1));
+  await sheet.getByRole("button", { name: "Done" }).click();
+  await expect(sheet).toBeHidden();
+  const chip = camera.getByTestId("when-chip");
+  await expect(chip).toHaveAccessibleName(/^When: yesterday at \d\d:\d\d\. Change the time$/);
+  await expect(chip).toHaveText(/^Yesterday, \d\d:\d\d$/);
+
+  // Type: the camera stops and a text field takes its place; Photo brings the camera back.
+  await camera.getByRole("button", { name: /^Type/ }).click();
+  await expect(page.getByTestId("camera")).toHaveAttribute("data-camera-state", "off");
+  await expect(page.getByTestId("camera").locator("video")).toHaveCount(0);
+  await camera.getByRole("button", { name: "Photo", exact: true }).click();
+  await expectLiveViewfinder(page);
+  await camera.getByRole("button", { name: /^Type/ }).click();
+  const words = camera.getByRole("textbox", { name: "What did you eat?" });
+  await expect(words).toBeFocused();
+  await expect(
+    camera.getByRole("button", { name: "Send meal (take a photo or type what you ate first)" }),
+  ).toBeDisabled();
+  await words.fill("Two fried eggs, a slice of toast with butter and a mug of tea");
+  await expectAccessible(page);
+  await camera.getByRole("button", { name: "Send the meal (text only)" }).click();
+  await expect(camera).toBeHidden();
+
+  // The meal lands on yesterday, without a photo.
+  await expect(page).toHaveURL(new RegExp(`/today\\?date=${localDay(-1)}$`));
+  const card = page.locator(SERVER_CARD);
+  await expect(card).toHaveCount(1);
+  const stored = await pool.query(
+    `select m.source, m.note, m.local_date::text as day,
+       (select count(*) from meal_photos p where p.meal_id = m.id)::int as photos
+     from meals m where m.user_id = $1`,
+    [userId],
+  );
+  expect(stored.rows).toEqual([
+    {
+      source: "text",
+      note: "Two fried eggs, a slice of toast with butter and a mug of tea",
+      day: localDay(-1),
+      photos: 0,
+    },
+  ]);
+
+  await card.getByRole("link").click();
+  await expect(page.getByRole("region", { name: "What you wrote" })).toContainText(
+    "Two fried eggs, a slice of toast",
+  );
+  await expectAccessible(page);
+
+  // Time moves the meal: Now puts it on today.
+  await page.getByRole("button", { name: "Time" }).click();
+  const when = page.getByRole("dialog", { name: "When did you eat this?" });
+  await when.getByRole("button", { name: "Now" }).click();
+  await when.getByRole("button", { name: "Done" }).click();
+  await expect(when).toBeHidden();
+  await expect(page.getByText(/^Today · \d\d:\d\d/)).toBeVisible();
+  const moved = await pool.query("select local_date::text as day from meals where user_id = $1", [
+    userId,
+  ]);
+  expect(moved.rows[0].day).toBe(localDay());
+});
+
 test("a camera that never answers: the phone's camera is offered while it starts", async ({
   page,
 }, info) => {

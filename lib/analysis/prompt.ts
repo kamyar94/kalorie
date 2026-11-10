@@ -8,10 +8,14 @@ import type { MealSlot } from "@/lib/contracts/meals";
 
 import type { PromptRefs } from "./parse";
 
-export const ANALYSIS_SYSTEM = `You are the food recognition step of Cal, a food log. You get one to three photos of one meal and some context, and you answer with JSON that matches the schema.
+export const ANALYSIS_SYSTEM = `You are the food recognition step of Cal, a food log. You get one to three photos of one meal and some context, and you answer with JSON that matches the schema. Some meals come without a photo: the person described them in words.
 
 Is it food?
 - First decide whether the photos show food or drink that someone is about to eat or drink, or just ate: a plate, bowl, snack, fruit, drink, a packaged food or its nutrition label. Menus, recipes or food on a screen, an empty plate, people, pets, rooms and other objects are not food. Then set is_food false, items and questions empty, and title a few words on what the photo shows.
+
+Meals described in words (no photo)
+- The person's description is then the only source. List the foods it names, each once. Take the amounts from the description ("two eggs", "a large bowl", "half a sandwich"); where it gives none, use a typical portion for one adult and widen grams_low and grams_high to show the doubt.
+- Set is_food false only when the description names no food or drink at all. photo_indexes stay empty.
 
 Items
 - Several photos show the same meal from other angles, or a close-up of a label: count each item once. photo_indexes lists the photos (numbered from 0) the item is in.
@@ -99,11 +103,20 @@ export const buildAnalysisPrompt = (
     current: new Map(),
   };
   const lines: string[] = [];
+  const textOnly = context.photoCount === 0;
   lines.push(
-    `Photos: ${context.photoCount} of the same meal (numbered 0 to ${context.photoCount - 1}).`,
+    textOnly
+      ? "No photo: the person described this meal in words. The amounts come from the description, or typical portions where it gives none."
+      : `Photos: ${context.photoCount} of the same meal (numbered 0 to ${context.photoCount - 1}).`,
     `Eaten at ${context.localTime} on a ${context.weekday} (${context.slot}).`,
   );
-  lines.push(context.note ? `The person's note: ${quote(context.note)}` : "No note.");
+  lines.push(
+    textOnly
+      ? `The person's description of the meal: ${quote(context.note ?? "")}`
+      : context.note
+        ? `The person's note: ${quote(context.note)}`
+        : "No note.",
+  );
   if (context.cuisines.length)
     lines.push(`The person usually eats: ${context.cuisines.map((c) => c.trim()).join(", ")}.`);
   lines.push(
@@ -158,7 +171,12 @@ export const buildAnalysisPrompt = (
     });
   }
 
-  lines.push("", "Analyse the photos and answer with the JSON.");
+  lines.push(
+    "",
+    textOnly
+      ? "Analyse the description and answer with the JSON."
+      : "Analyse the photos and answer with the JSON.",
+  );
   return { prompt: lines.join("\n"), refs };
 };
 

@@ -172,8 +172,12 @@ export const uploadMeal = async (input: {
   clientId: string;
   signal?: AbortSignal;
 }): Promise<CreateMealResponse> => {
-  if (!input.photos.length || input.photos.length > UPLOAD_LIMITS.maxPhotos)
-    throw new UploadError(`Send one to ${UPLOAD_LIMITS.maxPhotos} photos.`, 400);
+  // No photo is a meal described in words: it needs the words.
+  if (
+    input.photos.length > UPLOAD_LIMITS.maxPhotos ||
+    (!input.photos.length && !input.note?.trim())
+  )
+    throw new UploadError(`Send a description or one to ${UPLOAD_LIMITS.maxPhotos} photos.`, 400);
   const form = new FormData();
   input.photos.forEach((photo, i) => form.append("photos", photo, `photo-${i + 1}.jpg`));
   form.set("eatenAt", input.eatenAt.toISOString());

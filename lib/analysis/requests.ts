@@ -6,6 +6,7 @@ import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { mealPhotos, meals } from "@/db/schema";
+import { ANALYSED_SOURCES } from "@/lib/contracts/meals";
 import {
   ANALYSIS_INPUT_LIMITS,
   type AnalysisRequestResult,
@@ -29,8 +30,8 @@ const cleanText = (value: unknown, max: number) =>
 const notFound: AnalysisRequestResult = { ok: false, status: 404, error: "Meal not found." };
 
 /**
- * Shared steps: rate limit, the meal (locked), its photos, the change, status queued, the job.
- * change returns the new column values, or an error result.
+ * Shared steps: rate limit, the meal (locked), its photos (or its description, for a text meal),
+ * the change, status queued, the job. change returns the new column values, or an error result.
  */
 const requestAnalysis = async (
   userId: string,
@@ -59,7 +60,8 @@ const requestAnalysis = async (
       .select({ n: sql<number>`count(*)::int` })
       .from(mealPhotos)
       .where(eq(mealPhotos.mealId, mealId));
-    if (!Number(photos[0]?.n))
+    // A text meal is analysed from its description; other meals need photos.
+    if (!Number(photos[0]?.n) && !(meal.source === "text" && meal.note?.trim()))
       return {
         ok: false as const,
         status: 409 as const,
@@ -138,8 +140,8 @@ const KEY_RETRY_DAYS = 7;
 const KEY_RETRY_MAX = 10;
 
 /**
- * After the person saves an AI key: analyses again their photo meals of the last week that stopped
- * for a key problem, newest first. Returns how many were queued.
+ * After the person saves an AI key: analyses again their photo and text meals of the last week
+ * that stopped for a key problem, newest first. Returns how many were queued.
  */
 export const retryKeyFailures = async (
   userId: string,
@@ -154,7 +156,7 @@ export const retryKeyFailures = async (
       and(
         eq(meals.userId, userId),
         eq(meals.status, "failed"),
-        eq(meals.source, "photo"),
+        inArray(meals.source, [...ANALYSED_SOURCES]),
         isNull(meals.deletedAt),
         gte(meals.createdAt, since),
         inArray(sql<string>`${meals.error}->>'kind'`, KEY_FAILURE_KINDS),

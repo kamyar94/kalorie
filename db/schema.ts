@@ -24,7 +24,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { MEAL_SLOTS, MEAL_STATUSES } from "../lib/contracts/meals";
+import { MEAL_SLOTS, MEAL_SOURCES, MEAL_STATUSES } from "../lib/contracts/meals";
 import type { NutrientMap } from "../lib/contracts/nutrients";
 import { DEFAULT_MEAL_WINDOWS, type MealWindows } from "../lib/meals/time";
 
@@ -208,8 +208,6 @@ export const aiUsage = pgTable(
 );
 
 // ---- Meals ----
-
-export const MEAL_SOURCES = ["photo", "manual", "mealie", "duplicate"] as const;
 
 export type MealQuestionRow = {
   id: string;

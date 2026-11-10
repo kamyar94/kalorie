@@ -62,6 +62,23 @@ describe("analysis prompt", () => {
     expect(refs).toMatchObject({ photoCount: 2 });
   });
 
+  it("asks for a meal described in words when there is no photo", () => {
+    expect(ANALYSIS_SYSTEM).toContain("Meals described in words (no photo)");
+    const { prompt } = buildAnalysisPrompt(
+      context({ photoCount: 0, note: "Two fried eggs, toast with butter" }),
+    );
+    expect(prompt).toBe(
+      [
+        "No photo: the person described this meal in words. The amounts come from the description, or typical portions where it gives none.",
+        "Eaten at 13:15 on a Friday (lunch).",
+        `The person's description of the meal: "Two fried eggs, toast with butter"`,
+        "The person uses metric units.",
+        "",
+        "Analyse the description and answer with the JSON.",
+      ].join("\n"),
+    );
+  });
+
   it("lists the context with short ids and quotes the person's words", () => {
     const { prompt, refs } = buildAnalysisPrompt(
       context({
@@ -149,6 +166,13 @@ describe("matching prompt", () => {
 });
 
 describe("meal errors", () => {
+  it("says a text meal names no food in its own words", () => {
+    expect(mealError("not-food", { textOnly: true }).message).toBe(
+      "This description does not seem to name a food or drink. Fix it with a sentence or add the items by hand.",
+    );
+    expect(mealError("not-food").message).toContain("These photos");
+  });
+
   it("gives a clear message per kind and says when Cal tries again", () => {
     expect(mealError("no-key").message).toContain("AI settings");
     expect(mealError("auth").message).toContain("did not accept your API key");
