@@ -211,6 +211,80 @@ test("capture three photos with the in-app camera, with a note", async ({ page }
   await expectAccessible(page);
 });
 
+/**
+ * The live picture is on screen: the video plays the camera stream, and the middle of the
+ * viewfinder is not a white sheet (the shutter flash once stayed white after a second open).
+ */
+const expectLiveViewfinder = async (page: Page) => {
+  await expect(page.getByTestId("camera")).toHaveAttribute("data-camera-state", "live");
+  await expect
+    .poll(() =>
+      page.getByTestId("camera").evaluate((root) => {
+        const video = root.querySelector("video");
+        return !!video && video.srcObject instanceof MediaStream && !video.paused
+          ? video.srcObject.getVideoTracks()[0]?.readyState
+          : "none";
+      }),
+    )
+    .toBe("live");
+  // The shutter flash lasts 160 ms; after that the middle of the screen shows the camera.
+  await page.waitForTimeout(400);
+  const viewport = page.viewportSize()!;
+  const shot = await page.screenshot({
+    clip: {
+      x: viewport.width / 2 - 40,
+      y: viewport.height / 2 - 40,
+      width: 80,
+      height: 80,
+    },
+  });
+  const { default: sharp } = await import("sharp");
+  const { channels } = await sharp(shot).stats();
+  const brightness = channels.slice(0, 3).reduce((sum, c) => sum + c.mean, 0) / 3;
+  expect(brightness, "the viewfinder is white").toBeLessThan(235);
+};
+
+test("camera: send a meal, open the camera again, and it is live for the next meal", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  let camera = await openCamera(page);
+  await expectLiveViewfinder(page);
+  await camera.getByRole("button", { name: "Take photo" }).click();
+  await expect(photosInStrip(page)).toHaveCount(1);
+  await expectLiveViewfinder(page);
+  await camera.getByRole("button", { name: "Send meal with 1 photo" }).click();
+  await expect(camera).toBeHidden();
+  await expect(page.locator(SERVER_CARD)).toHaveCount(1);
+
+  // The next meal: the camera opens live again, without a white screen.
+  camera = await openCamera(page);
+  await expectLiveViewfinder(page);
+  await expect(photosInStrip(page)).toHaveCount(0);
+  await camera.getByRole("button", { name: "Take photo" }).click();
+  await expect(photosInStrip(page)).toHaveCount(1);
+  await expectLiveViewfinder(page);
+  await camera.getByRole("button", { name: "Send meal with 1 photo" }).click();
+  await expect(camera).toBeHidden();
+  await expect(page.locator(SERVER_CARD)).toHaveCount(2);
+  await expect
+    .poll(
+      async () =>
+        (await pool.query("select count(*)::int as n from meals where user_id = $1", [userId]))
+          .rows[0]?.n,
+    )
+    .toBe(2);
+
+  // Closed and opened again right away: live again.
+  camera = await openCamera(page);
+  await page.keyboard.press("Escape");
+  await expect(camera).toBeHidden();
+  camera = await openCamera(page);
+  await expectLiveViewfinder(page);
+  await page.keyboard.press("Escape");
+  await expect(camera).toBeHidden();
+});
+
 test("a camera that never answers: the phone's camera is offered while it starts", async ({
   page,
 }, info) => {

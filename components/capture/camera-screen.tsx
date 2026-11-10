@@ -45,7 +45,33 @@ const cameraRequests = (facing: "environment" | "user"): MediaTrackConstraints[]
 type ImageCaptureLike = { takePhoto: () => Promise<Blob> };
 type ImageCaptureConstructor = new (track: MediaStreamTrack) => ImageCaptureLike;
 
-const stopStream = (stream: MediaStream | null) => stream?.getTracks().forEach((t) => t.stop());
+/**
+ * A phone can refuse a new camera stream for a moment right after the last one stopped
+ * (NotReadableError on Android), so a quick reopen waits this long after the last stop.
+ */
+const REOPEN_GAP_MS = 300;
+/** When this page last stopped a camera stream (performance.now()). */
+let lastStoppedAt = -Infinity;
+
+const stopStream = (stream: MediaStream | null) => {
+  if (!stream) return;
+  stream.getTracks().forEach((t) => t.stop());
+  lastStoppedAt = performance.now();
+};
+
+const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+/** Waits until a stream stopped just now has let go of the camera. */
+const settleAfterStop = async () => {
+  const since = performance.now() - lastStoppedAt;
+  if (since >= REOPEN_GAP_MS) return;
+  await nextFrame();
+  await wait(Math.max(0, REOPEN_GAP_MS - (performance.now() - lastStoppedAt)));
+};
+
+/** Errors that mean the camera is busy for a moment rather than missing or refused. */
+const BUSY_ERRORS = new Set(["NotReadableError", "AbortError", "TrackStartError"]);
 
 /** The promise's value, or null if it takes longer than `ms`. */
 const within = <T,>(promise: Promise<T>, ms: number) =>
@@ -131,6 +157,15 @@ export const CameraScreen = ({
   });
   const noteId = useId();
 
+  // A new video element (each time the dialog opens) shows the running stream at once.
+  const attachVideo = useCallback((element: HTMLVideoElement | null) => {
+    video.current = element;
+    if (element && stream.current && element.srcObject !== stream.current) {
+      element.srcObject = stream.current;
+      void element.play().catch(() => undefined);
+    }
+  }, []);
+
   const full = shots.length >= MAX;
   const label = mode === "label";
 
@@ -147,7 +182,13 @@ export const CameraScreen = ({
         setState("unavailable");
         return;
       }
-      for (const request of cameraRequests(facing)) {
+      await settleAfterStop();
+      if (cancelled) return;
+      // A busy camera (just released by the last stream) gets one more try after a pause.
+      const requests = cameraRequests(facing);
+      let busyRetries = 1;
+      for (let i = 0; i < requests.length; i++) {
+        const request = requests[i]!;
         let media: MediaStream;
         try {
           media = await navigator.mediaDevices.getUserMedia({ audio: false, video: request });
@@ -155,11 +196,20 @@ export const CameraScreen = ({
           if (cancelled) return;
           const name = (error as DOMException)?.name;
           if (name === "NotAllowedError" || name === "SecurityError") return setState("denied");
+          if (BUSY_ERRORS.has(name) && busyRetries > 0) {
+            busyRetries -= 1;
+            await wait(REOPEN_GAP_MS);
+            if (cancelled) return;
+            i -= 1;
+          }
           continue;
         }
         if (cancelled) return stopStream(media);
         stopStream(stream.current);
         stream.current = media;
+        // The video element mounts with the dialog; wait for it if the stream came first.
+        if (!video.current) await nextFrame();
+        if (cancelled) return;
         const element = video.current;
         if (element) {
           element.srcObject = media;
@@ -189,8 +239,10 @@ export const CameraScreen = ({
     };
   }, [open, facing]);
 
-  // Forget everything when the screen closes (Close, Escape or Send).
+  // Forget everything when the screen closes (Close, Escape or Send), the shutter flash too: a
+  // flash left over from the last meal would cover the next meal's viewfinder.
   const reset = (revoke: boolean) => {
+    setFlash(0);
     dictation.current?.abort();
     dictation.current = null;
     if (revoke) for (const shot of shots) URL.revokeObjectURL(shot.url);
@@ -355,7 +407,7 @@ export const CameraScreen = ({
           </Dialog.Title>
 
           <video
-            ref={video}
+            ref={attachVideo}
             playsInline
             muted
             autoPlay
@@ -367,9 +419,13 @@ export const CameraScreen = ({
             )}
           />
           {flash > 0 && (
+            // Shown once per shutter press and removed when it has faded: left on screen, the
+            // white sheet would hide the camera.
             <div
               key={flash}
               aria-hidden
+              data-testid="shutter-flash"
+              onAnimationEnd={() => setFlash(0)}
               className="animate-fade-out pointer-events-none absolute inset-0 bg-white motion-reduce:hidden"
             />
           )}
