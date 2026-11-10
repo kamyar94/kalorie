@@ -1,6 +1,7 @@
 // Database rows to the DTOs of lib/contracts/meals.ts.
 import type { mealItems, mealPhotos, meals } from "@/db/schema";
 import { emojiFor } from "@/lib/food/emoji";
+import { isDrink, totalWaterMl } from "@/lib/meals/hydration";
 import type {
   MealDto,
   MealErrorDto,
@@ -17,7 +18,10 @@ type PhotoRow = typeof mealPhotos.$inferSelect;
 type ItemRow = typeof mealItems.$inferSelect;
 
 /** The item columns a meal summary needs (the timeline line and the plate icon). */
-export type SummaryItemRow = Pick<ItemRow, "position" | "name" | "localName" | "kind" | "emoji"> & {
+export type SummaryItemRow = Pick<
+  ItemRow,
+  "position" | "name" | "localName" | "kind" | "emoji" | "ml" | "grams" | "count" | "nutrients"
+> & {
   foodName: string | null;
 };
 
@@ -111,7 +115,12 @@ export const toSummaryDto = (
     error: toErrorDto(row.error),
     photos: [...photos].sort((a, b) => a.position - b.position).map(toPhotoDto),
     itemCount: items.length,
-    foods: sorted.map((item) => ({ name: item.name, emoji: itemEmoji(item) })),
+    foods: sorted.map((item) => ({
+      name: item.name,
+      emoji: itemEmoji(item),
+      drink: isDrink(item),
+    })),
+    waterMl: totalWaterMl(sorted),
     openQuestions: questions.filter((q) => !q.answer).length,
     totals: row.totals ?? {},
     createdAt: row.createdAt.toISOString(),

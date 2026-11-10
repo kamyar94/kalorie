@@ -28,7 +28,8 @@ import { requireUser, secureCookies } from "@/lib/auth/session";
 import { isNutrientCode } from "@/lib/contracts/nutrients";
 import type { DailyTargets, Profile } from "@/lib/contracts/targets";
 import { SETTINGS_WINDOWS, takeRateLimit } from "@/lib/rate-limit";
-import { getTargets, resetTarget, setCustomTarget } from "@/lib/targets/service";
+import { HYDRATION_CODE } from "@/lib/contracts/targets";
+import { getTargets, resetTarget, setCustomTarget, setHydrationGoal } from "@/lib/targets/service";
 import { parseTheme, THEME_COOKIE } from "@/lib/ui/theme";
 
 export type ActionResult<T = null> = { ok: true; data: T } | { ok: false; error: string };
@@ -74,6 +75,16 @@ export const setTargetAction = async (
   target: number | null,
 ): Promise<ActionResult<DailyTargets>> => {
   const user = await requireUser();
+  // The water goal (ml of drinks a day) sits next to the nutrient targets.
+  if (code === HYDRATION_CODE) {
+    try {
+      if (target === null) await resetTarget(user.id, HYDRATION_CODE);
+      else await setHydrationGoal(user.id, target);
+      return { ok: true, data: await getTargets(user.id) };
+    } catch (error) {
+      return failure(error, "The water goal was not saved.");
+    }
+  }
   if (!isNutrientCode(code)) return { ok: false, error: "Unknown nutrient." };
   try {
     if (target === null) await resetTarget(user.id, code);

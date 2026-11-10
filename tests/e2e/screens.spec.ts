@@ -53,6 +53,15 @@ const expectNoSidewaysScroll = async (page: Page) => {
 };
 
 const expectAccessible = async (page: Page) => {
+  // Colours are checked once fades and transitions have finished (spinners run forever).
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => null)),
+    ),
+  );
   await expectNoSidewaysScroll(page);
   const result = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
@@ -414,6 +423,75 @@ test("food emojis: the plate of a meal without a photo, its food line and the it
   await expect(page.getByRole("button", { name: /^Rice, white, cooked/ })).toBeVisible();
   await expect(page.getByRole("region", { name: "What you wrote" })).toContainText("roast chicken");
   await expectAccessible(page);
+});
+
+test("water: a glass from Today and undo, a bottle on an earlier day, the goal in Settings", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  const water = page.getByRole("region", { name: "Water" });
+  const total = water.getByTestId("water-total");
+  await expect(total).toHaveText("0 of 1.8 L");
+  await expect(water).toContainText("From the drinks in your meals. Alcohol does not count.");
+  await expect(water.getByRole("progressbar", { name: "Water today" })).toHaveAttribute(
+    "aria-valuenow",
+    "0",
+  );
+  await expectAccessible(page);
+
+  await water.getByRole("button", { name: "+ Glass, 250 ml" }).click();
+  await expect(total).toHaveText("0.25 of 1.8 L");
+  await expect(water.getByRole("progressbar", { name: "Water today" })).toHaveAttribute(
+    "aria-valuenow",
+    "250",
+  );
+  const card = page.locator("article[data-meal-id]");
+  await expect(card).toHaveCount(1);
+  await expect(card.getByTestId("meal-water")).toHaveText("+250 ml water");
+  await expect(card.getByRole("img", { name: "Plate with water" })).toBeVisible();
+  await expect(card.getByTestId("meal-foods")).toContainText("💧 Water");
+  await expectAccessible(page);
+  const logged = await pool.query(
+    `select i.name, i.kind, i.ml, i.emoji, (i.nutrients->>'energy')::float as kcal
+     from meal_items i join meals m on m.id = i.meal_id where m.user_id = $1`,
+    [userId],
+  );
+  expect(logged.rows).toEqual([{ name: "Water", kind: "drink", ml: 250, emoji: "💧", kcal: 0 }]);
+
+  // Undo takes it back.
+  await page
+    .getByRole("status")
+    .filter({ hasText: "250 ml of water logged" })
+    .getByRole("button", { name: "Undo" })
+    .click();
+  await expect(total).toHaveText("0 of 1.8 L");
+  await expect(card).toHaveCount(0);
+
+  // On an earlier day the water is logged at 12:00 of that day.
+  await page.goto(`/today?date=${localDay(-1)}`);
+  await water.getByRole("button", { name: "+ Bottle, 500 ml" }).click();
+  await expect(total).toHaveText("0.50 of 1.8 L");
+  const bottle = await pool.query(
+    `select local_date::text as day, to_char(eaten_at at time zone tz, 'HH24:MI') as time
+     from meals where user_id = $1 and deleted_at is null`,
+    [userId],
+  );
+  expect(bottle.rows).toEqual([{ day: localDay(-1), time: "12:00" }]);
+
+  // The goal: the person's own, then back to the standard one.
+  await page.goto("/settings");
+  const goal = page.getByTestId("water-goal");
+  await expect(goal).toContainText("1.8 L");
+  await goal.getByRole("button", { name: "Change the water goal" }).click();
+  await goal.getByLabel("Water goal in litres").fill("2.5");
+  await goal.getByRole("button", { name: "Save" }).click();
+  await expect(goal).toContainText("2.5 L");
+  await expect(goal).toContainText("set by you");
+  await page.goto("/today");
+  await expect(total).toHaveText("0 of 2.5 L");
+  await page.goto("/settings");
+  await goal.getByRole("button", { name: "Reset the water goal" }).click();
+  await expect(goal).toContainText("1.8 L");
 });
 
 test("a camera that never answers: the phone's camera is offered while it starts", async ({

@@ -59,6 +59,10 @@ const existingByClientId = async (userId: string, clientId: string, dbx: DbOrTx)
       localName: mealItems.localName,
       kind: mealItems.kind,
       emoji: mealItems.emoji,
+      ml: mealItems.ml,
+      grams: mealItems.grams,
+      count: mealItems.count,
+      nutrients: mealItems.nutrients,
       foodName: sql<string | null>`null`,
     })
     .from(mealItems)

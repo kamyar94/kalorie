@@ -12,7 +12,8 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SelectField } from "@/components/ui/select-field";
 import { useToast } from "@/components/ui/toast";
 import { formatNutrient, nutrientInfo, type NutrientCode } from "@/lib/contracts/nutrients";
-import type { DailyTargets, Profile } from "@/lib/contracts/targets";
+import { HYDRATION_CODE, type DailyTargets, type Profile } from "@/lib/contracts/targets";
+import { goalLitres } from "@/lib/meals/hydration";
 import { CM_PER_INCH, KG_PER_POUND, type Units } from "@/lib/ui/format";
 
 const TARGET_CODES: NutrientCode[] = [
@@ -30,6 +31,12 @@ const BASIS: Record<string, string> = {
   profile: "from your profile",
   dri: "recommended intake",
   default: "standard value",
+  custom: "set by you",
+};
+
+const WATER_BASIS: Record<string, string> = {
+  profile: "for your sex, from EFSA's advice",
+  default: "standard value, from EFSA's advice",
   custom: "set by you",
 };
 
@@ -60,7 +67,7 @@ export const ProfileSection = ({
   const [rate, setRate] = useState(String(profile.goalRateKgPerWeek ?? 0.5));
   const [targets, setTargets] = useState(initialTargets);
   const [busy, setBusy] = useState(false);
-  const [editing, setEditing] = useState<NutrientCode | null>(null);
+  const [editing, setEditing] = useState<NutrientCode | typeof HYDRATION_CODE | null>(null);
   const [draft, setDraft] = useState("");
 
   const num = (text: string, factor = 1) => {
@@ -86,7 +93,7 @@ export const ProfileSection = ({
     router.refresh();
   };
 
-  const saveTarget = async (code: NutrientCode, value: number | null) => {
+  const saveTarget = async (code: NutrientCode | typeof HYDRATION_CODE, value: number | null) => {
     const result = await setTargetAction(code, value);
     if (!result.ok) return show({ title: "Not saved", body: result.error, tone: "error" });
     setTargets(result.data);
@@ -255,6 +262,67 @@ export const ProfileSection = ({
               </li>
             );
           })}
+          <li
+            className="border-border flex min-h-14 items-center gap-2 border-b last:border-b-0"
+            data-testid="water-goal"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-body">Water from drinks</p>
+              <p className="text-caption text-muted">{WATER_BASIS[targets.hydration.basis]}</p>
+            </div>
+            {editing === HYDRATION_CODE ? (
+              <form
+                className="flex items-center gap-1.5"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const litres = num(draft);
+                  if (litres !== null) void saveTarget(HYDRATION_CODE, litres * 1000);
+                }}
+              >
+                <label htmlFor="target-water" className="sr-only">
+                  Water goal in litres
+                </label>
+                <input
+                  id="target-water"
+                  autoFocus
+                  inputMode="decimal"
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  className="border-border bg-surface tabular text-body h-11 w-24 rounded-xl border px-2 text-right focus:outline-none focus-visible:outline-3 focus-visible:outline-[var(--focus)]"
+                />
+                <span className="text-caption text-muted w-8">L</span>
+                <Button type="submit">Save</Button>
+              </form>
+            ) : (
+              <>
+                <p className="tabular text-body text-right">
+                  <span className="text-caption text-muted">about </span>
+                  {goalLitres(targets.hydration.goalMl)} L
+                </p>
+                <button
+                  type="button"
+                  aria-label="Change the water goal"
+                  onClick={() => {
+                    setDraft(goalLitres(targets.hydration.goalMl));
+                    setEditing(HYDRATION_CODE);
+                  }}
+                  className="text-muted hover:bg-surface-2 grid size-11 place-items-center rounded-full"
+                >
+                  <Pencil aria-hidden className="size-4" />
+                </button>
+                {targets.hydration.custom && (
+                  <button
+                    type="button"
+                    aria-label="Reset the water goal"
+                    onClick={() => void saveTarget(HYDRATION_CODE, null)}
+                    className="text-muted hover:bg-surface-2 grid size-11 place-items-center rounded-full"
+                  >
+                    <RotateCcw aria-hidden className="size-4" />
+                  </button>
+                )}
+              </>
+            )}
+          </li>
         </ul>
       </div>
     </Card>

@@ -50,6 +50,9 @@ const TEXT_PAIRS: [string, string][] = [
   ["on-warning-soft", "surface"],
   ["danger", "surface"],
   ["primary", "surface"],
+  // "+250 ml water" on a meal card.
+  ["water", "surface"],
+  ["water", "bg"],
 ];
 
 const GRAPHIC_PAIRS: [string, string][] = [
@@ -59,10 +62,14 @@ const GRAPHIC_PAIRS: [string, string][] = [
   "fat",
   "fiber",
   "focus",
+  "water",
 ].flatMap((c): [string, string][] => [
   [c, "surface"],
   [c, "bg"],
 ]);
+
+// The water bar fills a surface-2 track.
+GRAPHIC_PAIRS.push(["water", "surface-2"]);
 
 describe.each(Object.entries(themes))("%s theme", (_name, tokens) => {
   it.each(TEXT_PAIRS)("%s on %s reaches 4.5:1", (fg, bg) => {

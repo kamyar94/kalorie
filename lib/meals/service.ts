@@ -59,6 +59,10 @@ export const listMealsForDay = async (
         localName: mealItems.localName,
         kind: mealItems.kind,
         emoji: mealItems.emoji,
+        ml: mealItems.ml,
+        grams: mealItems.grams,
+        count: mealItems.count,
+        nutrients: mealItems.nutrients,
         foodName: foods.nameEn,
       })
       .from(mealItems)
