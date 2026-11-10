@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { NutrientBar } from "@/components/ui/nutrient-bar";
 import type { NutrientColor } from "@/components/ui/nutrient-ring";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { MEAL_SLOT_LABELS } from "@/lib/contracts/meals";
+import { MEAL_SLOT_LABELS, type MealSlot } from "@/lib/contracts/meals";
 import { formatNutrient, type NutrientCode } from "@/lib/contracts/nutrients";
 import { shiftLocalDate } from "@/lib/meals/time";
 import {
@@ -30,6 +30,9 @@ import { dayTitle, formatKcal, shortDate, weekdayLetter } from "@/lib/ui/format"
 import { BarChart, ChartTable, LineChart, type BarDatum } from "./charts";
 
 const RANGE_LABELS: Record<TrendRange, string> = { day: "Day", week: "Week", month: "Month" };
+
+/** Always listed; supper, drink and dessert only once the period has one. */
+const MAIN_SLOTS = new Set<MealSlot>(["breakfast", "lunch", "dinner", "snack"]);
 
 const hrefFor = (range: TrendRange, end: string, today: string) =>
   `/trends?range=${range}${end === today ? "" : `&end=${end}`}`;
@@ -209,23 +212,28 @@ export const TrendsView = ({ data, today }: { data: TrendsData; today: string })
 
           <Section title={data.range === "day" ? "By meal" : "Average by meal"}>
             <ul className="flex flex-col gap-3">
-              {data.bySlot.map((slot) => (
-                <li key={slot.slot}>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-label">{MEAL_SLOT_LABELS[slot.slot]}</span>
-                    <span className="text-caption text-muted tabular">
-                      <span className="text-label text-text">{formatKcal(slot.energy)}</span> kcal ·{" "}
-                      {Math.round(slot.share * 100)}%
-                    </span>
-                  </div>
-                  <div aria-hidden className="bg-surface-3 mt-1.5 h-2 overflow-hidden rounded-full">
+              {data.bySlot
+                .filter((slot) => slot.meals > 0 || MAIN_SLOTS.has(slot.slot))
+                .map((slot) => (
+                  <li key={slot.slot}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-label">{MEAL_SLOT_LABELS[slot.slot]}</span>
+                      <span className="text-caption text-muted tabular">
+                        <span className="text-label text-text">{formatKcal(slot.energy)}</span> kcal
+                        · {Math.round(slot.share * 100)}%
+                      </span>
+                    </div>
                     <div
-                      className="bg-energy h-full rounded-full"
-                      style={{ width: `${(slot.energy / maxSlot) * 100}%` }}
-                    />
-                  </div>
-                </li>
-              ))}
+                      aria-hidden
+                      className="bg-surface-3 mt-1.5 h-2 overflow-hidden rounded-full"
+                    >
+                      <div
+                        className="bg-energy h-full rounded-full"
+                        style={{ width: `${(slot.energy / maxSlot) * 100}%` }}
+                      />
+                    </div>
+                  </li>
+                ))}
             </ul>
           </Section>
 

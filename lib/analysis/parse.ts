@@ -11,6 +11,7 @@ import type {
   AnalysisOutput,
   AnalysisQuestion,
 } from "@/lib/contracts/analysis";
+import { isMealSlot } from "@/lib/contracts/meals";
 import type { NutrientEstimate } from "@/lib/contracts/nutrients";
 import { cleanEmoji } from "@/lib/food/emoji";
 
@@ -238,6 +239,7 @@ export const parseAnalysis = (
   const output: AnalysisOutput = {
     is_food: isFood,
     title: text(raw.title, 80),
+    meal_type: isFood && isMealSlot(raw.meal_type) ? raw.meal_type : null,
     cuisine: orNull(text(raw.cuisine, 40)),
     overall_confidence: clamp(number(raw.overall_confidence) ?? 0.5, 0, 1),
     questions: isFood

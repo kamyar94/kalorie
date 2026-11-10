@@ -20,6 +20,8 @@ export type BottomSheetProps = {
   className?: string;
   /** Above another full-screen dialog (the camera), with its scrim over it. */
   elevated?: boolean;
+  /** Where focus goes when the sheet closes (default: the element that opened it). */
+  onCloseAutoFocus?: (event: Event) => void;
 };
 
 /**
@@ -37,6 +39,7 @@ export const BottomSheet = ({
   footer,
   className,
   elevated = false,
+  onCloseAutoFocus,
 }: BottomSheetProps) => (
   <Dialog.Root open={open} onOpenChange={onOpenChange}>
     {trigger && <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>}
@@ -48,6 +51,7 @@ export const BottomSheet = ({
         )}
       />
       <Dialog.Content
+        onCloseAutoFocus={onCloseAutoFocus}
         className={cn(
           "border-border bg-surface shadow-raised fixed inset-x-0 bottom-0 flex max-h-[92dvh] flex-col rounded-t-[1.75rem] border outline-none",
           elevated ? "z-[61]" : "z-50",

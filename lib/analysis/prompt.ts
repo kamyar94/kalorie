@@ -50,6 +50,9 @@ Estimate
 Questions
 - Ask at most two short questions, only when the answer would change the meal's calories by about a fifth or more and the photos cannot tell: whole or skimmed milk, sugar in a drink, how much oil, what is inside a wrap, whether all of it was eaten. Give each two to four short suggested answers. Most meals need no question.
 
+Meal type
+- meal_type names the meal from the foods, the amount and the local time given: breakfast, lunch or dinner for a main meal at its usual time of day; supper for a real meal late in the evening, after dinner time; snack for a small bite between meals (fruit, a biscuit, a handful of nuts); dessert for sweets eaten on their own; drink when there is only something to drink.
+
 Confidence and title
 - confidence (per item) and overall_confidence (the whole meal's calories) run from 0 to 1.
 - title is a short name for the meal, at most six words ("Ghormeh sabzi with rice"). cuisine is the main cuisine, empty when mixed or unclear.

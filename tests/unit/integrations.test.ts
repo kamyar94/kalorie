@@ -21,7 +21,7 @@ import {
 } from "@/lib/integrations/mealie/nutrition";
 import { suggestPlan, type PlanRecipe } from "@/lib/integrations/mealie/planner";
 import { recipeServings } from "@/lib/integrations/mealie/recipes";
-import { slotOfEntry } from "@/lib/integrations/mealie/service";
+import { mealieEntryType, slotOfEntry } from "@/lib/integrations/mealie/service";
 import { cleanPairCode } from "@/lib/integrations/opengym/service";
 import { metFor, parseState, weightForDay, workoutKcal } from "@/lib/integrations/opengym/parse";
 import { allowedEndpoint, vapidConfig } from "@/lib/push/config";
@@ -160,9 +160,11 @@ describe("Mealie ingredients", () => {
     expect(recipeServings({})).toBe(1);
   });
 
-  it("maps plan entry types to meal slots", () => {
+  it("maps plan entry types to meal slots (side has none)", () => {
     expect(slotOfEntry("dinner")).toBe("dinner");
-    expect(slotOfEntry("dessert")).toBeNull();
+    expect(slotOfEntry("dessert")).toBe("dessert");
+    expect(slotOfEntry("drink")).toBe("drink");
+    expect(slotOfEntry("side")).toBeNull();
   });
 });
 
@@ -425,5 +427,13 @@ describe("Web Push", () => {
       }),
     ).not.toBeNull();
     expect(Buffer.from(scalar32(Buffer.from([1, 2])))).toHaveLength(32);
+  });
+});
+
+describe("Cal's meal slots as Mealie entry types", () => {
+  it("writes supper as dinner (Mealie has no supper) and the others as they are", () => {
+    expect(mealieEntryType("supper")).toBe("dinner");
+    for (const slot of ["breakfast", "lunch", "dinner", "snack", "drink", "dessert"] as const)
+      expect(mealieEntryType(slot)).toBe(slot);
   });
 });

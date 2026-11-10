@@ -15,6 +15,7 @@ export const MAX_MANUAL_ITEMS = 20;
 export type NewManualMeal = {
   eatenAt: string;
   tz: string;
+  /** A slot chosen by the person (or the planned entry type of a Mealie meal): it stays. */
   slot?: MealSlot;
   title?: string | null;
   items: ItemInput[];
@@ -54,7 +55,9 @@ export const createManualMeal = async (
         eatenAt,
         tz: input.tz,
         localDate: localParts(eatenAt, input.tz).date,
+        // Without a chosen slot, the items name the meal (lib/meals/classify.ts) as they are added.
         slot: input.slot ?? slotFor(eatenAt, input.tz, windows),
+        slotLocked: !!input.slot,
         title: input.title?.trim().slice(0, 120) || input.items[0]!.name.trim().slice(0, 120),
         status: "ready",
         source: input.source ?? "manual",

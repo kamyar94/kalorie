@@ -16,6 +16,7 @@ import type {
   PlanSuggestionDto,
   RecipeInfoDto,
 } from "@/lib/contracts/integrations";
+import { PLAN_SLOTS } from "@/lib/contracts/integrations";
 import { MEAL_SLOTS, type MealSlot } from "@/lib/contracts/meals";
 import { createManualMeal, ManualMealError } from "@/lib/meals/manual";
 import { isValidTimeZone, localParts } from "@/lib/meals/time";
@@ -153,9 +154,12 @@ export const disconnectMealie = async (userId: string, dbx: DbOrTx = defaultDb) 
 
 // ---- Planned meals ----
 
-/** Mealie's entry types that are Cal's meal slots; side, drink and dessert have none. */
+/** Mealie's entry types that are Cal's meal slots (all but side); null for side. */
 export const slotOfEntry = (entryType: string): MealSlot | null =>
   (MEAL_SLOTS as readonly string[]).includes(entryType) ? (entryType as MealSlot) : null;
+
+/** Cal's slot as a Mealie entry type: Mealie has no supper, so it is dinner there. */
+export const mealieEntryType = (slot: MealSlot) => (slot === "supper" ? "dinner" : slot);
 
 export const PLAN_CLIENT_PREFIX = "mealie-plan:";
 
@@ -511,7 +515,7 @@ const cleanDays = (days: unknown, today: string) => {
 
 const cleanSlots = (slots: unknown) => {
   if (!Array.isArray(slots)) return null;
-  const clean = (MEAL_SLOTS as readonly MealSlot[]).filter((s) => slots.includes(s));
+  const clean = PLAN_SLOTS.filter((s) => slots.includes(s));
   return clean.length ? clean : null;
 };
 
@@ -631,7 +635,7 @@ export const confirmMealPlan = async (
           try {
             await client.createPlanEntry({
               date: entry.date,
-              entryType: entry.slot,
+              entryType: mealieEntryType(entry.slot),
               recipeId: entry.recipeId,
             });
             written += 1;

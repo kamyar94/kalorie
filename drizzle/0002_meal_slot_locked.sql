@@ -1,0 +1,1 @@
+ALTER TABLE "meals" ADD COLUMN "slot_locked" boolean DEFAULT false NOT NULL;

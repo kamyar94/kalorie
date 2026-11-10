@@ -27,7 +27,20 @@ export type MealStatus = (typeof MEAL_STATUSES)[number];
 /** States only the device knows, before the server has the meal. */
 export type LocalMealState = "waiting" | "uploading";
 
-export const MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"] as const;
+/**
+ * The meal's name on the timeline. breakfast, lunch and dinner follow the meal windows; snack,
+ * supper (a real meal late in the evening), drink (drinks only) and dessert also depend on what
+ * and how much was eaten (lib/meals/classify.ts).
+ */
+export const MEAL_SLOTS = [
+  "breakfast",
+  "lunch",
+  "dinner",
+  "snack",
+  "supper",
+  "drink",
+  "dessert",
+] as const;
 export type MealSlot = (typeof MEAL_SLOTS)[number];
 
 export const MEAL_SLOT_LABELS: Record<MealSlot, string> = {
@@ -35,7 +48,13 @@ export const MEAL_SLOT_LABELS: Record<MealSlot, string> = {
   lunch: "Lunch",
   dinner: "Dinner",
   snack: "Snack",
+  supper: "Supper",
+  drink: "Drink",
+  dessert: "Dessert",
 };
+
+export const isMealSlot = (value: unknown): value is MealSlot =>
+  typeof value === "string" && (MEAL_SLOTS as readonly string[]).includes(value);
 
 /**
  * photo: photos from the camera or gallery (a note optional); text: described in words only, no
@@ -140,6 +159,8 @@ export type MealSummaryDto = {
   /** Local wall-clock time, HH:MM, for display. */
   localTime: string;
   slot: MealSlot;
+  /** The person chose the slot by hand; Cal does not change it any more. */
+  slotLocked: boolean;
   title: string | null;
   note: string | null;
   status: MealStatus;
@@ -167,6 +188,7 @@ export type MealDto = MealSummaryDto & {
 export type MealPatch = {
   eatenAt?: string;
   tz?: string;
+  /** A slot chosen by hand: it stays (meals.slot_locked) whatever the items and time do. */
   slot?: MealSlot;
   title?: string | null;
   note?: string | null;

@@ -55,8 +55,8 @@ export const DetailsSheet = ({
         return setError("The time cannot be in the future.");
       patch.eatenAt = iso;
     }
-    // A new time picks its slot from the meal windows unless the slot was changed too.
-    if (slot !== meal.slot || patch.eatenAt) patch.slot = slot;
+    // A slot picked here stays; otherwise a new time names the meal again.
+    if (slot !== meal.slot) patch.slot = slot;
     if (!Object.keys(patch).length) return onOpenChange(false);
     setBusy(true);
     try {
@@ -103,7 +103,13 @@ export const DetailsSheet = ({
             value={slot}
             onValueChange={setSlot}
             options={MEAL_SLOTS.map((s) => ({ value: s, label: MEAL_SLOT_LABELS[s] }))}
+            className="grid-flow-row grid-cols-3"
           />
+          <p className="text-caption text-muted">
+            {meal.slotLocked
+              ? "Chosen by you: Cal keeps this name."
+              : "Cal names the meal from its food and time until you pick one."}
+          </p>
         </div>
         {error && (
           <p role="alert" className="text-body text-danger">

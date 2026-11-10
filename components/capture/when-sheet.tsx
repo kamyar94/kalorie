@@ -30,6 +30,7 @@ export const WhenSheet = ({
   tz,
   description,
   elevated = false,
+  returnFocus,
   onDone,
 }: {
   open: boolean;
@@ -40,6 +41,8 @@ export const WhenSheet = ({
   description: string;
   /** Above the full-screen camera. */
   elevated?: boolean;
+  /** The control that opened the sheet; focus goes back to it on close. */
+  returnFocus?: React.RefObject<HTMLElement | null>;
   onDone: (at: Date | null) => void | Promise<void>;
 }) => {
   const id = useId();
@@ -101,6 +104,15 @@ export const WhenSheet = ({
       title="When did you eat this?"
       description={description}
       elevated={elevated}
+      onCloseAutoFocus={
+        returnFocus
+          ? (event) => {
+              // Inside another dialog the default can land on that dialog instead.
+              event.preventDefault();
+              returnFocus.current?.focus();
+            }
+          : undefined
+      }
       footer={
         <Button fullWidth size="lg" loading={busy} onClick={() => void done()}>
           Done

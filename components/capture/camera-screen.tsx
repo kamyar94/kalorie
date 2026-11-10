@@ -158,6 +158,7 @@ export const CameraScreen = ({
   const gallery = useRef<HTMLInputElement>(null);
   const noteField = useRef<HTMLTextAreaElement>(null);
   const mealText = useRef<HTMLTextAreaElement>(null);
+  const whenChip = useRef<HTMLButtonElement>(null);
   const [state, setState] = useState<CameraState>("starting");
   const [slow, setSlow] = useState(false);
   const [facing, setFacing] = useState<"environment" | "user">("environment");
@@ -446,13 +447,14 @@ export const CameraScreen = ({
   }, [open, textMode]);
 
   // Keep focus on the next useful control: the shutter once the camera runs, the phone camera
-  // button without one, and Send once three photos are taken.
+  // button without one, and Send once three photos are taken. (Closing the When sheet gives
+  // focus back to the When chip; this does not run then.)
   useEffect(() => {
-    if (!open || typing || textMode || whenOpen) return;
+    if (!open || typing || textMode) return;
     if (full) sendButton.current?.focus();
     else if (state === "live") shutter.current?.focus();
     else if (state === "unavailable" || state === "denied") fallbackButton.current?.focus();
-  }, [open, state, full, typing, textMode, whenOpen]);
+  }, [open, state, full, typing, textMode]);
 
   const send = () => {
     if (!canSend) return;
@@ -553,6 +555,7 @@ export const CameraScreen = ({
               </p>
             ) : (
               <button
+                ref={whenChip}
                 type="button"
                 onClick={() => setWhenOpen(true)}
                 aria-label={`When: ${whenSpoken(when, now, tz)}. Change the time`}
@@ -870,6 +873,7 @@ export const CameraScreen = ({
               value={when}
               tz={tz}
               elevated
+              returnFocus={whenChip}
               description="Photos from the gallery keep the time they were taken."
               onDone={(at) => {
                 setWhen(at);

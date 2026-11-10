@@ -2,7 +2,8 @@
 // Plain functions, safe for client components.
 import type { MealSlot } from "@/lib/contracts/meals";
 
-export type MealWindows = Record<Exclude<MealSlot, "snack">, [string, string]>;
+/** The three main meals have time windows; the other slots depend on the food too. */
+export type MealWindows = Record<"breakfast" | "lunch" | "dinner", [string, string]>;
 
 /** Defaults: 04:00-10:30, 11:00-15:00, 17:00-21:30, other times snack. */
 export const DEFAULT_MEAL_WINDOWS: MealWindows = {

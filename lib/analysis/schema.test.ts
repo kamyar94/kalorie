@@ -57,6 +57,7 @@ describe("analysis schemas", () => {
       expect.arrayContaining([
         "is_food",
         "title",
+        "meal_type",
         "cuisine",
         "overall_confidence",
         "questions",

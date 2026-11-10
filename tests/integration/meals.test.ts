@@ -373,6 +373,40 @@ describe("food search stub and targets", () => {
     expect(byId.get(lunch.id)!.foods.map((f) => f.drink)).toEqual([false, true, true]);
   });
 
+  it("names manual meals by the rules, and a new time names them again unless chosen by hand", async () => {
+    const user = await createUser();
+    // Today in UTC, at set clock times (the service takes any time; the routes check the range).
+    const day = new Date().toISOString().slice(0, 10);
+    const at = (time: string) => `${day}T${time}:00Z`;
+    const log = (
+      time: string,
+      items: Parameters<typeof createManualMeal>[1]["items"],
+      slot?: "dessert",
+    ) =>
+      createManualMeal(user.id, { eatenAt: at(time), tz: "UTC", items, ...(slot ? { slot } : {}) });
+
+    expect((await log("13:00", [{ name: "Apple", nutrients: { energy: 95 } }])).slot).toBe("snack");
+    const lunch = await log("13:00", [{ name: "Rice and chicken", nutrients: { energy: 600 } }]);
+    expect(lunch.slot).toBe("lunch");
+    expect(
+      (await log("22:40", [{ name: "Yogurt and honey", nutrients: { energy: 260 } }])).slot,
+    ).toBe("supper");
+    expect(
+      (await log("08:30", [{ name: "Coffee", kind: "drink", ml: 250, nutrients: { energy: 4 } }]))
+        .slot,
+    ).toBe("drink");
+    const chosen = await log("13:00", [{ name: "Cake", nutrients: { energy: 400 } }], "dessert");
+    expect(chosen).toMatchObject({ slot: "dessert", slotLocked: true });
+
+    // A new time names the meal again; a slot chosen by hand stays.
+    expect((await updateMeal(user.id, lunch.id, { eatenAt: at("19:30") }))!.slot).toBe("dinner");
+    expect((await updateMeal(user.id, chosen.id, { eatenAt: at("19:30") }))!.slot).toBe("dessert");
+    // Adding food to the drink makes it a meal again.
+    const drink = (await listMealsForDay(user.id, day)).find((m) => m.slot === "drink")!;
+    await addItem(user.id, drink.id, { name: "Croissant", nutrients: { energy: 300 } });
+    expect((await getMeal(user.id, drink.id))!.slot).toBe("breakfast");
+  });
+
   it("keeps photo rows tied to their owner", async () => {
     const rows = await db
       .select({ userId: mealPhotos.userId, mealUser: meals.userId })

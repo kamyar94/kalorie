@@ -19,7 +19,7 @@ import { setPlannedRecipesSource } from "@/lib/analysis/planned";
 import { answerQuestion, correctMeal, retryAnalysis } from "@/lib/analysis/requests";
 import { ANALYZE_MEAL_JOB, type AnalysisFinishedEvent } from "@/lib/contracts/analysis";
 import { createPhotoMeal } from "@/lib/meals/create";
-import { getMeal, updateItem } from "@/lib/meals/service";
+import { getMeal, updateItem, updateMeal } from "@/lib/meals/service";
 import { claimJob } from "@/lib/queue/queue";
 import { drainJobs, runJob } from "@/lib/queue/worker";
 import {
@@ -200,6 +200,44 @@ describe("analysis end to end", () => {
       .where(eq(mealItems.mealId, mealId))
       .orderBy(mealItems.position);
     expect(rows.map((r) => r.emoji)).toEqual(["🍛", "🍗", "🍅", "🥛"]);
+  });
+
+  it("names the meal from the model's meal_type, drinks alone as a drink, and keeps a hand-picked slot", async () => {
+    const userId = await newPerson();
+    // 20:00 in Tehran: the dinner window; the model calls it supper.
+    const mealId = await upload(userId);
+    ai.queue("google", google.json({ ...GOOD_MEAL, meal_type: "supper" }), matchingReply("google"));
+    await run();
+    expect(await meal(userId, mealId)).toMatchObject({ slot: "supper", slotLocked: false });
+
+    // Only drinks: a drink, whatever the model says.
+    const drinkId = await upload(userId);
+    ai.queue(
+      "google",
+      google.json(
+        rawAnalysis({
+          title: "Doogh",
+          meal_type: "dinner",
+          items: [rawItem({ name: "Doogh", kind: "drink", grams: 250, ml: 250 })],
+        }),
+      ),
+      matchingReply("google"),
+    );
+    await run();
+    expect((await meal(userId, drinkId)).slot).toBe("drink");
+
+    // Chosen by hand: it stays through item changes and a new analysis.
+    expect(await updateMeal(userId, mealId, { slot: "dinner" })).toMatchObject({
+      slot: "dinner",
+      slotLocked: true,
+    });
+    const first = (await meal(userId, mealId)).items[0]!;
+    await updateItem(userId, first.id, { grams: 20 });
+    expect((await meal(userId, mealId)).slot).toBe("dinner");
+    expect(await retryAnalysis(userId, mealId)).toMatchObject({ ok: true });
+    ai.queue("google", google.json({ ...GOOD_MEAL, meal_type: "snack" }), matchingReply("google"));
+    await run();
+    expect((await meal(userId, mealId)).slot).toBe("dinner");
   });
 
   it("re-analyses with an answer and stops asking", async () => {

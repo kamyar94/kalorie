@@ -5,6 +5,7 @@
 // empty string, 0 or an empty array, and lib/analysis/parse.ts turns those into nulls.
 // Plain data, no imports from the server.
 import type { JsonSchema } from "@/lib/ai/types";
+import { MEAL_SLOTS } from "@/lib/contracts/meals";
 
 export const ANALYSIS_ITEM_KINDS = ["dish", "ingredient", "drink", "packaged"] as const;
 
@@ -128,6 +129,11 @@ export const ANALYSIS_SCHEMA: JsonSchema = object({
   title: str(
     "A short name for the meal, at most six words. When it is not food: a few words on what the photo shows.",
   ),
+  meal_type: {
+    type: "string",
+    enum: [...MEAL_SLOTS],
+    description: "Which meal this is, from the food, the amount and the local time.",
+  },
   questions: {
     type: "array",
     description: "At most two short clarifying questions, usually none.",
@@ -188,6 +194,7 @@ export type RawAnalysis = {
   cuisine: string;
   items: RawItem[];
   title: string;
+  meal_type: string;
   questions: { question: string; answers: string[] }[];
   overall_confidence: number;
 };
