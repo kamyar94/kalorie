@@ -54,6 +54,28 @@ const request = async <T>(
   return body as T;
 };
 
+/** The same for a multipart form (photos). */
+const requestForm = async <T>(url: string, form: FormData): Promise<T> => {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      body: form,
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError("No connection. Check your network and try again.", 0);
+  }
+  const body = (await response.json().catch(() => null)) as (T & { error?: string }) | null;
+  if (!response.ok)
+    throw new ApiError(body?.error ?? "Something went wrong. Try again.", response.status);
+  return body as T;
+};
+
+/** What the meal photo routes answer: the meal, and whether it is being analysed again. */
+export type MealPhotosChange = { meal: MealDto; reanalysed: boolean; notice: string | null };
+
 export type UsedFood = {
   food: FoodResult;
   lastGrams: number;
@@ -102,6 +124,24 @@ export const api = {
       body: { text, replaceEdits },
     }),
   retry: (mealId: string) => request<MealDto>(`/api/meals/${id(mealId)}/retry`, { method: "POST" }),
+  /** Adds photos (JPEG blobs) to a meal; reanalyse analyses it again from its photos. */
+  addMealPhotos: (mealId: string, photos: Blob[], reanalyse: boolean) => {
+    const form = new FormData();
+    photos.forEach((photo, i) => form.append("photos", photo, `photo-${i + 1}.jpg`));
+    form.set("reanalyse", String(reanalyse));
+    return requestForm<MealPhotosChange>(`/api/meals/${id(mealId)}/photos`, form);
+  },
+  removeMealPhoto: (mealId: string, photoId: string, reanalyse: boolean) =>
+    request<MealPhotosChange>(
+      `/api/meals/${id(mealId)}/photos/${id(photoId)}?reanalyse=${String(reanalyse)}`,
+      { method: "DELETE" },
+    ),
+  /** Makes the photo the meal's cover (the first one). */
+  setMealCover: (mealId: string, photoId: string, reanalyse: boolean) =>
+    request<MealPhotosChange>(`/api/meals/${id(mealId)}/photos`, {
+      method: "PATCH",
+      body: { cover: photoId, reanalyse },
+    }),
   addItem: (mealId: string, input: ItemInput) =>
     request<MealItemDto>(`/api/meals/${id(mealId)}/items`, { method: "POST", body: input }),
   patchItem: (itemId: string, patch: ItemPatch) =>

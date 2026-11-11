@@ -16,8 +16,8 @@ import { apiUser, errorJson, json } from "@/lib/http/route";
 import { createPhotoMeal } from "@/lib/meals/create";
 import { listMealsForDay } from "@/lib/meals/service";
 import { isLocalDate, isValidTimeZone, localParts } from "@/lib/meals/time";
+import { formFiles, readUploadedPhotos, uploadTooLarge } from "@/lib/photos/form";
 import { PhotoError } from "@/lib/photos/intake";
-import { ACCEPTED_UPLOAD_TYPES, sniffImageType } from "@/lib/photos/sniff";
 import { takeRateLimit, uploadWindows } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -41,8 +41,7 @@ export const POST = async (req: NextRequest) => {
   const { user, error } = await apiUser(req);
   if (error) return error;
 
-  const length = Number(req.headers.get("content-length") ?? "0");
-  if (length > UPLOAD_LIMITS.maxRequestBytes + 64 * 1024)
+  if (uploadTooLarge(req))
     return errorJson(413, "The photos are too large together (25 MB at most).");
 
   const limit = await takeRateLimit(`upload:${user.id}`, uploadWindows());
@@ -64,25 +63,12 @@ export const POST = async (req: NextRequest) => {
       ? noteField.trim().slice(0, UPLOAD_LIMITS.maxNoteChars)
       : null;
 
-  const files = form.getAll("photos").filter((value): value is File => value instanceof File);
+  const files = formFiles(form, "photos");
   // A meal described in words needs no photo, but it needs the words.
   if (!files.length && !note) return errorJson(400, "Add a photo or write what you ate.");
-  if (files.length > UPLOAD_LIMITS.maxPhotos)
-    return errorJson(400, `Send at most ${UPLOAD_LIMITS.maxPhotos} photos per meal.`);
-  let total = 0;
-  const photos: Buffer[] = [];
-  for (const file of files) {
-    if (file.size > UPLOAD_LIMITS.maxPhotoBytes)
-      return errorJson(413, "A photo is larger than 8 MB.");
-    total += file.size;
-    if (total > UPLOAD_LIMITS.maxRequestBytes)
-      return errorJson(413, "The photos are too large together (25 MB at most).");
-    const bytes = Buffer.from(await file.arrayBuffer());
-    const type = sniffImageType(bytes);
-    if (!type || !ACCEPTED_UPLOAD_TYPES.includes(type))
-      return errorJson(415, "Only JPEG, PNG and WebP photos are accepted.");
-    photos.push(bytes);
-  }
+  const checked = await readUploadedPhotos(files);
+  if (!checked.ok) return errorJson(checked.status, checked.error);
+  const { photos } = checked;
 
   const eatenAt = new Date(String(form.get("eatenAt") ?? ""));
   const now = Date.now();
