@@ -21,6 +21,14 @@ Created by Kamyar Fatemifar.
 - **Your own AI key.** Each person chooses OpenAI, Anthropic or Google and saves their own key,
   which is stored encrypted.
 - **Targets and trends.** Daily targets from the person's profile, and day, week and month views.
+- **Move.** Activities in six categories, typed in Kal, from openGym, or imported from a Samsung
+  Health export (read on the device; only the records are sent to your server); points, levels,
+  a streak, weekly targets after the WHO guidance, badges, and a water goal that grows with
+  activity.
+- **Body.** Weight and body composition (typed, from openGym, or a Renpho or Samsung Health
+  export), tape measurements with where to measure, changes judged from your goal, a private
+  health profile, and guided front, side and back photos kept on your server, never sent to an
+  AI.
 - **Integrations (optional).** [Mealie](https://github.com/mealie-recipes/mealie) for today's
   meal plan, recipes as foods and plan suggestions; [openGym](https://github.com/DuarteSantos8/openGym)
   for body weight and workouts. Kal only reads from openGym, and writes to Mealie only when you
