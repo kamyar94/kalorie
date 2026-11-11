@@ -97,7 +97,10 @@ test("invite, sign in, upload a photo and see it analysed", async ({ page }, tes
   await expect(page.getByRole("heading", { level: 1, name: "Today" })).toBeVisible();
 
   await expectAccessible(page);
-  await page.getByRole("link", { name: "Settings" }).click();
+  // Settings is in More.
+  await page.getByRole("link", { name: "More" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "More" })).toBeVisible();
+  await page.getByRole("link", { name: /^Settings/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
   await expectAccessible(page);
   await page.getByRole("button", { name: "Sign out" }).click();
@@ -111,7 +114,7 @@ test("invite, sign in, upload a photo and see it analysed", async ({ page }, tes
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(/\/today$/);
 
-  const shutter = page.getByRole("button", { name: "Take a photo of a meal" });
+  const shutter = page.getByRole("button", { name: "Open the camera" });
   await expect(shutter).toBeVisible();
   const box = (await shutter.boundingBox())!;
   expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44);

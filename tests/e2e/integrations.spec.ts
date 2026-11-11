@@ -109,7 +109,7 @@ const saveGoogleKey = async (page: Page) => {
 /** Sends one photo from Today and waits until the worker has analysed it. */
 const sendPhotoAndWait = async (page: Page) => {
   await page.goto("/today");
-  await page.getByRole("button", { name: "Take a photo of a meal" }).click();
+  await page.getByRole("button", { name: "Open the camera" }).click();
   const camera = page.getByRole("dialog", { name: "Camera" });
   await camera.getByTestId("capture-input").setInputFiles("tests/fixtures/meal.jpg");
   await camera.getByRole("button", { name: "Send meal with 1 photo" }).click();
@@ -173,7 +173,7 @@ test("a meal in words is analysed by the mock provider without a photo", async (
   const userId = await signUp(page, info.project.name);
   await saveGoogleKey(page);
   await page.goto("/today");
-  await page.getByRole("button", { name: "Take a photo of a meal" }).click();
+  await page.getByRole("button", { name: "Open the camera" }).click();
   const camera = page.getByRole("dialog", { name: "Camera" });
   await camera.getByRole("button", { name: /^Type/ }).click();
   await camera
@@ -204,7 +204,7 @@ test("a medicine label from the gallery is read by the mock provider", async ({ 
   const userId = await signUp(page, info.project.name);
   await saveGoogleKey(page);
   await page.goto("/today");
-  await page.getByRole("button", { name: "Take a photo of a meal" }).click();
+  await page.getByRole("button", { name: "Open the camera" }).click();
   const camera = page.getByRole("dialog", { name: "Camera" });
   await camera.getByRole("tab", { name: "Medicine" }).click();
   await camera.getByTestId("gallery-input").setInputFiles("tests/fixtures/meal.jpg");

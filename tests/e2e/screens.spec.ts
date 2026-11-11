@@ -169,7 +169,7 @@ const SERVER_CARD =
   'article[data-state="queued"], article[data-state="analysing"], article[data-state="failed"]';
 
 const openCamera = async (page: Page) => {
-  await page.getByRole("button", { name: "Take a photo of a meal" }).click();
+  await page.getByRole("button", { name: "Open the camera" }).click();
   const camera = page.getByRole("dialog", { name: "Camera" });
   await expect(camera).toBeVisible();
   await expect(page.getByTestId("camera")).toHaveAttribute("data-camera-state", "live");
@@ -548,7 +548,7 @@ test("a camera that never answers: the phone's camera is offered while it starts
   await page.evaluate(() => {
     navigator.mediaDevices.getUserMedia = () => new Promise<MediaStream>(() => undefined);
   });
-  await page.getByRole("button", { name: "Take a photo of a meal" }).click();
+  await page.getByRole("button", { name: "Open the camera" }).click();
   const camera = page.getByRole("dialog", { name: "Camera" });
   await expect(page.getByTestId("camera")).toHaveAttribute("data-camera-state", "starting");
   const fallback = camera.getByRole("button", { name: "Use the phone's camera" });
@@ -572,7 +572,7 @@ test("a camera without a picture (older phones): Kal gives up and offers the pho
       return document.createElement("canvas").captureStream(0);
     };
   });
-  await page.getByRole("button", { name: "Take a photo of a meal" }).click();
+  await page.getByRole("button", { name: "Open the camera" }).click();
   const camera = page.getByRole("dialog", { name: "Camera" });
   await expect(page.getByTestId("camera")).toHaveAttribute("data-camera-state", "unavailable", {
     timeout: 20_000,
@@ -936,8 +936,8 @@ test("favorites: star a meal, log it again from Today with Undo, on an earlier d
   await expect(cards).toHaveCount(1);
   expect(await copies()).toEqual([{ day: localDay(-1), time: "12:00" }]);
 
-  // The Favorites page, from Settings: log again now, then take it off the list.
-  await page.goto("/settings");
+  // The Favorites page, from More: log again now, then take it off the list.
+  await page.goto("/more");
   await page.getByRole("link", { name: /^Favorites/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Favorites" })).toBeVisible();
   const list = page.getByTestId("favorites");
@@ -1023,8 +1023,8 @@ test("medicines: the camera's Medicine tab without an AI key, Today's card with 
   ]);
   await expectAccessible(page);
 
-  // The Medicines page, from Settings: add one by hand.
-  await page.goto("/settings");
+  // The Medicines page, from More: add one by hand.
+  await page.goto("/more");
   await page.getByRole("link", { name: /^Medicines/ }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Medicines" })).toBeVisible();
   await page.getByRole("button", { name: "Add a medicine" }).click();
