@@ -5,12 +5,13 @@ import { useRef } from "react";
 import { cn } from "@/components/ui/cn";
 
 /**
- * What the camera captures. Each kind is one tab of the control above the shutter; a new kind
- * (body photos) is one more entry here and its own branch in camera-screen.tsx.
+ * What the camera captures. Each kind is one tab of the control above the shutter, with its own
+ * branch in camera-screen.tsx.
  */
 export const CAPTURE_KINDS = [
   { id: "meal", label: "Meal" },
   { id: "medicine", label: "Medicine" },
+  { id: "body", label: "Body" },
 ] as const;
 
 export type CaptureKind = (typeof CAPTURE_KINDS)[number]["id"];
@@ -18,7 +19,7 @@ export type CaptureKind = (typeof CAPTURE_KINDS)[number]["id"];
 export const captureTabId = (base: string, kind: CaptureKind) => `${base}-tab-${kind}`;
 
 /**
- * The centred segmented control "Meal · Medicine" on the camera (a tab list: arrow keys move
+ * The centred segmented control "Meal · Medicine · Body" on the camera (a tab list: arrow keys move
  * between the tabs and choose at once, Home and End go to the ends). panelId names the element
  * the tabs control.
  */

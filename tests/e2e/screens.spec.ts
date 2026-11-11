@@ -960,10 +960,10 @@ test("medicines: the camera's Medicine tab without an AI key, Today's card with 
   await expect(page.getByRole("heading", { name: "Meals" })).toBeVisible();
   await expect(card).toHaveCount(0);
 
-  // "Meal · Medicine" above the shutter; arrow keys move between the tabs.
+  // "Meal · Medicine · Body" above the shutter; arrow keys move between the tabs.
   const camera = await openCamera(page);
   const tabs = camera.getByRole("tablist", { name: "What to capture" });
-  await expect(tabs.getByRole("tab")).toHaveText(["Meal", "Medicine"]);
+  await expect(tabs.getByRole("tab")).toHaveText(["Meal", "Medicine", "Body"]);
   await expect(tabs.getByRole("tab", { name: "Meal" })).toHaveAttribute("aria-selected", "true");
   await expectAccessible(page);
   await tabs.getByRole("tab", { name: "Meal" }).focus();

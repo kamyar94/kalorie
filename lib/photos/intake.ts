@@ -46,6 +46,59 @@ const encode = (input: Buffer, edge: number, quality: number) =>
     .jpeg({ quality, mozjpeg: true, chromaSubsampling: "4:2:0" })
     .toBuffer({ resolveWithObject: true });
 
+/**
+ * A body photo: the original re-encoded at its full size (no resizing; metadata removed, the
+ * camera orientation applied) for a later 3D step, a 1600 px copy to look at and a thumbnail.
+ */
+export const BODY_PHOTO_SIZES = {
+  original: { quality: 92 },
+  view: { edge: 1600, quality: 82 },
+  thumb: { edge: 400, quality: 75 },
+} as const;
+
+export type ProcessedBodyPhoto = {
+  original: Buffer;
+  view: Buffer;
+  thumb: Buffer;
+  width: number;
+  height: number;
+  sha256: string;
+};
+
+const fullSize = (input: Buffer, quality: number) =>
+  sharp(input, { limitInputPixels: maxInputPixels(), failOn: "error" })
+    .rotate()
+    .flatten({ background: "#ffffff" })
+    .toColourspace("srgb")
+    .jpeg({ quality, mozjpeg: true, chromaSubsampling: "4:4:4" })
+    .toBuffer({ resolveWithObject: true });
+
+export const processBodyPhoto = async (input: Buffer): Promise<ProcessedBodyPhoto> => {
+  try {
+    const meta = await sharp(input, { limitInputPixels: maxInputPixels() }).metadata();
+    if (!meta.width || !meta.height) throw new PhotoError("The photo could not be read.");
+    if ((meta.pages ?? 1) > 1) throw new PhotoError("Animated images are not accepted.");
+    const original = await fullSize(input, BODY_PHOTO_SIZES.original.quality);
+    const [view, thumb] = await Promise.all([
+      encode(original.data, BODY_PHOTO_SIZES.view.edge, BODY_PHOTO_SIZES.view.quality),
+      encode(original.data, BODY_PHOTO_SIZES.thumb.edge, BODY_PHOTO_SIZES.thumb.quality),
+    ]);
+    return {
+      original: original.data,
+      view: view.data,
+      thumb: thumb.data,
+      width: original.info.width,
+      height: original.info.height,
+      sha256: crypto.createHash("sha256").update(original.data).digest("hex"),
+    };
+  } catch (error) {
+    if (error instanceof PhotoError) throw error;
+    const message = error instanceof Error ? error.message : "";
+    if (/pixel limit/i.test(message)) throw new PhotoError("The photo has too many pixels.");
+    throw new PhotoError("The photo could not be read.");
+  }
+};
+
 /** Decodes and re-encodes one upload. Throws PhotoError for anything that is not a usable image. */
 export const processPhoto = async (input: Buffer): Promise<ProcessedPhoto> => {
   try {

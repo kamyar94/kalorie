@@ -12,16 +12,27 @@ import {
   Mic,
   Pill,
   RefreshCcw,
+  Timer,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import { PoseGuide } from "@/components/body/pose-guide";
 import { MedicineCapture } from "@/components/medicines/medicine-capture";
 import { cn } from "@/components/ui/cn";
+import { api } from "@/lib/client/api";
 import { startDictation, speechSupported, type Dictation } from "@/lib/client/speech";
+import {
+  BODY_PHOTO_NOTICE,
+  BODY_POSES,
+  POSE_GUIDES,
+  POSE_LABELS,
+  SELF_TIMERS,
+  type BodyPose,
+} from "@/lib/contracts/body-photos";
 import { UPLOAD_LIMITS } from "@/lib/contracts/meals";
 import type { LoggedMedicine } from "@/lib/contracts/medicines";
-import { deviceTimeZone, preparePhoto } from "@/lib/photos/client";
+import { deviceTimeZone, preparePhoto, readCaptureTime } from "@/lib/photos/client";
 import { useOnline } from "@/lib/ui/hooks";
 import { whenLabel, whenSpoken } from "@/lib/ui/when";
 
@@ -132,6 +143,23 @@ const grabStill = async (video: HTMLVideoElement, stream: MediaStream): Promise<
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 
+/** How the body photos went, for the toast after the camera closes. */
+export type BodyCaptureResult = { saved: number; failed: number; skipped: number; closed: boolean };
+
+/** Kept as taken: the server re-encodes at full size (a later 3D step needs the detail). */
+const FULL_SIZE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+/** A body photo for upload: the file itself, or a full-size JPEG for other types (HEIC). */
+const bodyPhotoBlob = async (file: Blob) =>
+  FULL_SIZE_TYPES.has(file.type)
+    ? file
+    : (await preparePhoto(file, { longEdge: 8192, quality: 0.92 })).blob;
+
+type BodyMark = "saving" | "saved" | "failed" | "skipped";
+
+const kindOf = (mode: "meal" | "label" | "medicine" | "body"): CaptureKind =>
+  mode === "medicine" || mode === "body" ? mode : "meal";
+
 const sideButton =
   "flex min-h-16 w-[3.375rem] flex-col items-center justify-center gap-1 rounded-2xl text-[0.6875rem] leading-none font-semibold disabled:opacity-40";
 
@@ -142,9 +170,12 @@ const sideButton =
  * field takes its place; Send then works with words alone. Without camera access it offers the
  * phone's own camera through a file input instead.
  *
- * Above the shutter, "Meal · Medicine" (capture-tabs.tsx) switches what is captured. Medicine
- * takes one photo of a box or blister (or one from the gallery); the person's AI provider reads
- * it and the medicine sheet opens to check and save it ("Type" opens the sheet empty).
+ * Above the shutter, "Meal · Medicine · Body" (capture-tabs.tsx) switches what is captured.
+ * Medicine takes one photo of a box or blister (or one from the gallery); the person's AI provider
+ * reads it and the medicine sheet opens to check and save it ("Type" opens the sheet empty).
+ * Body (board 8) guides four photos, Front, Left, Back and Right, with a pose outline and a
+ * self-timer (off, 3 or 10 s); each is uploaded at full size as soon as it is taken (never to an
+ * AI), and Skip moves on.
  */
 export const CameraScreen = ({
   open,
@@ -152,14 +183,19 @@ export const CameraScreen = ({
   onClose,
   onSend,
   onMedicineSaved,
+  onBodyDone,
 }: {
   open: boolean;
-  /** label: a package photo for the Add screen (no tabs); medicine opens on the Medicine tab. */
-  mode: "meal" | "label" | "medicine";
+  /**
+   * label: a package photo for the Add screen (no tabs); medicine and body open on their tabs.
+   */
+  mode: "meal" | "label" | "medicine" | "body";
   onClose: () => void;
   /** at: the time chosen with the When chip, null for the photo's own time (or now). */
   onSend: (shots: Shot[], note: string, at: Date | null) => void;
   onMedicineSaved: (logged: LoggedMedicine) => void;
+  /** The body photos are done (all four poses, or the camera was closed after some). */
+  onBodyDone: (result: BodyCaptureResult) => void;
 }) => {
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -186,7 +222,15 @@ export const CameraScreen = ({
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState(0);
   const [announcement, setAnnouncement] = useState("");
-  const [kind, setKind] = useState<CaptureKind>(mode === "medicine" ? "medicine" : "meal");
+  const [kind, setKind] = useState<CaptureKind>(kindOf(mode));
+  // Body photos: the pose to take, how each went, the self-timer and its countdown.
+  const [bodyStep, setBodyStep] = useState(0);
+  const [bodyMarks, setBodyMarks] = useState<Partial<Record<BodyPose, BodyMark>>>({});
+  const [selfTimer, setSelfTimer] = useState<(typeof SELF_TIMERS)[number]>(0);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [finishing, setFinishing] = useState(false);
+  const countdownTimer = useRef<number | null>(null);
+  const bodyUploads = useRef<Promise<boolean>[]>([]);
   /** Medicine mode: the label photo being read (or null with typing for the empty sheet). */
   const [medicine, setMedicine] = useState<{
     key: number;
@@ -210,7 +254,7 @@ export const CameraScreen = ({
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setKind(mode === "medicine" ? "medicine" : "meal");
+    if (open) setKind(kindOf(mode));
   }
 
   // A new video element (each time the dialog opens) shows the running stream at once.
@@ -225,14 +269,143 @@ export const CameraScreen = ({
   const full = shots.length >= MAX;
   const label = mode === "label";
   const medicineKind = !label && kind === "medicine";
+  const bodyKind = !label && kind === "body";
+  const mealKind = !medicineKind && !bodyKind;
+  const pose: BodyPose = BODY_POSES[Math.min(bodyStep, BODY_POSES.length - 1)]!;
   const tz = deviceTimeZone();
   const hasText = note.trim().length > 0;
   // A label photo needs the photo; a meal can also be words alone.
   const canSend = (shots.length > 0 || (!label && hasText)) && !busy;
   // The camera rests while the meal is typed and while a medicine photo is read or checked.
   const cameraOn = open && !textMode && !(medicineKind && medicine);
-  // "Meal · Medicine" shows on the live camera (not over a package label or typed words).
+  // "Meal · Medicine · Body" shows on the live camera (not over a package label or typed words).
   const showTabs = !label && !textMode && !medicine;
+
+  // ---- Body: four guided photos, each uploaded at full size as soon as it is taken ----
+
+  const stopCountdown = () => {
+    if (countdownTimer.current !== null) window.clearTimeout(countdownTimer.current);
+    countdownTimer.current = null;
+    setCountdown(null);
+  };
+
+  /** Waits for the uploads still running and says how it went (once per set of photos). */
+  const settleBody = async (closed: boolean) => {
+    const uploads = bodyUploads.current;
+    bodyUploads.current = [];
+    if (!uploads.length) return;
+    const results = await Promise.all(uploads);
+    const saved = results.filter(Boolean).length;
+    onBodyDone({
+      saved,
+      failed: results.length - saved,
+      skipped: closed ? 0 : BODY_POSES.length - results.length,
+      closed,
+    });
+  };
+
+  const nextPose = async (said: string) => {
+    const next = bodyStep + 1;
+    if (next < BODY_POSES.length) {
+      setBodyStep(next);
+      const nextPoseName = BODY_POSES[next]!;
+      setAnnouncement(`${said} Next: ${POSE_LABELS[nextPoseName]}. ${POSE_GUIDES[nextPoseName]}`);
+      return;
+    }
+    if (!bodyUploads.current.length) {
+      setAnnouncement(`${said} No photos were taken.`);
+      close();
+      return;
+    }
+    setFinishing(true);
+    setAnnouncement(`${said} Saving the photos.`);
+    await settleBody(false);
+    setFinishing(false);
+    reset(true);
+  };
+
+  const saveBodyPhoto = (blob: Blob, takenAt: Date, source: "camera" | "gallery") => {
+    const taken = pose;
+    setBodyMarks((marks) => ({ ...marks, [taken]: "saving" }));
+    bodyUploads.current.push(
+      api
+        .uploadBodyPhoto(blob, {
+          pose: taken,
+          takenAt: takenAt.toISOString(),
+          tz,
+          facing: source === "camera" ? facing : null,
+          source,
+        })
+        .then(() => {
+          setBodyMarks((marks) => ({ ...marks, [taken]: "saved" }));
+          return true;
+        })
+        .catch(() => {
+          setBodyMarks((marks) => ({ ...marks, [taken]: "failed" }));
+          return false;
+        }),
+    );
+    void nextPose(`${POSE_LABELS[taken]} photo taken.`);
+  };
+
+  const captureBody = async () => {
+    if (!video.current || !stream.current) return;
+    const at = new Date();
+    setFlash((n) => n + 1);
+    try {
+      saveBodyPhoto(await grabStill(video.current, stream.current), at, "camera");
+    } catch {
+      setAnnouncement("The photo could not be taken. Try again.");
+    }
+  };
+
+  /** The shutter: at once, or after the self-timer's countdown (spoken each second). */
+  const shootBody = () => {
+    if (!video.current || !stream.current || busy || countdown !== null || finishing) return;
+    if (!selfTimer) return void captureBody();
+    let left: number = selfTimer;
+    setCountdown(left);
+    setAnnouncement(`${left} seconds.`);
+    const tick = () => {
+      left -= 1;
+      if (left <= 0) {
+        countdownTimer.current = null;
+        setCountdown(null);
+        void captureBody();
+        return;
+      }
+      setCountdown(left);
+      setAnnouncement(String(left));
+      countdownTimer.current = window.setTimeout(tick, 1000);
+    };
+    countdownTimer.current = window.setTimeout(tick, 1000);
+  };
+
+  /** A photo from the gallery (or the phone's own camera) for the current pose. */
+  const bodyFromFile = async (file: File | undefined, source: "camera" | "gallery") => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const takenAt = (source === "gallery" ? await readCaptureTime(file) : null) ?? new Date();
+      saveBodyPhoto(await bodyPhotoBlob(file), takenAt, source);
+    } catch (error) {
+      setAnnouncement(error instanceof Error ? error.message : "That photo could not be used.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const skipPose = () => {
+    stopCountdown();
+    setBodyMarks((marks) => ({ ...marks, [pose]: "skipped" }));
+    void nextPose(`${POSE_LABELS[pose]} skipped.`);
+  };
+
+  const nextTimer = () => {
+    const next = SELF_TIMERS[(SELF_TIMERS.indexOf(selfTimer) + 1) % SELF_TIMERS.length]!;
+    setSelfTimer(next);
+    setAnnouncement(next ? `Self-timer: ${next} seconds.` : "Self-timer off.");
+  };
 
   // Start and stop the camera with the screen (and stop it while the meal is typed). Each way of
   // opening it must show a frame within FIRST_FRAME_MS; if none does, the screen offers the
@@ -308,6 +481,10 @@ export const CameraScreen = ({
   // Forget everything when the screen closes (Close, Escape or Send), the shutter flash too: a
   // flash left over from the last meal would cover the next meal's viewfinder.
   const reset = (revoke: boolean) => {
+    stopCountdown();
+    setBodyStep(0);
+    setBodyMarks({});
+    setFinishing(false);
     setFlash(0);
     if (medicine?.url) URL.revokeObjectURL(medicine.url);
     setMedicine(null);
@@ -326,6 +503,8 @@ export const CameraScreen = ({
   };
 
   const close = () => {
+    // Body photos already taken are saved; their toast comes once the uploads are done.
+    void settleBody(true);
     reset(true);
     onClose();
   };
@@ -499,12 +678,15 @@ export const CameraScreen = ({
   const switchKind = (next: CaptureKind) => {
     if (next === kind) return;
     stopDictation();
+    stopCountdown();
     setTyping(false);
     setKind(next);
     setAnnouncement(
       next === "medicine"
         ? "Medicine: photograph the box or blister, or type its name."
-        : "Meal: take photos of your plate.",
+        : next === "body"
+          ? `Body: four photos. ${POSE_LABELS[pose]}: ${POSE_GUIDES[pose]}`
+          : "Meal: take photos of your plate.",
     );
   };
 
@@ -536,10 +718,10 @@ export const CameraScreen = ({
   useEffect(() => {
     if (!open || typing || textMode || medicine) return;
     if (document.activeElement?.getAttribute("role") === "tab") return;
-    if (full && !medicineKind) sendButton.current?.focus();
+    if (full && mealKind) sendButton.current?.focus();
     else if (state === "live") shutter.current?.focus();
     else if (state === "unavailable" || state === "denied") fallbackButton.current?.focus();
-  }, [open, state, full, typing, textMode, medicine, medicineKind]);
+  }, [open, state, full, typing, textMode, medicine, mealKind]);
 
   const send = () => {
     if (!canSend) return;
@@ -594,7 +776,7 @@ export const CameraScreen = ({
           )}
           data-testid="camera"
           data-camera-state={cameraOn ? state : "off"}
-          data-mode={textMode ? "text" : medicineKind ? "medicine" : "photo"}
+          data-mode={textMode ? "text" : medicineKind ? "medicine" : bodyKind ? "body" : "photo"}
         >
           <Dialog.Title className="sr-only">
             {label ? "Photograph a label or package" : "Camera"}
@@ -653,6 +835,13 @@ export const CameraScreen = ({
               <p className="text-label inline-flex min-h-11 items-center gap-1.5 rounded-full bg-black/50 px-3.5 backdrop-blur-sm">
                 <Pill aria-hidden className="size-4" /> Medicine label
               </p>
+            ) : bodyKind ? (
+              <p
+                className="text-label inline-flex min-h-11 items-center rounded-full bg-black/50 px-3.5 backdrop-blur-sm"
+                data-testid="body-pose"
+              >
+                {POSE_LABELS[pose]} · {bodyStep + 1} of {BODY_POSES.length}
+              </p>
             ) : (
               <button
                 ref={whenChip}
@@ -671,20 +860,47 @@ export const CameraScreen = ({
                 <ChevronDown aria-hidden className="size-3.5 shrink-0" />
               </button>
             )}
-            {canFlip && state === "live" && cameraOn ? (
-              <button
-                type="button"
-                aria-label={flipLabel}
-                title={flipLabel}
-                onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
-                className={cn("grid size-12 shrink-0 place-items-center rounded-full", round)}
-              >
-                <RefreshCcw aria-hidden className="size-5" />
-              </button>
-            ) : (
-              <span aria-hidden className="size-12 shrink-0" />
-            )}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {canFlip && state === "live" && cameraOn ? (
+                <button
+                  type="button"
+                  aria-label={flipLabel}
+                  title={flipLabel}
+                  onClick={() => setFacing((f) => (f === "environment" ? "user" : "environment"))}
+                  className={cn("grid size-12 shrink-0 place-items-center rounded-full", round)}
+                >
+                  <RefreshCcw aria-hidden className="size-5" />
+                </button>
+              ) : (
+                !bodyKind && <span aria-hidden className="size-12 shrink-0" />
+              )}
+              {bodyKind && (
+                <button
+                  type="button"
+                  onClick={nextTimer}
+                  disabled={countdown !== null}
+                  aria-label={
+                    selfTimer
+                      ? `Self-timer: ${selfTimer} seconds. Change it`
+                      : "Self-timer: off. Change it"
+                  }
+                  className={cn(
+                    "inline-flex min-h-12 items-center gap-1.5 rounded-full px-3 text-sm font-semibold",
+                    round,
+                  )}
+                >
+                  <Timer aria-hidden className="size-4.5" />
+                  {selfTimer ? `${selfTimer} s` : "Off"}
+                </button>
+              )}
+            </div>
           </div>
+
+          {bodyKind && !textMode && (
+            <p className="relative mx-6 mt-3 rounded-[0.875rem] bg-black/55 px-3 py-2.5 text-center text-[0.8125rem] leading-snug">
+              {POSE_GUIDES[pose]}
+            </p>
+          )}
 
           {textMode ? (
             // Middle, text mode: what was eaten, in words.
@@ -793,6 +1009,16 @@ export const CameraScreen = ({
                   className="pointer-events-none aspect-[3/4] w-[78%] max-w-sm rounded-3xl border-2 border-white/70"
                 />
               )}
+              {bodyKind && state === "live" && cameraOn && <PoseGuide pose={pose} />}
+              {bodyKind && countdown !== null && (
+                <p
+                  aria-hidden
+                  className="absolute inset-0 grid place-items-center text-[7rem] leading-none font-bold drop-shadow-lg"
+                  data-testid="body-countdown"
+                >
+                  {countdown}
+                </p>
+              )}
             </div>
           )}
 
@@ -805,7 +1031,7 @@ export const CameraScreen = ({
                 !textMode && "bg-black/72",
               )}
             >
-              {!textMode && !medicineKind && typing && (
+              {!textMode && mealKind && typing && (
                 <div className="rounded-2xl bg-white/12 p-2 backdrop-blur-md">
                   <label htmlFor={noteId} className="sr-only">
                     Note about the meal
@@ -833,7 +1059,7 @@ export const CameraScreen = ({
                 </div>
               )}
 
-              {!textMode && !medicineKind && (
+              {!textMode && mealKind && (
                 <div className="flex items-center gap-2.5">
                   {thumbnails}
                   <p className="text-caption min-w-0 flex-1 text-white/80">
@@ -861,7 +1087,7 @@ export const CameraScreen = ({
                 </div>
               )}
 
-              {!textMode && !medicineKind && (note || heard) && !typing && (
+              {!textMode && mealKind && (note || heard) && !typing && (
                 <p
                   dir="auto"
                   className="text-body -mt-1.5 line-clamp-2 text-white/90"
@@ -870,7 +1096,7 @@ export const CameraScreen = ({
                   {heard || note}
                 </p>
               )}
-              {!textMode && !medicineKind && listening && !heard && (
+              {!textMode && mealKind && listening && !heard && (
                 <p className="text-caption -mt-1.5 text-white/75">
                   Listening… let go when you are done.
                 </p>
@@ -879,6 +1105,44 @@ export const CameraScreen = ({
                 <p className="text-caption text-center text-white/80">
                   Photograph the box or blister so the name and strength show.
                 </p>
+              )}
+              {bodyKind && !textMode && (
+                <ol
+                  aria-label="Poses"
+                  className="grid grid-cols-4 gap-1.5"
+                  data-testid="body-poses"
+                >
+                  {BODY_POSES.map((p, i) => {
+                    const mark = bodyMarks[p];
+                    const current = i === bodyStep;
+                    return (
+                      <li
+                        key={p}
+                        aria-current={current ? "step" : undefined}
+                        className={cn(
+                          "flex min-h-9 items-center justify-center gap-1 rounded-full text-[0.8125rem]",
+                          current ? "bg-white font-bold text-black" : "bg-white/15 font-semibold",
+                        )}
+                      >
+                        {(mark === "saved" || mark === "saving") && (
+                          <Check aria-hidden className="size-3.5" />
+                        )}
+                        {POSE_LABELS[p]}
+                        <span className="sr-only">
+                          {mark === "saved"
+                            ? ", saved"
+                            : mark === "saving"
+                              ? ", saving"
+                              : mark === "failed"
+                                ? ", not saved"
+                                : mark === "skipped"
+                                  ? ", skipped"
+                                  : ""}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
               )}
 
               {showTabs && (
@@ -902,16 +1166,20 @@ export const CameraScreen = ({
                   <button
                     type="button"
                     onClick={() => gallery.current?.click()}
-                    disabled={(full && !medicineKind) || busy}
+                    disabled={(full && mealKind) || busy || finishing || (bodyKind && !online)}
                     aria-label={
-                      medicineKind ? "Gallery: pick a photo of the label" : "Gallery: pick photos"
+                      medicineKind
+                        ? "Gallery: pick a photo of the label"
+                        : bodyKind
+                          ? `Gallery: pick the ${POSE_LABELS[pose].toLowerCase()} photo`
+                          : "Gallery: pick photos"
                     }
                     className={cn(sideButton, side)}
                   >
                     <ImageIcon aria-hidden className="size-5.5" />
                     Gallery
                   </button>
-                  {!textMode && !label && (
+                  {!textMode && !label && !bodyKind && (
                     <button
                       type="button"
                       onClick={() =>
@@ -936,14 +1204,23 @@ export const CameraScreen = ({
                     <button
                       ref={shutter}
                       type="button"
-                      onClick={() => void (medicineKind ? shootMedicine() : takePhoto())}
-                      disabled={state !== "live" || (full && !medicineKind) || busy}
+                      onClick={() =>
+                        void (medicineKind ? shootMedicine() : bodyKind ? shootBody() : takePhoto())
+                      }
+                      disabled={
+                        state !== "live" ||
+                        (full && mealKind) ||
+                        busy ||
+                        (bodyKind && (!online || finishing || countdown !== null))
+                      }
                       aria-label={
                         medicineKind
                           ? "Photograph the label"
-                          : full
-                            ? "Three photos taken, the most for one meal"
-                            : "Take photo"
+                          : bodyKind
+                            ? `Take the ${POSE_LABELS[pose].toLowerCase()} photo`
+                            : full
+                              ? "Three photos taken, the most for one meal"
+                              : "Take photo"
                       }
                       className="grid size-20 place-items-center rounded-full border-4 border-white transition-transform active:scale-95 disabled:opacity-40"
                     >
@@ -952,7 +1229,18 @@ export const CameraScreen = ({
                   )}
                 </div>
                 <div className="flex justify-end">
-                  {!medicineKind && (
+                  {bodyKind && !textMode && (
+                    <button
+                      type="button"
+                      onClick={skipPose}
+                      disabled={finishing}
+                      aria-label={`Skip the ${POSE_LABELS[pose].toLowerCase()} photo`}
+                      className="min-h-12 rounded-full bg-white/15 px-4 text-sm font-semibold disabled:opacity-40"
+                    >
+                      Skip
+                    </button>
+                  )}
+                  {mealKind && (
                     <button
                       ref={sendButton}
                       type="button"
@@ -971,6 +1259,15 @@ export const CameraScreen = ({
                   )}
                 </div>
               </div>
+              {bodyKind && !textMode && (
+                <p className="text-caption text-center text-white/80">
+                  {finishing
+                    ? "Saving the photos…"
+                    : !online
+                      ? "Body photos need a connection; they are saved as soon as they are taken."
+                      : BODY_PHOTO_NOTICE}
+                </p>
+              )}
             </div>
           )}
 
@@ -1003,6 +1300,7 @@ export const CameraScreen = ({
               const files = Array.from(event.target.files ?? []);
               event.target.value = "";
               if (medicineKind) void takeMedicinePhoto(files[0]);
+              else if (bodyKind) void bodyFromFile(files[0], "camera");
               else void addPhotos(files, new Date());
             }}
           />
@@ -1010,7 +1308,7 @@ export const CameraScreen = ({
             ref={gallery}
             type="file"
             accept="image/*"
-            multiple={!medicineKind}
+            multiple={mealKind}
             hidden
             data-testid="gallery-input"
             aria-label="Photos from the gallery"
@@ -1018,6 +1316,7 @@ export const CameraScreen = ({
               const files = Array.from(event.target.files ?? []);
               event.target.value = "";
               if (medicineKind) void takeMedicinePhoto(files[0]);
+              else if (bodyKind) void bodyFromFile(files[0], "gallery");
               else void addPhotos(files, null);
             }}
           />

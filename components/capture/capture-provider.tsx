@@ -31,13 +31,15 @@ import { deviceTimeZone } from "@/lib/photos/client";
 import { useOnline } from "@/lib/ui/hooks";
 import { mealTime } from "@/lib/ui/when";
 
-import { CameraScreen, type Shot } from "./camera-screen";
+import { CameraScreen, type BodyCaptureResult, type Shot } from "./camera-screen";
 
 /** A note the label photo carries, so the analysis reads the package instead of a plate. */
 export const LABEL_NOTE = "Photo of a package or nutrition label: read the label.";
 
-/** meal: the camera on its Meal tab; medicine: on its Medicine tab; label: a package for Add. */
-export type CaptureMode = "meal" | "label" | "medicine";
+/**
+ * meal: the camera on its Meal tab; medicine and body: on their tabs; label: a package for Add.
+ */
+export type CaptureMode = "meal" | "label" | "medicine" | "body";
 
 type CaptureContextValue = {
   userId: string;
@@ -274,6 +276,30 @@ export const CaptureProvider = ({
     [pathname, router, show],
   );
 
+  // Body photos are saved: Body shows them (unless the camera was closed part-way).
+  const bodyDone = useCallback(
+    ({ saved, failed, skipped, closed }: BodyCaptureResult) => {
+      setCamera((c) => ({ ...c, open: false }));
+      if (saved && !closed) {
+        if (pathname === "/body") router.refresh();
+        else router.push("/body");
+      } else if (saved && pathname.startsWith("/body")) router.refresh();
+      const counted = (n: number, what: string) => `${n} ${what}${n === 1 ? "" : "s"}`;
+      show({
+        title: saved ? `${counted(saved, "body photo")} saved` : "No body photos saved",
+        body:
+          [
+            failed ? `${counted(failed, "photo")} could not be saved; take it again.` : "",
+            skipped ? `${counted(skipped, "pose")} skipped.` : "",
+          ]
+            .filter(Boolean)
+            .join(" ") || undefined,
+        tone: failed ? "error" : "success",
+      });
+    },
+    [pathname, router, show],
+  );
+
   const openCamera = useCallback((mode: CaptureMode = "meal") => {
     setCamera({ open: true, mode });
   }, []);
@@ -302,6 +328,7 @@ export const CaptureProvider = ({
         mode={camera.mode}
         onClose={() => setCamera((c) => ({ ...c, open: false }))}
         onMedicineSaved={medicineSaved}
+        onBodyDone={bodyDone}
         onSend={(shots, note, at) => {
           const mode = camera.mode;
           setCamera((c) => ({ ...c, open: false }));

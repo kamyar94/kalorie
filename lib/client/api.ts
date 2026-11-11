@@ -12,6 +12,7 @@ import type {
   MeasurementDto,
   NewMeasurements,
 } from "@/lib/contracts/body";
+import type { BodyPhotoDto, BodyPose, BodySessionDto } from "@/lib/contracts/body-photos";
 import type { FoodResult } from "@/lib/contracts/food-search";
 import type {
   MealieRecipeHit,
@@ -268,4 +269,26 @@ export const api = {
     request<{ ok: true }>(`/api/body/measurements/${id(measurementId)}`, { method: "DELETE" }),
   saveHealthProfile: (input: Partial<HealthProfileDto>) =>
     request<HealthProfileDto>("/api/body/health", { method: "PUT", body: input }),
+  /** One body photo at full size (JPEG, PNG or WebP as taken). */
+  uploadBodyPhoto: (
+    photo: Blob,
+    meta: {
+      pose: BodyPose;
+      takenAt: string;
+      tz: string;
+      facing: "user" | "environment" | null;
+      source: "camera" | "gallery";
+    },
+  ) => {
+    const form = new FormData();
+    form.set("photo", photo, `${meta.pose}.jpg`);
+    form.set("pose", meta.pose);
+    form.set("takenAt", meta.takenAt);
+    form.set("tz", meta.tz);
+    if (meta.facing) form.set("facing", meta.facing);
+    form.set("source", meta.source);
+    return requestForm<{ session: BodySessionDto; photo: BodyPhotoDto }>("/api/body-photos", form);
+  },
+  deleteBodyPhoto: (photoId: string) =>
+    request<{ ok: true }>(`/api/body-photos/${id(photoId)}`, { method: "DELETE" }),
 };
