@@ -10,6 +10,7 @@ import { sourceLabel, type ImportResult } from "@/lib/contracts/activities";
 import {
   judgeChange,
   measureInfo,
+  MEASURES,
   RATIOS,
   type BodySummaryDto,
   type ImportedMeasurement,
@@ -365,6 +366,14 @@ export const getBodySummary = async (
   };
   if (user?.heightCm) ratio("waist_to_height", "waist", () => user.heightCm);
   ratio("waist_to_hip", "waist", (w) => at("hips", w)?.value ?? null);
+  // In the catalogue's order (scale, then tape, parts of one's own, ratios).
+  const rank = (code: string) => {
+    const known = MEASURES.findIndex((m) => m.code === code);
+    if (known >= 0) return known;
+    const ratio = RATIOS.findIndex((r) => r.code === code);
+    return ratio >= 0 ? 2000 + ratio : 1000;
+  };
+  stats.sort((a, b) => rank(a.code) - rank(b.code) || a.label.localeCompare(b.label));
 
   // Weight: one a day for the chart, every weigh-in for the history, the last 30 days' change.
   const weightRows = series.get("weight")?.points ?? [];
