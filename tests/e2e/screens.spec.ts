@@ -710,6 +710,66 @@ test("answer a question about a meal", async ({ page }, info) => {
   expect(job.rows[0].payload).toMatchObject({ reason: "answer" });
 });
 
+test("answer in your own words: the field grows over lines and Answer sits under it", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  const mealId = await meal(userId, {
+    status: "needs_input",
+    title: "Chicken",
+    source: "text",
+    questions: [
+      {
+        id: "q1",
+        text: "How much of the chicken shown did you eat?",
+        answers: ["All of it", "About half"],
+      },
+    ],
+  });
+  // A meal in words can be analysed again with the answer.
+  await pool.query("update meals set note = 'Chicken drumsticks with rice' where id = $1", [
+    mealId,
+  ]);
+  await page.goto(`/meals/${mealId}`);
+  const question = page.getByRole("group", { name: "How much of the chicken shown did you eat?" });
+  const field = question.getByRole("textbox", { name: "Or answer in your own words" });
+  const send = question.getByRole("button", { name: "Answer" });
+  await expect(field).toBeVisible();
+  await expect(send).toBeDisabled();
+  const oneLine = (await field.boundingBox())!.height;
+
+  // A long answer wraps instead of scrolling sideways; Enter starts a new line, it does not send.
+  const long =
+    "Two drumsticks, an equal amount to what is in the bowl, and about half of the rice that was left";
+  await field.fill(long);
+  await field.press("End");
+  await field.press("Enter");
+  await field.pressSequentially("no sauce");
+  await expect(field).toHaveValue(`${long}\nno sauce`);
+  const grown = (await field.boundingBox())!;
+  expect(grown.height).toBeGreaterThan(oneLine * 1.8);
+  expect(await field.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+  // At most five lines; Answer is under the field, at its right edge.
+  const lineHeight = await field.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight));
+  expect(grown.height).toBeLessThanOrEqual(lineHeight * 5 + 40);
+  const button = (await send.boundingBox())!;
+  expect(button.y).toBeGreaterThanOrEqual(grown.y + grown.height);
+  expect(Math.abs(button.x + button.width - (grown.x + grown.width))).toBeLessThanOrEqual(2);
+  expect(
+    (await pool.query("select status from meals where id = $1", [mealId])).rows[0].status,
+  ).toBe("needs_input");
+  await expectAccessible(page);
+
+  await send.click();
+  await expect
+    .poll(
+      async () =>
+        (await pool.query("select questions from meals where id = $1", [mealId])).rows[0]
+          .questions[0].answer,
+    )
+    .toBe(`${long} no sauce`);
+});
+
 test("add without a photo: scan a barcode", async ({ page }, info) => {
   await signUp(page, info.project.name);
   const code = "4006381333931";

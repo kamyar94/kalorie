@@ -1,15 +1,19 @@
 "use client";
 
 import { Check, HelpCircle } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { ANALYSIS_INPUT_LIMITS } from "@/lib/contracts/analysis";
 import type { MealQuestionDto } from "@/lib/contracts/meals";
 
+/** The answer field grows with the text from one line up to this many, then scrolls. */
+export const ANSWER_MAX_LINES = 5;
+
 /**
- * The analysis's open questions as answer chips (two to four suggested answers each), with
- * "Other" for an answer in the person's own words. Answered questions show the answer given.
+ * The analysis's open questions as answer chips (two to four suggested answers each), and a field
+ * for an answer in the person's own words. Answered questions show the answer given.
  */
 export const Questions = ({
   questions,
@@ -44,6 +48,20 @@ export const Questions = ({
   );
 };
 
+/** Sets a textarea's height to its text, between one line and ANSWER_MAX_LINES lines. */
+const fitToText = (field: HTMLTextAreaElement) => {
+  const style = window.getComputedStyle(field);
+  const line = parseFloat(style.lineHeight) || 22;
+  const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+  const borders = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+  // border-box: the height holds the text (scrollHeight counts the padding) and the borders.
+  field.style.height = "auto";
+  const content = field.scrollHeight + borders;
+  const max = line * ANSWER_MAX_LINES + padding + borders;
+  field.style.height = `${Math.ceil(Math.min(max, Math.max(line + padding + borders, content)))}px`;
+  field.style.overflowY = content > max + 1 ? "auto" : "hidden";
+};
+
 const Question = ({
   question,
   disabled,
@@ -54,26 +72,33 @@ const Question = ({
   onAnswer: (answer: string) => Promise<void>;
 }) => {
   const [pending, setPending] = useState<string | null>(null);
-  const [other, setOther] = useState(false);
   const [text, setText] = useState("");
+  const field = useRef<HTMLTextAreaElement>(null);
   const id = useId();
 
+  // The field follows its text: one line when empty, up to five lines, then it scrolls.
+  useLayoutEffect(() => {
+    if (field.current) fitToText(field.current);
+  }, [text]);
+
   const answer = async (value: string) => {
-    if (!value.trim()) return;
-    setPending(value);
+    if (!value.trim()) return false;
+    setPending(value.trim());
     try {
       await onAnswer(value.trim());
+      return true;
     } finally {
       setPending(null);
     }
   };
 
+  const busy = disabled || pending !== null;
   return (
-    <div role="group" aria-labelledby={`${id}-q`}>
+    <div role="group" aria-labelledby={`${id}-q`} className="flex flex-col gap-3">
       <p id={`${id}-q`} className="text-body font-medium" dir="auto">
         {question.text}
       </p>
-      <div className="mt-2 flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         {question.answers.map((option) => {
           const chosen = question.answer === option;
           return (
@@ -81,7 +106,7 @@ const Question = ({
               key={option}
               type="button"
               aria-pressed={chosen}
-              disabled={disabled || pending !== null}
+              disabled={busy}
               onClick={() => void answer(option)}
               className={cn(
                 "text-label inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 transition-colors disabled:opacity-60",
@@ -95,50 +120,47 @@ const Question = ({
             </button>
           );
         })}
-        {!other && (
-          <button
-            type="button"
-            disabled={disabled || pending !== null}
-            onClick={() => setOther(true)}
-            className="text-label bg-surface text-text hover:bg-surface-2 min-h-11 rounded-full border border-current/25 px-4 disabled:opacity-60"
-          >
-            Other…
-          </button>
-        )}
       </div>
       {question.answer && !question.answers.includes(question.answer) && (
-        <p className="text-caption mt-2" dir="auto">
+        <p className="text-caption" dir="auto">
           Your answer: {question.answer}
         </p>
       )}
-      {other && (
-        <form
-          className="mt-2 flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void answer(text).then(() => {
-              setOther(false);
-              setText("");
-            });
-          }}
-        >
-          <label htmlFor={`${id}-other`} className="sr-only">
-            Your answer
-          </label>
-          <input
-            id={`${id}-other`}
-            dir="auto"
-            autoFocus
-            maxLength={120}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            className="border-border bg-surface text-body text-text min-h-11 flex-1 rounded-full border px-4 focus:outline-none focus-visible:outline-3 focus-visible:outline-[var(--focus)]"
-          />
-          <Button type="submit" disabled={!text.trim()} loading={pending === text.trim()}>
+      <form
+        className="flex flex-col gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void answer(text).then((sent) => {
+            if (sent) setText("");
+          });
+        }}
+      >
+        <label htmlFor={`${id}-own`} className="text-caption font-semibold">
+          Or answer in your own words
+        </label>
+        {/* Enter starts a new line; the Answer button sends. */}
+        <textarea
+          ref={field}
+          id={`${id}-own`}
+          dir="auto"
+          rows={1}
+          maxLength={ANALYSIS_INPUT_LIMITS.answerChars}
+          value={text}
+          disabled={busy}
+          onChange={(event) => setText(event.target.value)}
+          className="bg-surface text-text block w-full min-w-0 resize-none rounded-2xl border border-current/25 px-3 py-2.5 text-base leading-[1.4] focus:outline-none focus-visible:outline-3 focus-visible:outline-[var(--focus)] disabled:opacity-60"
+        />
+        <div className="flex justify-end">
+          <Button
+            type="submit"
+            className="rounded-full px-5"
+            disabled={busy || !text.trim()}
+            loading={pending !== null && pending === text.trim()}
+          >
             Answer
           </Button>
-        </form>
-      )}
+        </div>
+      </form>
     </div>
   );
 };
