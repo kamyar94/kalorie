@@ -109,6 +109,7 @@ export const toSummaryDto = (
     localTime: localParts(row.eatenAt, row.tz).time,
     slot: row.slot,
     slotLocked: row.slotLocked,
+    favorite: row.favoriteAt !== null,
     title: row.title,
     note: row.note,
     status: row.status,

@@ -43,6 +43,7 @@ export const parseMealPatch = (body: Record<string, unknown>): MealPatch => {
     patch.title = body.title === null ? null : str(body.title, 120);
   if (body.note === null || typeof body.note === "string")
     patch.note = body.note === null ? null : str(body.note, 500);
+  if (typeof body.favorite === "boolean") patch.favorite = body.favorite;
   return patch;
 };
 

@@ -877,6 +877,81 @@ test("meal photos: add from the gallery and the camera, choose the cover, remove
   expect(job.rows[0].payload).toMatchObject({ reason: "retry", replaceEdits: false });
 });
 
+test("favorites: star a meal, log it again from Today with Undo, on an earlier day, and on the Favorites page", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  const mealId = await meal(userId, { status: "ready", title: "Morning coffee" });
+  await pool.query(
+    `insert into meal_items (meal_id, user_id, position, name, kind, emoji, grams, ml, nutrients)
+     values ($1, $2, 0, 'Coffee with milk', 'drink', '☕', 250, 250, '{"energy":40}')`,
+    [mealId, userId],
+  );
+  await pool.query(`update meals set totals = '{"energy":40}' where id = $1`, [mealId]);
+  const copies = async () =>
+    (
+      await pool.query(
+        `select local_date::text as day, to_char(eaten_at at time zone tz, 'HH24:MI') as time
+         from meals where user_id = $1 and source = 'duplicate' and deleted_at is null
+         order by eaten_at`,
+        [userId],
+      )
+    ).rows as { day: string; time: string }[];
+
+  await page.goto("/today");
+  const favorites = page.getByRole("region", { name: "Log a favorite again" });
+  await expect(page.getByRole("heading", { name: "Meals" })).toBeVisible();
+  await expect(favorites).toHaveCount(0);
+
+  await page.goto(`/meals/${mealId}`);
+  const starButton = page.getByRole("button", { name: "Favorite", exact: true });
+  await expect(starButton).toHaveAttribute("aria-pressed", "false");
+  await starButton.click();
+  await expect(starButton).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Saved to your favorites" }),
+  ).toBeVisible();
+  await expectAccessible(page);
+
+  // Today: one tap logs a copy now; Undo takes it back.
+  await page.goto("/today");
+  const chip = favorites.getByRole("button", { name: "Morning coffee" });
+  await expect(chip).toContainText("☕");
+  await expectAccessible(page);
+  await chip.click();
+  const cards = page.locator("article[data-meal-id]");
+  await expect(cards).toHaveCount(2);
+  expect(await copies()).toHaveLength(1);
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Morning coffee logged" })
+    .getByRole("button", { name: "Undo" })
+    .click();
+  await expect(cards).toHaveCount(1);
+  expect(await copies()).toEqual([]);
+
+  // On an earlier day the copy lands at 12:00 of that day.
+  await page.goto(`/today?date=${localDay(-1)}`);
+  await favorites.getByRole("button", { name: "Morning coffee" }).click();
+  await expect(cards).toHaveCount(1);
+  expect(await copies()).toEqual([{ day: localDay(-1), time: "12:00" }]);
+
+  // The Favorites page, from Settings: log again now, then take it off the list.
+  await page.goto("/settings");
+  await page.getByRole("link", { name: /^Favorites/ }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Favorites" })).toBeVisible();
+  const list = page.getByTestId("favorites");
+  await expect(list).toContainText("40 kcal · ☕ Coffee with milk");
+  await expectAccessible(page);
+  await list.getByRole("button", { name: "Log again now: Morning coffee" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Morning coffee logged" })).toBeVisible();
+  await expect.poll(async () => (await copies()).length).toBe(2);
+  await list.getByRole("button", { name: "Favorite: Morning coffee" }).click();
+  await expect(page.getByText("No favorites yet")).toBeVisible();
+  const row = await pool.query("select favorite_at from meals where id = $1", [mealId]);
+  expect(row.rows[0].favorite_at).toBeNull();
+});
+
 test("add without a photo: scan a barcode", async ({ page }, info) => {
   await signUp(page, info.project.name);
   const code = "4006381333931";

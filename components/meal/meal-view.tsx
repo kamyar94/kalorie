@@ -19,6 +19,7 @@ import { useCallback, useState } from "react";
 import { AutoRefresh } from "@/components/app/auto-refresh";
 import { PlateIcon } from "@/components/app/plate-icon";
 import { WhenSheet } from "@/components/capture/when-sheet";
+import { FavoriteButton } from "@/components/favorites/favorite-button";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -78,6 +79,7 @@ export const MealView = ({
   const [again, setAgain] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [starring, setStarring] = useState(false);
 
   // A fresh server render (auto refresh while analysing, router.refresh) replaces local state.
   const [shownInitial, setShownInitial] = useState(initial);
@@ -152,6 +154,26 @@ export const MealView = ({
     }
   };
 
+  const toggleFavorite = async () => {
+    const next = !meal.favorite;
+    setStarring(true);
+    setMeal((m) => ({ ...m, favorite: next }));
+    try {
+      setMeal(await api.patchMeal(meal.id, { favorite: next }));
+      show({
+        title: next ? "Saved to your favorites" : "Removed from your favorites",
+        body: next ? "Log it again with one tap from Today." : undefined,
+        tone: next ? "success" : "neutral",
+      });
+      router.refresh();
+    } catch (error) {
+      setMeal((m) => ({ ...m, favorite: !next }));
+      fail(next ? "Not saved to your favorites" : "Still a favorite", error);
+    } finally {
+      setStarring(false);
+    }
+  };
+
   const answer = async (questionId: string, value: string) => {
     try {
       setMeal(await api.answer(meal.id, questionId, value));
@@ -195,7 +217,8 @@ export const MealView = ({
 
   return (
     <>
-      <header className="flex items-center gap-2">
+      {/* Phones: back, name, star; Time and Edit on a row under the name. Wider: one row. */}
+      <header className="flex flex-wrap items-center gap-2">
         <Link
           href={backHref}
           aria-label={`Back to ${dayTitle(meal.localDate, today)}`}
@@ -213,17 +236,20 @@ export const MealView = ({
             {textMeal && " · typed meal"}
           </p>
         </div>
-        <Button
-          variant="secondary"
-          className="rounded-full px-3.5"
-          aria-haspopup="dialog"
-          onClick={() => setTimeOpen(true)}
-        >
-          <Clock aria-hidden className="size-4" /> Time
-        </Button>
-        <Button variant="secondary" className="px-3.5" onClick={() => setDetails(true)}>
-          <Pencil aria-hidden className="size-4" /> Edit
-        </Button>
+        <div className="order-last flex w-full gap-2 pl-9 md:order-none md:w-auto md:pl-0">
+          <Button
+            variant="secondary"
+            className="rounded-full px-3.5"
+            aria-haspopup="dialog"
+            onClick={() => setTimeOpen(true)}
+          >
+            <Clock aria-hidden className="size-4" /> Time
+          </Button>
+          <Button variant="secondary" className="px-3.5" onClick={() => setDetails(true)}>
+            <Pencil aria-hidden className="size-4" /> Edit
+          </Button>
+        </div>
+        <FavoriteButton on={meal.favorite} busy={starring} onToggle={() => void toggleFavorite()} />
       </header>
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-start md:gap-6">

@@ -248,6 +248,9 @@ describe("request parsing", () => {
       title: "Lunch",
     });
     expect(parseMealPatch({ slot: "brunch", eatenAt: "soon" })).toEqual({});
+    expect(parseMealPatch({ favorite: true })).toEqual({ favorite: true });
+    expect(parseMealPatch({ favorite: false })).toEqual({ favorite: false });
+    expect(parseMealPatch({ favorite: "yes" })).toEqual({});
     expect(parseItemPatch({ grams: 120, count: -1, foodId: "not-a-uuid", ml: null })).toEqual({
       grams: 120,
       ml: null,

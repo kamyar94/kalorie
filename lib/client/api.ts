@@ -10,6 +10,7 @@ import type {
   WeightPointDto,
 } from "@/lib/contracts/integrations";
 import type {
+  FavoriteDto,
   ItemInput,
   ItemPatch,
   MealDto,
@@ -153,6 +154,11 @@ export const api = {
       method: "POST",
       keepalive: true,
     }),
+  favorites: (limit = 50) =>
+    request<{ favorites: FavoriteDto[] }>(`/api/favorites?limit=${limit}`).then((r) => r.favorites),
+  /** Logs a favorite again (a copy of the meal as it is now) at that time. */
+  logFavorite: (mealId: string, when: { eatenAt: string; tz: string }) =>
+    request<MealDto>(`/api/favorites/${id(mealId)}/log`, { method: "POST", body: when }),
   createManualMeal: (input: NewManualMealInput) =>
     request<MealDto>("/api/manual-meals", { method: "POST", body: input }),
   searchFoods: (query: string, signal?: AbortSignal) =>

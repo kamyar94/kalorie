@@ -1,4 +1,4 @@
-import { ChevronRight, LogOut, ShieldCheck } from "lucide-react";
+import { ChevronRight, LogOut, ShieldCheck, Star } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -25,6 +25,9 @@ import { parseTheme, THEME_COOKIE } from "@/lib/ui/theme";
 import { ThemeChoice } from "./theme-choice";
 
 export const metadata: Metadata = { title: "Settings" };
+
+const listLink =
+  "bg-surface-2 hover:bg-surface-3 text-label flex min-h-12 items-center gap-3 rounded-2xl px-4";
 
 export default async function SettingsPage() {
   const user = await requireUser();
@@ -76,6 +79,20 @@ export default async function SettingsPage() {
           />
         </div>
         <div className="flex flex-col gap-4">
+          <Card as="section" aria-labelledby="lists-heading">
+            <h2 id="lists-heading" className="text-headline">
+              Your lists
+            </h2>
+            <ul className="mt-3 flex flex-col gap-2">
+              <li>
+                <Link href="/favorites" className={listLink}>
+                  <Star aria-hidden className="text-primary size-5" />
+                  <span className="flex-1">Favorites: meals to log again</span>
+                  <ChevronRight aria-hidden className="text-muted size-5" />
+                </Link>
+              </li>
+            </ul>
+          </Card>
           <AiSection
             keys={AI_PROVIDERS.map((p) => keys[p])}
             tasks={AI_TASKS.map((t) => tasks[t])}
