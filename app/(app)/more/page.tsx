@@ -6,6 +6,7 @@ import {
   Pill,
   Settings,
   ShieldCheck,
+  Smartphone,
   Star,
 } from "lucide-react";
 import type { Metadata } from "next";
@@ -44,6 +45,12 @@ export default async function MorePage() {
           },
         ]
       : []),
+    {
+      href: "/more/android",
+      label: "Kal for Android",
+      hint: "The app, with your watch, phone and scale through Health Connect",
+      icon: Smartphone,
+    },
     {
       href: "/settings",
       label: "Settings",

@@ -1,12 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { APP_COOKIE, APP_COOKIE_SECONDS, appMarkerFromParams } from "@/lib/contracts/android";
 import { buildCsp, isSameOrigin, newNonce } from "@/lib/security/csp";
 
 // First gate for every page and API request:
 //  1. state-changing requests must come from Kal's own pages (CSRF);
 //  2. without a session cookie, pages redirect to sign-in and API routes answer 401 (every page
 //     and route still checks the session itself against the database);
-//  3. a fresh CSP nonce for the page render.
+//  3. a fresh CSP nonce for the page render;
+//  4. the Kal Android app's start URL (?source=android-app) is kept in a short cookie across the
+//     first redirects, so the page knows it runs in the app (lib/contracts/android.ts).
 const SESSION_COOKIE = "cal_session";
 // Public too: the Digital Asset Links file and the Android app's update check (lib/android).
 const PUBLIC_PAGES = new Set([
@@ -32,6 +35,18 @@ export function proxy(req: NextRequest) {
   if (!SAFE_METHODS.has(req.method) && !DEVICE_API.has(pathname) && !isSameOrigin(req.headers))
     return NextResponse.json({ error: "Cross-site request refused." }, { status: 403 });
 
+  const marker = isApi ? null : appMarkerFromParams(req.nextUrl.searchParams);
+  const withMarker = <T extends NextResponse>(response: T) => {
+    if (marker)
+      response.cookies.set(APP_COOKIE, marker, {
+        path: "/",
+        maxAge: APP_COOKIE_SECONDS,
+        sameSite: "lax",
+        secure: process.env.COOKIE_SECURE !== "false",
+      });
+    return response;
+  };
+
   const signedIn = req.cookies.has(SESSION_COOKIE);
   if (!signedIn && !(isApi ? PUBLIC_API.has(pathname) : PUBLIC_PAGES.has(pathname))) {
     if (isApi) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
@@ -39,7 +54,7 @@ export function proxy(req: NextRequest) {
     const proto =
       req.headers.get("x-forwarded-proto")?.split(",")[0] || req.nextUrl.protocol.replace(":", "");
     const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? req.nextUrl.host;
-    return NextResponse.redirect(new URL("/sign-in", `${proto}://${host}`));
+    return withMarker(NextResponse.redirect(new URL("/sign-in", `${proto}://${host}`)));
   }
 
   const nonce = newNonce();
@@ -52,7 +67,7 @@ export function proxy(req: NextRequest) {
   requestHeaders.set("Content-Security-Policy", csp);
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
-  return response;
+  return withMarker(response);
 }
 
 export const config = {

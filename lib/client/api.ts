@@ -13,6 +13,7 @@ import type {
   NewMeasurements,
 } from "@/lib/contracts/body";
 import type { BodyPhotoDto, BodyPose, BodySessionDto } from "@/lib/contracts/body-photos";
+import type { LinkCodeDto } from "@/lib/contracts/devices";
 import type { FoodResult } from "@/lib/contracts/food-search";
 import type {
   MealieRecipeHit,
@@ -291,4 +292,8 @@ export const api = {
   },
   deleteBodyPhoto: (photoId: string) =>
     request<{ ok: true }>(`/api/body-photos/${id(photoId)}`, { method: "DELETE" }),
+  /** A one-time code and the intent URL that opens the app's Health Connect screen with it. */
+  createLinkCode: () => request<LinkCodeDto>("/api/devices/link-codes", { method: "POST" }),
+  unlinkDevice: (deviceId: string) =>
+    request<{ ok: true }>(`/api/devices/${id(deviceId)}`, { method: "DELETE" }),
 };

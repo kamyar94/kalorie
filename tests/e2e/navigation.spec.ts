@@ -1,6 +1,6 @@
 // Navigation end to end (phone, desktop, phone-dark): Today, Move, the camera, Body and More in
 // that order (the bar on phones, the rail on wide screens); More holds Trends, Add food,
-// Favorites, Medicines, Plan, Settings and Admin; the old addresses still open and show More as
+// Favorites, Medicines, Plan, Kal for Android, Settings and Admin; the old addresses still open and show More as
 // the current place.
 import { expect, test } from "@playwright/test";
 
@@ -48,6 +48,7 @@ test("navigation: Today, Move, the camera, Body and More; More holds the rest", 
     /^Favorites/,
     /^Medicines/,
     /^Plan meals/,
+    /^Kal for Android/,
     /^Settings/,
     /^Admin/,
   ]);
@@ -60,6 +61,7 @@ test("navigation: Today, Move, the camera, Body and More; More holds the rest", 
     [/^Favorites/, "Favorites"],
     [/^Medicines/, "Medicines"],
     [/^Plan meals/, "Plan meals"],
+    [/^Kal for Android/, "Kal for Android"],
     [/^Settings/, "Settings"],
     [/^Admin/, "Admin"],
   ] as const) {

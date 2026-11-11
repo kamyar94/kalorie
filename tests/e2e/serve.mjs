@@ -2,8 +2,9 @@
 // runs, recreates the e2e database with all migrations, imports the FoodData Central fixture
 // extracts and the seeded dishes, starts the integration mocks (Gemini, Mealie, openGym, a push
 // service, Open Food Facts; tests/helpers/mock-integrations.ts) and writes their address to
-// test-results/e2e-mocks.json for the tests, builds the app (unless CAL_E2E_SKIP_BUILD=1), then
-// runs the worker (dist/worker.mjs) and `next start` on 127.0.0.1.
+// test-results/e2e-mocks.json for the tests, empties the Android app folder, builds the app
+// (unless CAL_E2E_SKIP_BUILD=1), then runs the worker (dist/worker.mjs) and `next start` on
+// 127.0.0.1.
 import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -63,6 +64,10 @@ const vapid = newVapidKeys();
 
 const photoRoot = path.join(root, "test-results", "e2e-photos");
 rmSync(photoRoot, { recursive: true, force: true });
+// The Android app folder starts empty; tests/e2e/android.spec.ts puts an APK in and takes it out.
+const androidDir = path.join(root, "test-results", "e2e-android");
+rmSync(androidDir, { recursive: true, force: true });
+mkdirSync(androidDir, { recursive: true });
 
 const env = {
   ...process.env,
@@ -70,6 +75,10 @@ const env = {
   DATABASE_URL: databaseUrl,
   CAL_SECRET_KEY: crypto.randomBytes(32).toString("base64"),
   PHOTO_ROOT: photoRoot,
+  // The placeholder app id and a made-up fingerprint (the build script's placeholder build).
+  ANDROID_APP_ID: "app.kal",
+  ANDROID_CERT_SHA256: "AB:".repeat(31) + "CD",
+  ANDROID_APK_DIR: androidDir,
   COOKIE_SECURE: "false",
   BASE_URL: `http://127.0.0.1:${port}`,
   NEXT_TELEMETRY_DISABLED: "1",
