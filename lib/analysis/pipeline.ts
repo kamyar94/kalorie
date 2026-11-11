@@ -31,7 +31,7 @@ import { recomputeMealTotals } from "@/lib/meals/service";
 import { localParts } from "@/lib/meals/time";
 import { readPhotoFile } from "@/lib/photos/storage";
 
-import { mealError, type MealError } from "./errors";
+import { mealError, notFoodPhotoDetail, type MealError } from "./errors";
 import { foodFromLabel, labelFood, labelPer100g } from "./labels";
 import { findByBarcode, matchSubjects, type MatchSubject } from "./matching";
 import { findMemory, getUsualMeals, memoryKey, touchUsualMeals, type UsualMeal } from "./memory";
@@ -370,9 +370,13 @@ export const analyseMeal = async (
   });
 
   if (!output.is_food) {
-    const detail =
-      output.title && !textOnly ? `The photo seems to show: ${output.title}.` : undefined;
-    const error = mealError("not-food", { detail, textOnly });
+    const detail = output.title && !textOnly ? notFoodPhotoDetail(output.title) : undefined;
+    // What it is instead, kept with the error: a medicine or supplement offers "Log as a medicine".
+    const error = mealError("not-food", {
+      detail,
+      textOnly,
+      notFoodKind: output.not_food_kind ?? "other",
+    });
     const done = await dbx
       .update(meals)
       .set({

@@ -11,7 +11,7 @@ import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { db } from "@/db";
-import { aiUsage, foods, jobs } from "@/db/schema";
+import { aiUsage, foods, jobs, meals } from "@/db/schema";
 import { saveProviderKey } from "@/lib/ai/service";
 import { AI_PROVIDERS, type AiProvider } from "@/lib/ai/types";
 import { analyzeMealHandler } from "@/lib/analysis/handler";
@@ -28,6 +28,7 @@ import {
   matchingReply,
   MIXED_DISH,
   NOT_FOOD,
+  NOT_FOOD_MEDICINE,
   PACKAGED,
   promptOf,
   seedFixtureFoods,
@@ -220,11 +221,33 @@ describe.each(AI_PROVIDERS)("analysis with %s", (provider) => {
     await run();
     const meal = (await getMeal(userId, mealId))!;
     expect(meal.status).toBe("failed");
-    expect(meal.error).toMatchObject({ kind: "not-food", settingsLink: false });
+    expect(meal.error).toMatchObject({
+      kind: "not-food",
+      settingsLink: false,
+      notFoodKind: "other",
+    });
     expect(meal.error!.message).toContain("A laptop on a desk");
     expect(meal.items).toHaveLength(0);
     expect(await jobOf(mealId)).toMatchObject({ status: "done", attempts: 1 });
     expect(ai.requests).toHaveLength(1);
+  });
+
+  it("keeps what a photo that is not food shows: a medicine offers Log as a medicine", async () => {
+    const { userId, mealId } = await newMeal(provider);
+    ai.queue(provider, aiReplies[provider].json(NOT_FOOD_MEDICINE));
+    await run();
+    const meal = (await getMeal(userId, mealId))!;
+    expect(meal.error).toMatchObject({ kind: "not-food", notFoodKind: "medicine" });
+    expect(meal.error!.message).toContain("Pill bottle and one tablet");
+    // Stored with the error and in the analysis output.
+    const [row] = await db
+      .select({ error: meals.error, analysis: meals.analysis })
+      .from(meals)
+      .where(eq(meals.id, mealId));
+    expect(row!.error).toMatchObject({ kind: "not-food", notFoodKind: "medicine" });
+    expect(row!.analysis).toMatchObject({ is_food: false, not_food_kind: "medicine" });
+    // The schema sent asks for it.
+    expect(JSON.stringify(ai.requests[0]!.body)).toContain("not_food_kind");
   });
 
   it("retries malformed JSON once, then gives up with a clear error", async () => {

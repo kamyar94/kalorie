@@ -7,8 +7,10 @@ import { useMemo, useState } from "react";
 
 import { useCapture } from "@/components/capture/capture-provider";
 import { MealCard } from "@/components/app/meal-card";
+import { LogAsMedicine } from "@/components/medicines/log-as-medicine";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/ui/toast";
+import { logsAsMedicine } from "@/lib/analysis/not-food";
 import { api } from "@/lib/client/api";
 import { ANALYSED_SOURCES, type MealSummaryDto } from "@/lib/contracts/meals";
 import { localParts, slotFor } from "@/lib/meals/time";
@@ -201,8 +203,12 @@ export const Timeline = ({
               }
               actions={
                 meal.status === "failed" &&
-                (meal.error?.settingsLink || ANALYSED_SOURCES.includes(meal.source)) ? (
+                (meal.error?.settingsLink ||
+                  ANALYSED_SOURCES.includes(meal.source) ||
+                  logsAsMedicine(meal)) ? (
                   <>
+                    {/* A medicine or supplement photographed as a meal. */}
+                    {logsAsMedicine(meal) && <LogAsMedicine meal={meal} variant="chip" />}
                     {meal.error?.settingsLink && (
                       <Link href="/settings#ai" className={actionClass}>
                         <Settings aria-hidden className="size-4" /> Open AI settings

@@ -130,6 +130,7 @@ export const rawItem = (
 
 export const rawAnalysis = (overrides: Partial<RawAnalysis>): RawAnalysis => ({
   is_food: true,
+  not_food_kind: "none",
   cuisine: "",
   items: [],
   title: "",
@@ -254,8 +255,17 @@ export const PACKAGED = rawAnalysis({
 
 export const NOT_FOOD = rawAnalysis({
   is_food: false,
+  not_food_kind: "other",
   title: "A laptop on a desk",
   overall_confidence: 0.95,
+});
+
+/** A medicine photographed as a meal (made-up product). */
+export const NOT_FOOD_MEDICINE = rawAnalysis({
+  is_food: false,
+  not_food_kind: "medicine",
+  title: "Pill bottle and one tablet",
+  overall_confidence: 0.9,
 });
 
 // ---- Reading requests ----

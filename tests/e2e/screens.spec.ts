@@ -1064,6 +1064,95 @@ test("medicines: the camera's Medicine tab without an AI key, Today's card with 
   await expect(card.getByTestId("medicine-taken")).toHaveCount(1);
 });
 
+test("log as a medicine: a supplement photographed as a meal, from Today, without an AI key", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  const camera = await openCamera(page);
+  await camera.getByRole("button", { name: "Take photo" }).click();
+  await camera.getByRole("button", { name: "Send meal with 1 photo" }).click();
+  await expect(camera).toBeHidden();
+  const mealCard = page.locator(SERVER_CARD);
+  const mealId = (await mealCard.getAttribute("data-meal-id"))!;
+  await expect
+    .poll(
+      async () =>
+        (await pool.query("select status from jobs where payload->>'mealId' = $1", [mealId]))
+          .rows[0]?.status,
+      { timeout: 15_000 },
+    )
+    .toBe("done");
+  // As an analysis from before not_food_kind left it: only the words say what it shows.
+  await pool.query(`update meals set status = 'failed', error = $2, analysis = $3 where id = $1`, [
+    mealId,
+    JSON.stringify({
+      kind: "not-food",
+      message:
+        "These photos do not seem to show food or drink. Retake them or add the items by hand. The photo seems to show: A bottle of vitamin D capsules.",
+    }),
+    JSON.stringify({ is_food: false, title: "A bottle of vitamin D capsules", items: [] }),
+  ]);
+  const { rows } = await pool.query(
+    "select eaten_at, to_char(eaten_at at time zone tz, 'HH24:MI') as time from meals where id = $1",
+    [mealId],
+  );
+  const mealTime = rows[0].time as string;
+  const eatenAt = rows[0].eaten_at as Date;
+  await page.reload();
+  const failed = page.locator(`article[data-meal-id="${mealId}"]`);
+  await expect(failed).toHaveAttribute("data-state", "failed");
+  await expect(failed.getByRole("button", { name: "Try again" })).toBeVisible();
+  const logAs = failed.getByRole("button", { name: "Log as a medicine" });
+  await expect(logAs).toBeVisible();
+  await expectAccessible(page);
+
+  // No AI key: the sheet to type, taken at the meal's time.
+  await logAs.click();
+  const sheet = page.getByRole("dialog", { name: "What did you take?" });
+  await expect(sheet).toBeVisible({ timeout: 20_000 });
+  await expect(sheet.getByRole("status").first()).toContainText("Save an AI key in Settings");
+  await expect(
+    sheet.getByRole("button", { name: `Taken: today at ${mealTime}. Change the time` }),
+  ).toBeVisible();
+  await expect(sheet.getByRole("spinbutton", { name: "How many did you take?" })).toHaveAttribute(
+    "aria-valuetext",
+    "1",
+  );
+  await expect(
+    sheet.getByRole("checkbox", { name: "Keep it in my medicines for one-tap logging" }),
+  ).toBeChecked();
+  await sheet.getByLabel("Name").fill("Vitamin D");
+  await sheet.getByLabel("Strength").fill("1000 IU");
+  await sheet.getByLabel("Form").selectOption("capsule");
+  await expectAccessible(page);
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(sheet).toBeHidden();
+
+  // Today: the medicine in its card at the meal's time, the meal gone; the toast leads to it.
+  const card = page.getByRole("region", { name: "Medicines" });
+  await expect(card.getByTestId("medicine-taken")).toContainText("Vitamin D 1000 IU · 1 capsule");
+  await expect(card.getByTestId("medicine-taken")).toContainText(`Taken ${mealTime}`);
+  await expect(page.locator(`article[data-meal-id="${mealId}"]`)).toHaveCount(0);
+  await expect(page.getByText("Nothing logged yet")).toBeVisible();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Vitamin D 1000 IU logged as a medicine" })
+    .getByRole("button", { name: "Show it" })
+    .click();
+  await expect(card.getByTestId("medicine-taken")).toBeFocused();
+  await expectAccessible(page);
+
+  const stored = await pool.query(
+    `select l.name, l.form, l.scan_id is not null as photo, l.taken_at,
+       (select count(*)::int from meals where user_id = $1) as meals
+     from medicine_logs l where l.user_id = $1`,
+    [userId],
+  );
+  expect(stored.rows).toEqual([
+    { name: "Vitamin D", form: "capsule", photo: true, taken_at: eatenAt, meals: 0 },
+  ]);
+});
+
 test("add without a photo: scan a barcode", async ({ page }, info) => {
   await signUp(page, info.project.name);
   const code = "4006381333931";

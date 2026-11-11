@@ -3,6 +3,8 @@
 // "read-medicine-label" asks the person's AI provider to read it (lib/medicines/label.ts). Without
 // any AI key the scan fails at once ("no-key"), so the screen offers the empty sheet without a
 // wait. A label photo that never became part of a log is removed after a day. Owner only.
+// "Log as a medicine" (lib/medicines/from-meal.ts) stores a copy of a meal's cover photo the same
+// way.
 import crypto from "node:crypto";
 
 import { and, eq, lt, sql } from "drizzle-orm";
@@ -15,7 +17,7 @@ import {
   type ReadMedicineLabelPayload,
 } from "@/lib/contracts/medicines";
 import { isUuid } from "@/lib/meals/service";
-import { processPhoto, type PhotoVariant } from "@/lib/photos/intake";
+import { processPhoto, type PhotoVariant, type ProcessedPhoto } from "@/lib/photos/intake";
 import { photoRelativePath, removePhotoFiles, writePhotoFile } from "@/lib/photos/storage";
 import { enqueueJob } from "@/lib/queue/queue";
 
@@ -69,7 +71,20 @@ export const createMedicineScan = async (
 ): Promise<MedicineScanDto> => {
   if (!isUuid(userId)) throw new Error("Unknown account.");
   await pruneUnusedScans(userId, dbx).catch(() => undefined);
-  const processed = await processPhoto(photo);
+  return storeMedicineScan(userId, await processPhoto(photo), {}, dbx);
+};
+
+/**
+ * Stores the files of a label photo that is already re-encoded (a new photo, or a copy of a meal's
+ * photo for "Log as a medicine") as the person's own and queues its reading. With mealId the job
+ * reads that meal's photos (all of them, while the meal is there), else the scan's own photo.
+ */
+export const storeMedicineScan = async (
+  userId: string,
+  processed: ProcessedPhoto,
+  options: { mealId?: string } = {},
+  dbx: DbOrTx = defaultDb,
+): Promise<MedicineScanDto> => {
   const id = crypto.randomUUID();
   const now = new Date();
   const paths = {} as Record<PhotoVariant, string>;
@@ -104,7 +119,11 @@ export const createMedicineScan = async (
       if (hasKey)
         await enqueueJob(
           READ_MEDICINE_LABEL_JOB,
-          { scanId: id, userId } satisfies ReadMedicineLabelPayload,
+          {
+            scanId: id,
+            userId,
+            ...(options.mealId ? { mealId: options.mealId } : {}),
+          } satisfies ReadMedicineLabelPayload,
           { userId, maxAttempts: LABEL_MAX_ATTEMPTS },
           tx,
         );

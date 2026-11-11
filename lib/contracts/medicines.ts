@@ -14,9 +14,12 @@
 //   medicineHistory(userId, days)                -> MedicineHistoryDay[]
 //   createMedicineScan(userId, photo)            -> MedicineScanDto     (queues the label reading)
 //   getMedicineScan(userId, scanId)              -> MedicineScanDto | null
+//   mealMedicineScan(userId, mealId)             -> the label read from a meal's photos
+//   logMealAsMedicine(userId, mealId, NewMedicineLog) -> the log; the meal is removed
 // HTTP: GET/POST /api/medicines, PATCH /api/medicines/:id, GET/POST /api/medicine-logs,
 // DELETE /api/medicine-logs/:id, POST /api/medicine-scans, GET /api/medicine-scans/:id,
-// GET /api/medicine-scans/:id/:size (thumb | original).
+// GET /api/medicine-scans/:id/:size (thumb | original), POST /api/meals/:id/medicine-scan,
+// POST /api/meals/:id/medicine ("Log as a medicine", lib/medicines/from-meal.ts).
 
 export const MEDICINE_FORMS = [
   "tablet",
@@ -178,13 +181,18 @@ export type LoggedMedicine = { log: MedicineLogDto; medicine: MedicineDto | null
 
 export const READ_MEDICINE_LABEL_JOB = "read-medicine-label";
 
-export type ReadMedicineLabelPayload = { scanId: string; userId: string };
+/**
+ * mealId: the label comes from a meal's photos ("Log as a medicine"); the job reads all of them
+ * while the meal is there, else the scan's own copy of its cover.
+ */
+export type ReadMedicineLabelPayload = { scanId: string; userId: string; mealId?: string };
 
 export const isReadMedicineLabelPayload = (value: unknown): value is ReadMedicineLabelPayload =>
   typeof value === "object" &&
   value !== null &&
   typeof (value as Record<string, unknown>).scanId === "string" &&
-  typeof (value as Record<string, unknown>).userId === "string";
+  typeof (value as Record<string, unknown>).userId === "string" &&
+  ["string", "undefined"].includes(typeof (value as Record<string, unknown>).mealId);
 
 /** What the model read from the box or blister, cleaned. */
 export type MedicineReading = {

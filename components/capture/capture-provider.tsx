@@ -56,6 +56,8 @@ type CaptureContextValue = {
   openCamera: (mode?: CaptureMode) => void;
   retry: (clientId: string) => Promise<void>;
   discard: (clientId: string) => Promise<void>;
+  /** A meal that was removed (logged as a medicine): it leaves `uploaded` at once. */
+  forgetMeal: (mealId: string) => void;
 };
 
 const CaptureContext = createContext<CaptureContextValue | null>(null);
@@ -304,6 +306,13 @@ export const CaptureProvider = ({
     setCamera({ open: true, mode });
   }, []);
 
+  const forgetMeal = useCallback((mealId: string) => {
+    setUploaded((m) => {
+      if (![...m.values()].some((meal) => meal.id === mealId)) return m;
+      return new Map([...m].filter(([, meal]) => meal.id !== mealId));
+    });
+  }, []);
+
   const value = useMemo<CaptureContextValue>(
     () => ({
       userId,
@@ -316,8 +325,21 @@ export const CaptureProvider = ({
       openCamera,
       retry,
       discard,
+      forgetMeal,
     }),
-    [userId, mealWindows, queue, uploading, previews, uploaded, online, openCamera, retry, discard],
+    [
+      userId,
+      mealWindows,
+      queue,
+      uploading,
+      previews,
+      uploaded,
+      online,
+      openCamera,
+      retry,
+      discard,
+      forgetMeal,
+    ],
   );
 
   return (
