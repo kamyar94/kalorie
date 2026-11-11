@@ -2,7 +2,26 @@
 // icon of meals without a photo. The analysis model suggests one (checked with cleanEmoji); every
 // other item, and older rows without one, get emojiFor: keywords in English and in the Persian
 // dishes Kal seeds (scripts/data/persian-dishes.json), in the Latin spelling and in Persian
-// script. Plain functions, safe for client components.
+// script. Rows that already store an emoji keep it. Plain functions, safe for client components.
+//
+// The emoji shows the food the name is about (its head), not the first food word in it: "grape
+// tomatoes" are tomatoes, "chocolate milk" is milk, "rice cakes" are rice crackers. The head is
+// found like this:
+//   1. The part before "with", "in", "on", "over", "&"... is the food; the rest goes with it
+//      ("tea with sugar" is tea, "sardines in oil" are sardines). In Persian: before "با".
+//   2. Every rule is matched everywhere in that part, on word boundaries ("pineapple" is not an
+//      apple, "butternut" is not butter, "watermelon" is not a melon). Rules also name compounds
+//      ("peanut butter", "sweet potato", "hot chocolate", "rice cake", "fish sauce" is a sauce).
+//   3. English puts the head last, so the match that ends last wins; of two that end at the same
+//      place, the longer one ("sweet potato" over "potato", "peanut butter" over "butter").
+//      Persian dish words written in Latin letters name the dish first ("khoresh bademjan" is a
+//      stew, "kuku sabzi" a frittata): their rule is marked lead and wins wherever it matches.
+//   4. Persian puts the head first ("گوجه گیلاسی", cherry tomatoes, is a tomato), so in Persian
+//      script the match that starts first wins (of two, the longer one), except the rice dishes
+//      named after what is in the rice ("زرشک پلو", "سبزی‌پلو"): that rule is marked tail and wins
+//      wherever it matches.
+//   5. Nothing found: the whole name again (without step 1), then the other names given (the
+//      matched food's name, the local name); otherwise 🥤 for a drink and 🍽️ for anything else.
 import type { ItemKind } from "@/lib/contracts/meals";
 
 /** Drinks without a better match. */
@@ -10,164 +29,258 @@ export const DRINK_EMOJI = "🥤";
 /** Foods without a better match. */
 export const FOOD_EMOJI = "🍽️";
 
+/** lead: names the dish wherever it stands (Latin letters); tail: the same in Persian script. */
+type Mark = "lead" | "tail";
+type Rule = [RegExp, string] | [RegExp, string, Mark];
+
 /**
- * Keyword rules, most specific first: the first rule whose pattern matches wins. Persian dishes
- * come before the plain foods they contain ("sabzi polo" is rice, "khoresh bademjan" a stew).
+ * Keyword rules. Their order only settles two matches of exactly the same words (the earlier
+ * rule wins). Inside a pattern, compounds come before their parts.
  */
-const RULES: [RegExp, string][] = [
-  // Sweets that contain other foods' names.
+const RULES: Rule[] = [
+  // Persian dish words that name the dish first, in Latin letters.
   [
-    /sholeh ?zard|shole ?zard|sholezard|pudding|custard|flan|creme caramel|crème caramel|fereni|firni|شله[\s‌]?زرد|فرنی/,
+    /\b(?:khoresh|khoresht|ghormeh|qormeh|gheymeh|qeymeh|ash(?:-?e)?|abgoosht|abgusht|dizi|halim|haleem)\b/,
+    "🍲",
+    "lead",
+  ],
+  [/\b(?:kuku|kookoo)\b/, "🍳", "lead"],
+  // Persian rice dishes named after what is in the rice, in Persian script.
+  [/پلو|چلو/, "🍚", "tail"],
+
+  // Sweets.
+  [
+    /sholeh ?zard|shole ?zard|sholezard|pudding|custard|flan|creme caramel|crème caramel|fereni|firni|شله[\s‌]?زرد|شیر[\s‌]?برنج|فرنی/,
     "🍮",
   ],
-  [/ice ?cream|gelato|sorbet|frozen yog|bastani|بستنی/, "🍨"],
-  [/pancake|crepe|crêpe/, "🥞"],
-  [/cupcake|muffin/, "🧁"],
-  [/cheesecake|\bcakes?\b|brownie|کیک/, "🍰"],
-  [/\bcookies?\b|biscuit|shortbread|koloocheh|nan-?e berenji|شیرینی|بیسکویت/, "🍪"],
-  [/chocolate|cocoa|nutella|شکلات/, "🍫"],
-  [/donut|doughnut/, "🍩"],
-  [/croissant/, "🥐"],
-  [/baklava|pastry|\bpie\b|\btart\b|strudel|زولبیا|بامیه/, "🥧"],
-  [/\bcandy|candies|gummy|lollipop|toffee|nougat|\bgaz\b|sohan|گز|سوهان/, "🍬"],
-  [/\bhoney\b|عسل/, "🍯"],
-  [/\bjam\b|marmalade|preserve|مربا/, "🫙"],
-
-  // Persian dishes (the seeded ones and their relatives).
   [
-    /kabab|kebab|kabob|koobideh|kubideh|joojeh|jujeh|\bbarg\b|shishlik|skewer|satay|souvlaki|کباب|جوجه/,
+    /ice ?cream (?:sandwich(?:es)?|cones?|bars?)|ice ?cream|gelato|sorbet|frozen yogh?urt|frozen yog|bastani|بستنی/,
+    "🍨",
+  ],
+  [/pancakes?|crepes?|crêpes?/, "🥞"],
+  [/cupcakes?|muffins?/, "🧁"],
+  [/cheesecake|shortcake|\bcakes?\b|brownies?|کیک/, "🍰"],
+  [/\bcookies?\b|\bbiscuits?\b|shortbread|koloocheh|nan-?e berenji|شیرینی|بیسکویت/, "🍪"],
+  [/chocolate chips?|chocolate|\bcocoa\b|nutella|شکلات|کاکائو/, "🍫"],
+  [/donuts?|doughnuts?/, "🍩"],
+  [/croissants?|pain au chocolat/, "🥐"],
+  [/baklava|pastry|pastries|\bpies?\b|\btarts?\b|strudel|زولبیا|بامیه/, "🥧"],
+  [
+    /jelly ?beans?|\bcandy|candies|gummy|gummies|lollipops?|toffee|butterscotch|nougat|\bgaz\b|sohan|گز|سوهان/,
+    "🍬",
+  ],
+  [/\bhoney\b|عسل/, "🍯"],
+  [/\bjams?\b|marmalade|preserves?\b|مربا/, "🫙"],
+
+  // Dishes, Persian and others.
+  [
+    /kabab|kebab|kabob|koobideh|kubideh|joojeh|jujeh|\bbarg\b|shishlik|skewers?|satay|souvlaki|کباب|جوجه/,
     "🍢",
   ],
   [
-    /\bash(-?e)?\b|khoresh|khoresht|ghormeh|qormeh|gheymeh|qeymeh|fesenjan|fesenjoon|abgoosht|abgusht|dizi|\bstew\b|\bsoup\b|broth|chowder|bisque|halim|haleem|آش|خورش|قورمه|قیمه|فسنجان|آبگوشت|دیزی|سوپ|حلیم/,
+    /\bstews?\b|\bsoups?\b|broth|chowder|bisque|fesenjan|fesenjoon|آش|خورش|قورمه|قیمه|فسنجان|آبگوشت|دیزی|سوپ|حلیم/,
     "🍲",
   ],
   [/ramen|\bpho\b|noodle soup|udon/, "🍜"],
   [/\bdoogh\b|ayran|kefir|lassi|buttermilk|دوغ/, "🥛"],
-  [/kuku|kookoo|kuku sabzi|frittata|omelet|omelette|shakshuka|کوکو|املت/, "🍳"],
-  [/olivieh|olivier|shirazi|\bsalad\b|slaw|tabbouleh|fattoush|سالاد|الویه/, "🥗"],
-  [/sushi|maki|nigiri/, "🍣"],
-  [/biryani|biriyani|curry|daal|dal\b|dhal|کاری/, "🍛"],
+  [/frittata|omelets?|omelettes?|shakshuka|کوکو|املت/, "🍳"],
+  [/olivieh|olivier|shirazi|\bsalads?\b|slaw|tabbouleh|fattoush|سالاد|الویه/, "🥗"],
+  [/(?:sushi|maki|california) rolls?|sushi|\bmaki\b|nigiri/, "🍣"],
+  [/biryani|biriyani|curry|curries|\bdaal\b|\bdal\b|\bdhal\b|کاری/, "🍛"],
+  [/rice ?cakes?|rice crackers?|senbei/, "🍘"],
   [
-    /tahdig|tahchin|chelow|chelo|\bpolo\b|polow|pilaf|pilau|pulao|risotto|paella|\brice\b|چلو|پلو|ته[\s‌]?دیگ|ته[\s‌]?چین|برنج/,
+    /tahdig|tahchin|chelow|chelo|\bpolo\b|polow|pilaf|pilau|pulao|risotto|paella|\brice\b|ته[\s‌]?دیگ|ته[\s‌]?چین|برنج/,
     "🍚",
   ],
   [
-    /kashk|bademjan|badenjan|eggplant|aubergine|mirza ?ghasemi|baba ?ganoush|بادمجان|میرزا ?قاسمی/,
+    /kashk(?:-?e)? bademjan|\bkashk\b|mirza ?ghasemi|baba ?ganoush|eggplants?|aubergines?|bademjan|badenjan|بادمجان|میرزا ?قاسمی/,
     "🍆",
   ],
-  [/kotlet|cutlet|meatball|kofta|kufteh|کتلت|کوفته/, "🧆"],
+  [/kotlet|cutlets?|meatballs?|kofta|kufteh|کتلت|کوفته/, "🧆"],
   [/falafel|felafel|فلافل/, "🧆"],
   [/\bmast\b|mast-?o|yogh?urt|skyr|labneh|ماست/, "🥣"],
+  [/dolma|dolmeh|grape leaves|vine leaves|دلمه/, "🥬"],
 
   // Drinks.
-  [/coffee|espresso|latte|cappuccino|americano|macchiato|mocha|flat white|قهوه/, "☕"],
-  [/\btea\b|\bchai\b|matcha|infusion|herbal|چای/, "🍵"],
-  [/watermelon|هندوانه/, "🍉"],
-  [/coconut water/, "🥥"],
-  [/juice|smoothie|nectar|آبمیوه|آب میوه/, "🧃"],
-  [/\bbeer\b|lager|\bale\b|stout|\bipa\b|pilsner|آبجو/, "🍺"],
-  [/\bwine\b|champagne|prosecco|cava|sangria|شراب/, "🍷"],
   [
-    /whisky|whiskey|vodka|\bgin\b|\brum\b|tequila|\barak\b|araq|brandy|cognac|liqueur|liquor|cocktail|spirits?\b|عرق|ودکا/,
+    /hot chocolate|hot cocoa|coffee|espresso|latte|cappuccino|americano|macchiato|mocha|flat white|قهوه/,
+    "☕",
+  ],
+  [/\btea\b|\bchai\b|matcha|infusion|herbal|چای/, "🍵"],
+  [
+    /juices?|smoothies?|nectar|آبمیوه|آب[\s‌]?(?:میوه|سیب|پرتقال|انار|انگور|هویج|آلبالو|هندوانه|لیمو|طالبی|آناناس)/,
+    "🧃",
+  ],
+  [/\bbeers?\b|lager|\bales?\b|stout|\bipa\b|pilsner|آبجو/, "🍺"],
+  [/\bwines?\b|champagne|prosecco|\bcava\b|sangria|شراب/, "🍷"],
+  [
+    /whisky|whiskey|vodka|\bgin\b|\brum\b|tequila|\barak\b|araq|brandy|cognac|liqueur|liquor|cocktails?|spirits?\b|عرق|ودکا/,
     "🥃",
   ],
-  [/\bsoda\b|cola|\bcoke\b|pepsi|sprite|fanta|lemonade|soft drink|energy drink|tonic|نوشابه/, "🥤"],
-  [/milkshake|shake\b/, "🥤"],
-  [/\bmilk\b|(^|\s)شیر($|\s)/, "🥛"],
+  [
+    /root beer|ginger ale|\bsodas?\b|\b(?:coca-?)?colas?\b|\bcoke\b|pepsi|sprite|fanta|lemonade|soft drinks?|energy drinks?|tonic|نوشابه/,
+    "🥤",
+  ],
+  [/milkshakes?|\bshakes?\b/, "🥤"],
+  [/\bmilk\b|(?:^|\s)شیر(?:$|\s)/, "🥛"],
   [/\bwater\b|^آب$|آب معدنی/, "💧"],
 
   // Dishes and staples.
-  [/pizza|پیتزا/, "🍕"],
-  [/burger|hamburger|همبرگر/, "🍔"],
-  [/hot ?dog|sausage|frankfurter|bratwurst|sosis|سوسیس/, "🌭"],
-  [/burrito|\bwrap\b|shawarma|doner|döner|gyro|لقمه/, "🌯"],
-  [/taco|quesadilla/, "🌮"],
-  [/sandwich|panini|\bsub\b|toastie|ساندویچ/, "🥪"],
-  [/dumpling|gyoza|momo|mantu|ravioli/, "🥟"],
+  [/pizzas?|پیتزا/, "🍕"],
+  [/burgers?|hamburgers?|همبرگر/, "🍔"],
   [
-    /pasta|spaghetti|macaroni|lasagn|penne|fusilli|linguine|tagliatelle|noodle|ماکارونی|پاستا|رشته/,
+    /hot ?dogs?|corn ?dogs?|chili dogs?|sausage rolls?|sausages?|frankfurters?|bratwurst|sosis|سوسیس/,
+    "🌭",
+  ],
+  [/burritos?|\bwraps?\b|shawarma|doner|döner|gyros?|لقمه/, "🌯"],
+  [/tacos?|quesadillas?/, "🌮"],
+  [/sandwich(?:es)?|panini|\bsubs?\b|toastie|ساندویچ/, "🥪"],
+  [/spring rolls?|egg rolls?|summer rolls?|dumplings?|gyoza|momo|mantu|ravioli|samosas?/, "🥟"],
+  [
+    /pasta|spaghetti|macaroni|lasagn|penne|fusilli|linguine|tagliatelle|noodles?|ماکارونی|پاستا|رشته/,
     "🍝",
   ],
-  [/\bfries\b|french fries|chips\b|crisps|سیب زمینی سرخ/, "🍟"],
-  [/potato|potatoes|mash\b|سیب[\s‌]?زمینی/, "🥔"],
-  [/waffle/, "🧇"],
-  [/cereal|cornflakes|oatmeal|\boats?\b|porridge|granola|muesli|bran flakes|حلیم/, "🥣"],
-  [/bagel/, "🥯"],
-  [/baguette/, "🥖"],
+  [/\bfries\b|french fries|\bchips\b|crisps|سیب[\s‌]?زمینی سرخ/, "🍟"],
+  [/sweet ?potato(?:es)?|\byams?\b|سیب[\s‌]?زمینی شیرین/, "🍠"],
+  [/potato(?:es)?|\bmash\b|سیب[\s‌]?زمینی/, "🥔"],
+  [/waffles?/, "🧇"],
+  [/cereal|cornflakes|corn flakes|oatmeal|\boats?\b|porridge|granola|muesli|bran flakes/, "🥣"],
+  [/bagels?/, "🥯"],
+  [/baguettes?/, "🥖"],
   [
-    /pita|pitta|flatbread|lavash|lavaash|barbari|sangak|taftoon|taftun|naan|\bnan\b|tortilla|لواش|بربری|سنگک|تافتون|نان/,
+    /(?:pitt?a|naan|\bnan|lavash|barbari|sangak|taftoon|flat) ?breads?|\bpitt?as?\b|flatbreads?|lavash|lavaash|barbari|sangak|taftoon|taftun|naan|\bnan\b|tortillas?|لواش|بربری|سنگک|تافتون|نان/,
     "🫓",
   ],
-  [/bread|toast|\broll\b|\bbun\b|brioche|sourdough|rye|نان تست/, "🍞"],
-  [/pretzel/, "🥨"],
+  [/bread|toast|\brolls?\b|\bbuns?\b|brioche|sourdough|\brye\b|نان تست/, "🍞"],
+  [/pretzels?/, "🥨"],
   [/popcorn|پاپ ?کورن/, "🍿"],
 
   // Proteins.
-  [/\beggs?\b|egg white|egg yolk|تخم[\s‌]?مرغ/, "🍳"],
-  [/cheese|feta|paneer|mozzarella|cheddar|parmesan|halloumi|ricotta|brie|gouda|پنیر/, "🧀"],
-  [/shrimp|prawn|میگو/, "🍤"],
-  [/crab|lobster|crayfish/, "🦀"],
+  [/\beggs?\b|egg whites?|egg yolks?|تخم[\s‌]?مرغ/, "🍳"],
+  [/cheese|feta|paneer|mozzarella|cheddar|parmesan|halloumi|ricotta|\bbrie\b|gouda|پنیر/, "🧀"],
+  [/shrimps?|prawns?|میگو/, "🍤"],
+  [/crab ?cakes?|lobster rolls?|\bcrabs?\b|lobsters?|crayfish/, "🦀"],
   [
-    /fish|salmon|tuna|\bcod\b|trout|sardine|mackerel|tilapia|haddock|halibut|anchov|seafood|ماهی/,
+    /fish ?cakes?|fish ?fingers?|fish ?sticks?|(?:tuna|salmon|swordfish|fish) steaks?|fish|salmon|tuna|\bcod\b|trout|sardines?|mackerel|tilapia|haddock|halibut|anchov|seafood|ماهی/,
     "🐟",
   ],
-  [/chicken|poultry|turkey|\bduck\b|drumstick|\bwings?\b|nugget|مرغ|بوقلمون/, "🍗"],
+  [/chicken|poultry|turkey|\bduck\b|drumsticks?|\bwings?\b|nuggets?|مرغ|بوقلمون/, "🍗"],
   [/bacon/, "🥓"],
   [
-    /beef|steak|lamb|mutton|veal|\bpork\b|\bham\b|\bmeat\b|goat|liver|jerky|minced|ground meat|گوشت|استیک|جگر/,
+    /beef|steaks?|lamb|mutton|veal|\bpork\b|\bham\b|\bmeat\b|goat|liver|jerky|minced|ground meat|گوشت|استیک|جگر/,
     "🥩",
   ],
 
-  // Nuts (peanut butter too), then fats and spreads.
+  // Nuts and seeds (peanut butter too), then fats, spreads and sauces.
   [
-    /peanut|almond|walnut|pistachio|cashew|hazelnut|pecan|\bnuts?\b|trail mix|بادام|گردو|پسته|فندق|آجیل/,
+    /peanut butter|almond butter|nut butter|کره[\s‌]?بادام[\s‌]?زمینی|peanuts?|almonds?|walnuts?|pistachios?|cashews?|hazelnuts?|pecans?|chestnuts?|\bnuts?\b|\bseeds?\b|trail mix|بادام|گردو|پسته|فندق|آجیل/,
     "🥜",
   ],
   [/olive oil|\bolives?\b|زیتون/, "🫒"],
-  [/butter|ghee|margarine|کره/, "🧈"],
-  [/\boil\b|\bdressing\b|روغن/, "🫒"],
+  [/\bbutter(?:ed)?\b|ghee|margarine|کره/, "🧈"],
+  [/\boils?\b|\bdressings?\b|روغن/, "🫒"],
+  [/\bsauces?\b|ketchup|mayonnaise|\bmayo\b|mustard|vinegar|sriracha|chutney|سس/, "🫙"],
 
-  // Beans and seeds.
-  [/hummus|chickpea|lentil|\bbeans?\b|kidney bean|black bean|\bdal\b|لوبیا|عدس|نخود/, "🫘"],
-  [/\bpeas\b|edamame/, "🫛"],
+  // Beans and peas.
+  [/hummus|chickpeas?|lentils?|\bbeans?\b|\bdal\b|لوبیا|عدس|نخود/, "🫘"],
+  [/\bpeas?\b|edamame/, "🫛"],
 
   // Fruit.
-  [/apple|سیب/, "🍎"],
-  [/banana|موز/, "🍌"],
-  [/orange|tangerine|mandarin|clementine|پرتقال|نارنگی/, "🍊"],
-  [/lemon|lime|لیمو/, "🍋"],
-  [/grape|raisin|kishmish|انگور|کشمش/, "🍇"],
+  [/applesauce|apple sauce|\bapples?\b|سیب/, "🍎"],
+  [/bananas?|موز/, "🍌"],
+  [
+    /grapefruits?|pomelos?|\boranges?\b|tangerines?|mandarins?|clementines?|پرتقال|نارنگی|گریپ ?فروت/,
+    "🍊",
+  ],
+  [/\blemons?\b|\blimes?\b|لیمو/, "🍋"],
+  [/\bgrapes?\b|raisins?|kishmish|انگور|کشمش/, "🍇"],
   [/strawberr|توت ?فرنگی/, "🍓"],
   [/blueberr|berries|raspberr|blackberr|cranberr/, "🫐"],
   [/cherr|گیلاس|آلبالو/, "🍒"],
-  [/peach|apricot|nectarine|plum|هلو|زردآلو|آلو/, "🍑"],
+  [/peach|apricots?|nectarines?|\bplums?\b|هلو|زردآلو|آلو/, "🍑"],
   [/\bpears?\b|گلابی/, "🍐"],
-  [/pineapple|آناناس/, "🍍"],
-  [/mango|انبه/, "🥭"],
-  [/kiwi|کیوی/, "🥝"],
-  [/melon|cantaloupe|طالبی|خربزه/, "🍈"],
-  [/coconut|نارگیل/, "🥥"],
-  [/avocado|آووکادو/, "🥑"],
-  [/\bfruits?\b|pomegranate|\bdates?\b|\bfigs?\b|persimmon|انار|خرما|انجیر|میوه/, "🍎"],
+  [/pineapples?|آناناس/, "🍍"],
+  [/mangos?\b|mangoes|انبه/, "🥭"],
+  [/kiwis?|کیوی/, "🥝"],
+  [/watermelons?|هندوانه/, "🍉"],
+  [/\bmelons?\b|cantaloupe|honeydew|طالبی|خربزه/, "🍈"],
+  [/coconut (?:milk|water|cream|oil)|coconuts?|نارگیل/, "🥥"],
+  [/avocados?|آووکادو/, "🥑"],
+  [/\bfruits?\b|pomegranates?|\bdates?\b|\bfigs?\b|persimmons?|انار|خرما|انجیر|میوه/, "🍎"],
 
   // Vegetables.
-  [/tomato|گوجه/, "🍅"],
-  [/cucumber|pickle|gherkin|خیار/, "🥒"],
-  [/carrot|هویج/, "🥕"],
+  [/grape tomato(?:es)?|cherry tomato(?:es)?|plum tomato(?:es)?|tomato(?:es)?|گوجه/, "🍅"],
+  [/cucumbers?|pickles?|gherkins?|خیار/, "🥒"],
+  [/carrots?|هویج/, "🥕"],
   [/\bcorn\b|sweetcorn|maize|ذرت/, "🌽"],
   [/broccoli|cauliflower|کلم ?بروکلی|گل ?کلم/, "🥦"],
   [/chil+i|jalape|chilli/, "🌶️"],
-  [/bell pepper|capsicum|\bpeppers?\b|فلفل/, "🫑"],
-  [/onion|shallot|پیاز/, "🧅"],
-  [/garlic|(^|\s)سیر($|\s)/, "🧄"],
-  [/mushroom|قارچ/, "🍄"],
-  [/lettuce|spinach|kale|greens|herbs?\b|sabzi|cabbage|arugula|rocket|اسفناج|کاهو|سبزی|کلم/, "🥬"],
-  [/vegetables?|veggies|vegetable mix|zucchini|courgette|squash|کدو|سبزیجات/, "🥦"],
-  // Last: what is usually only added to something else ("tea with sugar" is tea).
+  [/bell peppers?|capsicum|\bpeppers?\b|فلفل/, "🫑"],
+  [/onions?|shallots?|پیاز/, "🧅"],
+  [/garlic|(?:^|\s)سیر(?:$|\s)/, "🧄"],
+  [/mushrooms?|قارچ/, "🍄"],
+  [/butternut(?: squash)?|pumpkins?|کدو ?حلوایی|کدو تنبل/, "🎃"],
+  [
+    /lettuce|spinach|\bkale\b|greens|herbs?\b|sabzi|cabbage|arugula|rocket|اسفناج|کاهو|سبزی|کلم/,
+    "🥬",
+  ],
+  [/vegetables?|veggies|vegetable mix|zucchini|courgettes?|squash|کدو|سبزیجات/, "🥦"],
   [/\bsugar\b|syrup|قند|شکر/, "🍬"],
   [/\bsalt\b|نمک/, "🧂"],
 ];
+
+const COMPILED = RULES.map(([pattern, emoji, mark]) => ({
+  pattern: new RegExp(pattern.source, "g"),
+  emoji,
+  mark,
+}));
+
+/** The food comes before these words; what follows goes with it. */
+const CONNECTORS = /\s(?:with|without|in|on|over|served|topped|&)\s|\sبا\s/;
+const PERSIAN = /[؀-ۿ]/;
+const LATIN = /[a-z]/;
+
+type Found = { start: number; end: number; emoji: string; mark?: Mark; rule: number };
+
+/** Every match of every rule, without the spaces some patterns take around a word. */
+const findAll = (text: string): Found[] => {
+  const found: Found[] = [];
+  COMPILED.forEach(({ pattern, emoji, mark }, rule) => {
+    for (const match of text.matchAll(pattern)) {
+      const words = match[0];
+      if (!words.trim()) continue;
+      const start = match.index + (words.length - words.trimStart().length);
+      const end = match.index + words.trimEnd().length;
+      found.push({ start, end, emoji, mark, rule });
+    }
+  });
+  return found;
+};
+
+/**
+ * Whether b is a better head than a: in English the one that ends last (then the longer one), in
+ * Persian the one that starts first (then the longer one); then the earlier rule.
+ */
+const better = (b: Found, a: Found, persian: boolean) => {
+  if (persian) {
+    if (b.start !== a.start) return b.start < a.start;
+    if (b.end !== a.end) return b.end > a.end;
+  } else {
+    if (b.end !== a.end) return b.end > a.end;
+    if (b.start !== a.start) return b.start < a.start;
+  }
+  return b.rule < a.rule;
+};
+
+/** The emoji of the head food of a (lowercase) text, or null when no rule matches. */
+const headEmoji = (text: string) => {
+  const found = findAll(text);
+  if (!found.length) return null;
+  const persian = PERSIAN.test(text) && !LATIN.test(text);
+  const marked = found.filter((f) => f.mark === (persian ? "tail" : "lead"));
+  const pool = marked.length ? marked : found;
+  return pool.reduce((best, next) => (better(next, best, persian) ? next : best)).emoji;
+};
 
 /** The part of a food name before its first detail: "Rice, white, cooked" -> "Rice". */
 export const shortFoodName = (name: string) => {
@@ -176,9 +289,10 @@ export const shortFoodName = (name: string) => {
 };
 
 const matchRules = (text: string) => {
-  const lower = text.toLowerCase();
-  for (const [pattern, emoji] of RULES) if (pattern.test(lower)) return emoji;
-  return null;
+  const lower = text.toLowerCase().replace(/\s+/g, " ").trim();
+  if (!lower) return null;
+  const head = lower.split(CONNECTORS)[0]!.trim();
+  return (head ? headEmoji(head) : null) ?? (head !== lower ? headEmoji(lower) : null);
 };
 
 const nameEmoji = (name: string | null | undefined) => {
@@ -187,7 +301,7 @@ const nameEmoji = (name: string | null | undefined) => {
 };
 
 /**
- * The emoji for a food: keywords of the main name first ("Lubia polo (green bean rice with
+ * The emoji for a food: the head food of the main name first ("Lubia polo (green bean rice with
  * beef)" is a rice dish), then of the whole name, then of the other names given (the matched
  * food's name, the local name); otherwise 🥤 for a drink and 🍽️ for anything else.
  */
