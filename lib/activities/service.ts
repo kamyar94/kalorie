@@ -143,10 +143,13 @@ const UPDATE_FROM_EXCLUDED = {
   updatedAt: sql`now()`,
 };
 
-type NewActivityRow = typeof activities.$inferInsert & { externalId: string };
+export type NewActivityRow = typeof activities.$inferInsert & { externalId: string };
 
-/** Inserts or updates rows by (user, source, external id); counts what was new. */
-const upsert = async (rows: NewActivityRow[], dbx: DbOrTx) => {
+/**
+ * Inserts or updates rows by (user, source, external id); counts what was new. Used by imports,
+ * openGym syncs and Health Connect (lib/health-connect/sync.ts).
+ */
+export const upsertActivities = async (rows: NewActivityRow[], dbx: DbOrTx) => {
   // One statement may not touch the same row twice: the last record of an id wins.
   const unique = [...new Map(rows.map((r) => [`${r.source}|${r.externalId}`, r])).values()];
   let added = 0;
@@ -192,7 +195,7 @@ export const importActivities = async (
       details: {},
     };
   });
-  const { added, written } = await upsert(rows, dbx);
+  const { added, written } = await upsertActivities(rows, dbx);
   return { added, updated: written - added, skipped: 0 };
 };
 
@@ -243,7 +246,7 @@ export const syncOpenGymActivities = async (
     });
   }
   await dbx.transaction(async (tx) => {
-    if (rows.length) await upsert(rows, tx);
+    if (rows.length) await upsertActivities(rows, tx);
     await tx.delete(activities).where(
       and(
         eq(activities.userId, userId),

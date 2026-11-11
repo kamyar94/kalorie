@@ -180,7 +180,11 @@ export const getMoveDay = async (
   const steps = daySteps(rows);
   const stepsRow = rows
     .filter((r) => r.stepsOnly && r.steps === steps)
-    .sort((a, b) => a.source.localeCompare(b.source))[0];
+    .sort(
+      (a, b) =>
+        Number(b.source === "health_connect") - Number(a.source === "health_connect") ||
+        a.source.localeCompare(b.source),
+    )[0];
   return {
     activeMinutes: activeMinutes(rows),
     activeLabel: longest

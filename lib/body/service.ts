@@ -26,7 +26,8 @@ import { isValidTimeZone, localParts, shiftLocalDate } from "@/lib/meals/time";
 import { fromLocalInputValue } from "@/lib/ui/format";
 
 type Row = typeof bodyMeasurements.$inferSelect;
-type NewRow = typeof bodyMeasurements.$inferInsert & { externalId: string };
+export type NewMeasurementRow = typeof bodyMeasurements.$inferInsert & { externalId: string };
+type NewRow = NewMeasurementRow;
 
 export const toMeasurementDto = (row: Row): MeasurementDto => {
   const info = measureInfo(row.code, row.label, row.unit);
@@ -54,7 +55,11 @@ const UPDATE_FROM_EXCLUDED = {
   updatedAt: sql`now()`,
 };
 
-const upsert = async (rows: NewRow[], dbx: DbOrTx) => {
+/**
+ * Inserts or updates values by (user, source, external id); counts what was new. Used by imports,
+ * openGym syncs and Health Connect (lib/health-connect/sync.ts).
+ */
+export const upsertMeasurements = async (rows: NewRow[], dbx: DbOrTx) => {
   const unique = [...new Map(rows.map((r) => [`${r.source}|${r.externalId}`, r])).values()];
   let added = 0;
   const written: Row[] = [];
@@ -107,7 +112,7 @@ export const logMeasurements = async (
         ]
       : [];
   });
-  const { written } = await upsert(rows, dbx);
+  const { written } = await upsertMeasurements(rows, dbx);
   return written.map(toMeasurementDto);
 };
 
@@ -151,7 +156,7 @@ export const importMeasurements = async (
       externalId: r.externalId,
     };
   });
-  const { added, written } = await upsert(rows, dbx);
+  const { added, written } = await upsertMeasurements(rows, dbx);
   return { added, updated: written.length - added, skipped: 0 };
 };
 
@@ -184,7 +189,7 @@ export const syncOpenGymWeights = async (
     externalId: `weight:${w.date}`,
   }));
   await dbx.transaction(async (tx) => {
-    if (rows.length) await upsert(rows, tx);
+    if (rows.length) await upsertMeasurements(rows, tx);
     await tx.delete(bodyMeasurements).where(
       and(
         eq(bodyMeasurements.userId, userId),

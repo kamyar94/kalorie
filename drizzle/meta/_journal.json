@@ -71,6 +71,13 @@
       "when": 1794375555271,
       "tag": "0009_devices",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794376000416,
+      "tag": "0010_health_connect",
+      "breakpoints": true
     }
   ]
 }

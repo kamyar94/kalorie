@@ -2,8 +2,8 @@
 // the person except secrets (no keys, no password hash, no integration tokens) and the photo
 // files themselves. Deleting removes every logged meal, photo file, item, personal food,
 // correction memory, medicine, medicine log and label photo, activity, badge, body measurement,
-// body photo (and its files), the health profile, linked phone (their tokens stop working) and
-// link code, key, integration, notification subscription and custom target, and resets the
+// body photo (and its files), the health profile, heart rate and sleep record, linked phone
+// (their tokens stop working) and link code, key, integration, notification subscription and custom target, and resets the
 // profile; the account itself (name, username, password, role) stays so the person can go on.
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
@@ -21,6 +21,7 @@ import {
   foodMemory,
   foods,
   healthProfiles,
+  heartRates,
   integrations,
   jobs,
   mealItems,
@@ -30,6 +31,7 @@ import {
   medicines,
   medicineScans,
   pushSubscriptions,
+  sleepSessions,
   userBadges,
   users,
   userTargets,
@@ -85,6 +87,26 @@ export type ExportData = {
   healthProfile: { conditions: string; allergies: string; notes: string; useInAnalysis: boolean };
   /** Body photo sessions by day, each pose with its time (the files themselves are not in it). */
   bodyPhotos: BodySessionDto[];
+  /** Heart rate from Health Connect: resting per day and per workout, oldest first. */
+  heartRates: {
+    kind: string;
+    localDate: string;
+    startedAt: string;
+    endedAt: string | null;
+    bpm: number;
+    maxBpm: number | null;
+    sourceApp: string | null;
+  }[];
+  /** Sleep sessions from Health Connect with their stage minutes, oldest first. */
+  sleep: {
+    localDate: string;
+    startedAt: string;
+    endedAt: string;
+    durationMin: number;
+    stages: Record<string, number | undefined>;
+    title: string | null;
+    sourceApp: string | null;
+  }[];
   /** Phones linked through the Android app, unlinked ones too (never their tokens). */
   devices: {
     name: string;
@@ -125,6 +147,8 @@ export const exportUserData = async (
     healthRows,
     bodySessions,
     deviceRows,
+    heartRows,
+    sleepRows,
   ] = await Promise.all([
     ids.length ? dbx.select().from(mealPhotos).where(inArray(mealPhotos.mealId, ids)) : [],
     ids.length
@@ -168,6 +192,16 @@ export const exportUserData = async (
     dbx.select().from(healthProfiles).where(eq(healthProfiles.userId, userId)),
     listBodySessions(userId, dbx),
     dbx.select().from(devices).where(eq(devices.userId, userId)).orderBy(asc(devices.createdAt)),
+    dbx
+      .select()
+      .from(heartRates)
+      .where(eq(heartRates.userId, userId))
+      .orderBy(asc(heartRates.startedAt)),
+    dbx
+      .select()
+      .from(sleepSessions)
+      .where(eq(sleepSessions.userId, userId))
+      .orderBy(asc(sleepSessions.startedAt)),
   ]);
 
   return {
@@ -237,6 +271,24 @@ export const exportUserData = async (
       useInAnalysis: healthRows[0]?.useInAnalysis ?? false,
     },
     bodyPhotos: [...bodySessions].reverse(),
+    heartRates: heartRows.map((h) => ({
+      kind: h.kind,
+      localDate: h.localDate,
+      startedAt: h.startedAt.toISOString(),
+      endedAt: h.endedAt?.toISOString() ?? null,
+      bpm: h.bpm,
+      maxBpm: h.maxBpm,
+      sourceApp: h.sourceApp,
+    })),
+    sleep: sleepRows.map((r) => ({
+      localDate: r.localDate,
+      startedAt: r.startedAt.toISOString(),
+      endedAt: r.endedAt.toISOString(),
+      durationMin: r.durationMin,
+      stages: r.stages,
+      title: r.title,
+      sourceApp: r.sourceApp,
+    })),
     devices: deviceRows.map((d) => ({
       name: d.name,
       platform: d.platform,
@@ -347,6 +399,8 @@ export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) =>
     await tx.delete(healthProfiles).where(eq(healthProfiles.userId, userId));
     // Sessions take their photos with them (ON DELETE CASCADE).
     await tx.delete(bodyPhotoSessions).where(eq(bodyPhotoSessions.userId, userId));
+    await tx.delete(heartRates).where(eq(heartRates.userId, userId));
+    await tx.delete(sleepSessions).where(eq(sleepSessions.userId, userId));
     // Linked phones go too: their tokens stop working, the app says "Unlinked. Link again."
     await tx.delete(devices).where(eq(devices.userId, userId));
     await tx.delete(deviceLinkCodes).where(eq(deviceLinkCodes.userId, userId));

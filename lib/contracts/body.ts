@@ -2,9 +2,8 @@
 // custom parts with their own unit), the merged weight history, changes judged against the
 // person's goal, and the private health profile. Plain data, safe for client components.
 //
-// Every measurement has a source (manual, opengym, import; health_connect is reserved for the
-// Android helper) and, from elsewhere, an external id, so imports and syncs update instead of
-// copying. Values are stored metric (kg, cm, %); the screens convert for imperial units.
+// Every measurement has a source (manual, opengym, import, health_connect from the Kal Android
+// app) and, from elsewhere, an external id, so imports and syncs update instead of copying. Values are stored metric (kg, cm, %); the screens convert for imperial units.
 //
 // Server functions (lib/body/service.ts), scoped by user id:
 //   logMeasurements(userId, NewMeasurements)       -> MeasurementDto[]
