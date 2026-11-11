@@ -1,7 +1,7 @@
 // Move's rules as plain functions (CONTRACT: lib/contracts/move.ts): points per activity and per
 // day, levels with rising thresholds, the streak, the week by category against the WHO targets,
 // and when each badge was earned.
-import type { ActivityCategory, Intensity } from "@/lib/contracts/activities";
+import type { ActivityCategory, ActivitySource, Intensity } from "@/lib/contracts/activities";
 import {
   ACTIVE_DAY,
   POINT_RULES,
@@ -22,6 +22,8 @@ export type ScoredActivity = {
   steps: number | null;
   /** A day's step count (type "steps", no duration). */
   stepsOnly: boolean;
+  /** Where it came from; Health Connect's step totals win over the others. */
+  source?: ActivitySource;
 };
 
 /** Points of a timed activity (steps are counted per day). */
@@ -36,9 +38,19 @@ export const activityPoints = (a: ScoredActivity) => {
 export const stepPoints = (steps: number) =>
   Math.floor(Math.min(steps, POINT_RULES.stepsCap) / 1000) * POINT_RULES.per1000Steps;
 
-/** A day's steps: the highest count any source gave for it (sources overlap). */
-export const daySteps = (activities: ScoredActivity[]) =>
-  activities.reduce((most, a) => (a.stepsOnly && a.steps ? Math.max(most, a.steps) : most), 0);
+/**
+ * A day's steps. Health Connect's day total when there is one: its aggregate already merges the
+ * phone and the watch without counting a step twice. Otherwise the highest count any other source
+ * gave for the day (an import and a typed total overlap, so they are not added up).
+ */
+export const daySteps = (activities: ScoredActivity[]) => {
+  const counts = activities.filter((a) => a.stepsOnly && a.steps);
+  const healthConnect = counts.filter((a) => a.source === "health_connect");
+  return (healthConnect.length ? healthConnect : counts).reduce(
+    (most, a) => Math.max(most, a.steps!),
+    0,
+  );
+};
 
 const timed = (a: ScoredActivity) => !a.stepsOnly && !!a.durationMin && a.durationMin > 0;
 

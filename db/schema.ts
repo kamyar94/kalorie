@@ -26,6 +26,7 @@ import {
 
 import { ACTIVITY_CATEGORIES, ACTIVITY_SOURCES, INTENSITIES } from "../lib/contracts/activities";
 import { BODY_POSES } from "../lib/contracts/body-photos";
+import { HEART_RATE_KINDS, type SleepStage } from "../lib/contracts/health-connect";
 import { MEAL_SLOTS, MEAL_SOURCES, MEAL_STATUSES } from "../lib/contracts/meals";
 import {
   MEDICINE_FORMS,
@@ -769,6 +770,62 @@ export const userBadges = pgTable(
     createdAt: createdAt(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.code] })],
+);
+
+// ---- Heart rate and sleep from Health Connect (lib/health-connect) ----
+
+// Kept for later charts; nothing shows them yet except the counts on "Kal for Android". No raw
+// samples: one resting value per day (kind "resting", external id "resting:<day>") and the average
+// and highest of each workout (kind "workout", the exercise session's Health Connect id).
+export const heartRates = pgTable(
+  "heart_rates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userRef(),
+    kind: text("kind", { enum: HEART_RATE_KINDS }).notNull(),
+    localDate: date("local_date", { mode: "string" }).notNull(),
+    tz: text("tz").notNull(),
+    startedAt: tz("started_at").notNull(),
+    endedAt: tz("ended_at"),
+    // Beats per minute: the day's resting rate, or the workout's average.
+    bpm: real("bpm").notNull(),
+    maxBpm: real("max_bpm"),
+    source: text("source", { enum: ACTIVITY_SOURCES }).notNull().default("health_connect"),
+    sourceApp: text("source_app"),
+    externalId: text("external_id").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("heart_rates_user_day_idx").on(t.userId, t.localDate),
+    uniqueIndex("heart_rates_user_external_idx").on(t.userId, t.source, t.externalId),
+  ],
+);
+
+// Sleep sessions with the minutes of each stage (SLEEP_STAGES of lib/contracts/health-connect.ts).
+// local_date is the day the person woke up.
+export const sleepSessions = pgTable(
+  "sleep_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userRef(),
+    startedAt: tz("started_at").notNull(),
+    endedAt: tz("ended_at").notNull(),
+    tz: text("tz").notNull(),
+    localDate: date("local_date", { mode: "string" }).notNull(),
+    durationMin: real("duration_min").notNull(),
+    stages: jsonb("stages").$type<Partial<Record<SleepStage, number>>>().notNull().default({}),
+    title: text("title"),
+    source: text("source", { enum: ACTIVITY_SOURCES }).notNull().default("health_connect"),
+    sourceApp: text("source_app"),
+    externalId: text("external_id").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("sleep_sessions_user_day_idx").on(t.userId, t.localDate),
+    uniqueIndex("sleep_sessions_user_external_idx").on(t.userId, t.source, t.externalId),
+  ],
 );
 
 // ---- Linked phones (lib/devices) ----

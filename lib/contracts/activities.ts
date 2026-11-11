@@ -4,8 +4,8 @@
 // (category walking) without a duration. Plain data, safe for client components.
 //
 // Every record has a source and, for records that come from somewhere else, an external id:
-// importing the same file twice, a new openGym sync, or (later) the Android helper reading Health
-// Connect update the record they made before instead of adding a copy.
+// importing the same file twice, a new openGym sync, or the Kal Android app sending Health Connect
+// records again update the record they made before instead of adding a copy.
 //
 // Server functions (lib/activities/service.ts), each scoped by user id:
 //   listActivities(userId, { from, to, limit })      -> ActivityDto[]   newest first
@@ -36,16 +36,27 @@ export const ACTIVITY_CATEGORY_LABELS: Record<ActivityCategory, string> = {
 
 /**
  * manual: typed in Kal; opengym: a workout read from openGym; import: from an export file
- * (source_app says which app); health_connect: reserved for the Android helper (Part 3).
+ * (source_app says which app); health_connect: sent by the Kal Android app from Health Connect
+ * (source_app is the package of the app that wrote the record).
  */
 export const ACTIVITY_SOURCES = ["manual", "opengym", "import", "health_connect"] as const;
 export type ActivitySource = (typeof ACTIVITY_SOURCES)[number];
 
-/** Apps an import or Health Connect record came from, as Kal names them. */
+/**
+ * Apps an import or Health Connect record came from, as Kal names them: the importers' own words,
+ * and the Android packages that commonly write to Health Connect.
+ */
 export const SOURCE_APP_LABELS: Record<string, string> = {
   "samsung-health": "Samsung Health",
   renpho: "Renpho",
   file: "a file",
+  "com.sec.android.app.shealth": "Samsung Health",
+  "com.samsung.android.wear.shealth": "Samsung Health",
+  "com.qingniu.renpho": "Renpho",
+  "com.renpho.health": "Renpho",
+  "com.google.android.apps.fitness": "Google Fit",
+  "com.fitbit.FitbitMobile": "Fitbit",
+  "com.google.android.apps.healthdata": "Health Connect",
 };
 
 export const INTENSITIES = ["light", "moderate", "vigorous"] as const;
@@ -227,7 +238,7 @@ export const sourceLabel = (source: ActivitySource, sourceApp: string | null) =>
     : source === "manual"
       ? "Kal"
       : source === "health_connect"
-        ? "Health Connect"
+        ? (SOURCE_APP_LABELS[sourceApp ?? ""] ?? "Health Connect")
         : (SOURCE_APP_LABELS[sourceApp ?? ""] ?? "a file");
 
 /**

@@ -10,6 +10,7 @@ import {
   cardioMinutes,
   currentStreak,
   dayPoints,
+  daySteps,
   earnedBadges,
   levelOf,
   levelThreshold,
@@ -55,6 +56,15 @@ describe("points and levels", () => {
     expect(dayPoints([timed("2026-11-10", "strength", 45), steps("2026-11-10", 6240)])).toBe(90);
     // Two sources of the same day's steps: the higher one counts, once.
     expect(dayPoints([steps("2026-11-10", 6000), steps("2026-11-10", 4000)])).toBe(30);
+    // Health Connect's day total wins, even when another source counted more.
+    expect(
+      daySteps([
+        steps("2026-11-10", 12_000),
+        { ...steps("2026-11-10", 8412), source: "health_connect" },
+        { ...steps("2026-11-10", 300), source: "manual" },
+      ]),
+    ).toBe(8412);
+    expect(daySteps([steps("2026-11-10", 3000), timed("2026-11-10", "cardio", 20)])).toBe(3000);
     // Strength bonus for two sessions a day at most.
     expect(dayPoints([1, 2, 3].map(() => timed("2026-11-10", "strength", 10)))).toBe(30 + 30);
   });
