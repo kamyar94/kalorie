@@ -11,6 +11,7 @@
 // export file, so the importer reads it loosely (any prefix, any column order) and anything it
 // cannot place goes to the column-mapping step. Plain functions.
 import type { ActivityCategory, ImportedActivity, Intensity } from "@/lib/contracts/activities";
+import type { ImportedMeasurement } from "@/lib/contracts/body";
 import { localParts } from "@/lib/meals/time";
 import { fromLocalInputValue } from "@/lib/ui/format";
 
@@ -248,6 +249,43 @@ export const samsungExercises = (table: SamsungTable, tz: string): ImportedActiv
       energyKcal: kcal && kcal > 0 ? Math.round(kcal) : null,
       intensity: kind.intensity ?? DEFAULT_INTENSITY[kind.category],
     });
+  }
+  return out;
+};
+
+/**
+ * Weight and body composition. Samsung keeps body water as a mass (kg); Kal shows it as a share
+ * of the weight.
+ */
+export const samsungWeights = (table: SamsungTable, tz: string): ImportedMeasurement[] => {
+  const out: ImportedMeasurement[] = [];
+  for (const row of table.rows) {
+    const at = samsungTime(cell(table, row, "start_time", "create_time", "update_time"));
+    const weight = parseNumber(cell(table, row, "weight"));
+    if (!at || weight === null || weight < 20 || weight > 400) continue;
+    const id = (cell(table, row, "datauuid") ?? at.toISOString()).trim().slice(0, 120);
+    const offset = offsetMinutes(cell(table, row, "time_offset"));
+    const zone = zoneForOffset(offset, tz);
+    const water = parseNumber(cell(table, row, "total_body_water"));
+    const values: [string, number | null][] = [
+      ["weight", weight],
+      ["body_fat", parseNumber(cell(table, row, "body_fat"))],
+      ["muscle", parseNumber(cell(table, row, "muscle_mass", "skeletal_muscle_mass"))],
+      ["skeletal_muscle", parseNumber(cell(table, row, "skeletal_muscle"))],
+      ["fat_free", parseNumber(cell(table, row, "fat_free_mass"))],
+      ["water", water !== null && water > 0 ? Math.round((water / weight) * 1000) / 10 : null],
+      ["bmr", parseNumber(cell(table, row, "basal_metabolic_rate"))],
+    ];
+    for (const [code, value] of values)
+      if (value !== null && value > 0)
+        out.push({
+          externalId: `samsung:weight:${id}:${code}`,
+          sourceApp: SAMSUNG_APP,
+          code,
+          value,
+          measuredAt: at.toISOString(),
+          tz: zone,
+        });
   }
   return out;
 };

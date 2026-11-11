@@ -1,11 +1,14 @@
 // Reads export files picked on the device into datasets Kal can import: a Samsung Health zip (or
-// the CSV files from inside it), and any other CSV, which goes to the column-mapping step. The
-// files never leave the device; only the records read from them are sent to Kal (lib/client/api.ts
-// importActivities), in batches. Plain async functions on Blobs; the import screen calls them.
+// the CSV files from inside it), a Renpho scale's CSV, and any other CSV, which goes to the
+// column-mapping step. The files never leave the device; only the records read from them are sent
+// to Kal (lib/client/api.ts importActivities and importMeasurements), in batches. Plain async
+// functions on Blobs; the import screen calls them.
 import type { ImportedActivity } from "@/lib/contracts/activities";
+import type { ImportedMeasurement } from "@/lib/contracts/body";
 
 import { decodeText, parseCsv } from "./csv";
-import type { ColumnMapping, MappedRecords } from "./mapping";
+import { FILE_APP, type ColumnMapping, type MappedRecords } from "./mapping";
+import { isRenphoHeader, RENPHO_APP, renphoMeasurements } from "./renpho";
 import {
   isSamsungCsv,
   SAMSUNG_APP,
@@ -14,6 +17,7 @@ import {
   samsungSteps,
   samsungTable,
   samsungTypeOf,
+  samsungWeights,
 } from "./samsung";
 import { baseName, listZipEntries, looksLikeZip, readZipEntry } from "./zip";
 
@@ -32,6 +36,17 @@ export type ActivityDataset = {
   last: string | null;
 };
 
+export type MeasurementDataset = {
+  id: string;
+  fileName: string;
+  app: string;
+  kind: "measurements";
+  label: string;
+  records: ImportedMeasurement[];
+  first: string | null;
+  last: string | null;
+};
+
 /** A CSV Kal could not place: its columns go to the mapping step. */
 export type UnknownDataset = {
   id: string;
@@ -41,7 +56,8 @@ export type UnknownDataset = {
   rows: string[][];
 };
 
-export type ImportDataset = ActivityDataset | UnknownDataset;
+export type KnownDataset = ActivityDataset | MeasurementDataset;
+export type ImportDataset = KnownDataset | UnknownDataset;
 
 export type ReadResult = { datasets: ImportDataset[]; notes: string[] };
 
@@ -71,19 +87,45 @@ const activityDataset = (
   ...range(records.map((r) => r.localDate ?? r.startedAt.slice(0, 10))),
 });
 
+/** Values of a scale or a measurement file: counted by the weigh-ins (distinct times). */
+const measurementDataset = (
+  fileName: string,
+  app: string,
+  records: ImportedMeasurement[],
+): MeasurementDataset => {
+  const times = new Set(records.map((r) => r.measuredAt));
+  return {
+    id: `${fileName}#body`,
+    fileName,
+    app,
+    kind: "measurements",
+    label: `Weight and body composition: ${plural(times.size, "weigh-in", "weigh-ins")}`,
+    records,
+    ...range([...times].map((t) => t.slice(0, 10))),
+  };
+};
+
 /** A file read with the person's column mapping. */
 export const mappedDataset = (
   dataset: UnknownDataset,
   mapping: ColumnMapping,
   records: MappedRecords,
-): ImportDataset => ({
-  ...activityDataset(
-    dataset.fileName,
-    mapping.kind === "steps" ? "steps" : "workouts",
-    records.activities,
-  ),
-  id: `${dataset.fileName}#mapped`,
-});
+): KnownDataset =>
+  mapping.kind === "measurements"
+    ? {
+        ...measurementDataset(dataset.fileName, FILE_APP, records.measurements),
+        id: `${dataset.fileName}#mapped`,
+      }
+    : {
+        ...activityDataset(
+          dataset.fileName,
+          mapping.kind === "steps" ? "steps" : "workouts",
+          records.activities,
+        ),
+        id: `${dataset.fileName}#mapped`,
+      };
+
+const SAMSUNG_READ = [...SAMSUNG_TYPES.steps, ...SAMSUNG_TYPES.exercise, ...SAMSUNG_TYPES.weight];
 
 /** Datasets of one Samsung Health CSV (by its data type), or null for a type Kal does not read. */
 const samsungDatasets = (
@@ -102,6 +144,10 @@ const samsungDatasets = (
     const records = samsungExercises(table, tz);
     return records.length ? [activityDataset(fileName, "workouts", records)] : [];
   }
+  if ((SAMSUNG_TYPES.weight as readonly string[]).includes(type)) {
+    const records = samsungWeights(table, tz);
+    return records.length ? [measurementDataset(fileName, SAMSUNG_APP, records)] : [];
+  }
   return null;
 };
 
@@ -111,7 +157,7 @@ const unknownDataset = (fileName: string, rows: string[][]): UnknownDataset | nu
   return { id: `${fileName}#columns`, fileName, kind: "unknown", headers, rows: rest };
 };
 
-/** One CSV file: Samsung Health by its name or first line, else the mapping step. */
+/** One CSV file: Samsung Health by its name or first line, a scale by its columns, else mapping. */
 export const readCsv = (fileName: string, text: string, tz: string): ReadResult => {
   const rows = parseCsv(text);
   if (isSamsungCsv(rows, fileName)) {
@@ -123,6 +169,11 @@ export const readCsv = (fileName: string, text: string, tz: string): ReadResult 
     return unknown
       ? { datasets: [unknown], notes: [] }
       : { datasets: [], notes: [`${fileName} could not be read.`] };
+  }
+  if (rows[0] && isRenphoHeader(rows[0])) {
+    const read = renphoMeasurements(rows, tz);
+    if (read.records.length)
+      return { datasets: [measurementDataset(fileName, RENPHO_APP, read.records)], notes: [] };
   }
   const unknown = unknownDataset(fileName, rows);
   return unknown
@@ -137,8 +188,7 @@ export const readZip = async (file: PickedFile, tz: string): Promise<ReadResult>
     .map((entry) => ({ entry, type: samsungTypeOf(baseName(entry.name)) }))
     .filter(
       (e): e is { entry: (typeof entries)[number]; type: string } =>
-        e.type !== null &&
-        [...SAMSUNG_TYPES.steps, ...SAMSUNG_TYPES.exercise].includes(e.type as never),
+        e.type !== null && (SAMSUNG_READ as readonly string[]).includes(e.type),
     );
   // The day summary is the better steps file; the daily trend only when there is none.
   const hasSummary = typed.some((e) => e.type === SAMSUNG_TYPES.steps[0]);

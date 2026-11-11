@@ -6,18 +6,20 @@ import {
   TYPE_OF_CATEGORY,
   type ImportedActivity,
 } from "@/lib/contracts/activities";
+import { KG_PER_LB, type ImportedMeasurement } from "@/lib/contracts/body";
 
 import { guessDateOrder, parseMoment, parseNumber, type DateOrder } from "./dates";
 
 export const FILE_APP = "file";
 
-export type MappingKind = "steps" | "workouts";
+export type MappingKind = "steps" | "workouts" | "measurements";
 
 export type MappingField = { id: string; label: string; required?: boolean; words: RegExp };
 
 export const MAPPING_KINDS: { id: MappingKind; label: string }[] = [
   { id: "steps", label: "Steps per day" },
   { id: "workouts", label: "Workouts" },
+  { id: "measurements", label: "Weight and body measurements" },
 ];
 
 export const MAPPING_FIELDS: Record<MappingKind, MappingField[]> = {
@@ -41,7 +43,21 @@ export const MAPPING_FIELDS: Record<MappingKind, MappingField[]> = {
     { id: "kcal", label: "Energy, kcal", words: /calor|kcal|energy/i },
     { id: "distance_km", label: "Distance, km", words: /distance|\bkm\b/i },
   ],
+  measurements: [
+    { id: "weight", label: "Weight", words: /weight/i },
+    { id: "body_fat", label: "Body fat, %", words: /body\s*fat|^\s*fat/i },
+    { id: "muscle", label: "Muscle, kg or lb", words: /muscle/i },
+    { id: "water", label: "Body water, %", words: /water/i },
+    { id: "visceral_fat", label: "Visceral fat", words: /visceral/i },
+    { id: "bone", label: "Bone mass, kg or lb", words: /bone/i },
+    { id: "bmr", label: "BMR, kcal", words: /bmr|basal/i },
+    { id: "waist", label: "Waist, cm", words: /waist/i },
+    { id: "hips", label: "Hips, cm", words: /hip/i },
+  ],
 };
+
+/** Mapped measures whose numbers are masses (kg or lb by the mapping's unit). */
+const MASS_FIELDS = new Set(["weight", "muscle", "bone"]);
 
 export type ColumnMapping = {
   kind: MappingKind;
@@ -52,6 +68,8 @@ export type ColumnMapping = {
   order: DateOrder;
   /** Field id -> column index. */
   fields: Record<string, number | null>;
+  /** Measurements: the unit of the mass columns. */
+  massUnit?: "kg" | "lb";
 };
 
 const DATE_WORDS = /date|day|time|start|when/i;
@@ -76,7 +94,12 @@ export const guessFields = (
 /** A first guess from the column names and the first values. */
 export const guessMapping = (headers: string[], rows: string[][]): ColumnMapping => {
   const text = headers.join(" ");
-  const kind: MappingKind = /step/i.test(text) && !/duration/i.test(text) ? "steps" : "workouts";
+  const kind: MappingKind =
+    /step/i.test(text) && !/duration/i.test(text)
+      ? "steps"
+      : /weight|fat|bmi|waist|muscle/i.test(text) && !/duration/i.test(text)
+        ? "measurements"
+        : "workouts";
   const timeIndex = headers.findIndex((h) => TIME_ONLY.test(h.trim()));
   const time = timeIndex >= 0 ? timeIndex : null;
   const dateIndex = headers.findIndex(
@@ -90,6 +113,7 @@ export const guessMapping = (headers: string[], rows: string[][]): ColumnMapping
     time,
     order: guessDateOrder(rows.slice(0, 200).map((r) => r[date] ?? "")),
     fields: guessFields(headers, kind, taken),
+    massUnit: /\blbs?\b/i.test(text) ? "lb" : "kg",
   };
 };
 
@@ -105,7 +129,11 @@ export const parseDuration = (raw: string | undefined) => {
   return parseNumber(text);
 };
 
-export type MappedRecords = { activities: ImportedActivity[]; skipped: number };
+export type MappedRecords = {
+  activities: ImportedActivity[];
+  measurements: ImportedMeasurement[];
+  skipped: number;
+};
 
 /** The records of a file read with a mapping; rows that do not fit are counted as skipped. */
 export const applyMapping = (
@@ -113,7 +141,7 @@ export const applyMapping = (
   mapping: ColumnMapping,
   tz: string,
 ): MappedRecords => {
-  const out: MappedRecords = { activities: [], skipped: 0 };
+  const out: MappedRecords = { activities: [], measurements: [], skipped: 0 };
   const value = (row: string[], field: string) => {
     const index = mapping.fields[field];
     return index === null || index === undefined ? undefined : row[index];
@@ -124,6 +152,26 @@ export const applyMapping = (
     const moment = parseMoment(timeText ? `${dateText} ${timeText}` : dateText, mapping.order, tz);
     if (!moment) {
       out.skipped += 1;
+      continue;
+    }
+    if (mapping.kind === "measurements") {
+      const at = moment.at.toISOString();
+      let any = false;
+      for (const field of MAPPING_FIELDS.measurements) {
+        const raw = parseNumber(value(row, field.id));
+        if (raw === null || raw <= 0) continue;
+        const kg = MASS_FIELDS.has(field.id) && mapping.massUnit === "lb";
+        out.measurements.push({
+          externalId: `file:${at}:${field.id}`,
+          sourceApp: FILE_APP,
+          code: field.id,
+          value: kg ? Math.round(raw * KG_PER_LB * 100) / 100 : raw,
+          measuredAt: at,
+          tz,
+        });
+        any = true;
+      }
+      if (!any) out.skipped += 1;
       continue;
     }
     const kcal = parseNumber(value(row, "kcal"));

@@ -62,7 +62,12 @@ export const MappingSheet = ({
         .filter((f) => f.required)
         .every((f) => mapping.fields[f.id] != null)
     : false;
-  const count = records?.activities.length ?? 0;
+  // Measurements count by weigh-in (one row can hold several values).
+  const count = !records
+    ? 0
+    : mapping?.kind === "measurements"
+      ? new Set(records.measurements.map((m) => m.measuredAt)).size
+      : records.activities.length;
 
   const set = (patch: Partial<ColumnMapping>) =>
     setMapping((current) => (current ? { ...current, ...patch } : current));
@@ -132,6 +137,17 @@ export const MappingSheet = ({
             value={mapping.order}
             onChange={(event) => set({ order: event.target.value as DateOrder })}
           />
+          {mapping.kind === "measurements" && (
+            <SelectField
+              label="Weights are in"
+              options={[
+                { value: "kg", label: "Kilograms (kg)" },
+                { value: "lb", label: "Pounds (lb)" },
+              ]}
+              value={mapping.massUnit ?? "kg"}
+              onChange={(event) => set({ massUnit: event.target.value as "kg" | "lb" })}
+            />
+          )}
           {MAPPING_FIELDS[mapping.kind].map((field) => (
             <SelectField
               key={field.id}
@@ -149,6 +165,11 @@ export const MappingSheet = ({
                 ? `${rows(count)} read, ${records!.skipped.toLocaleString("en-US")} skipped`
                 : "No rows can be read with these columns yet."}
             </p>
+            {records?.measurements.slice(0, 3).map((record) => (
+              <p key={record.externalId} className="text-caption text-muted">
+                {record.measuredAt.slice(0, 10)}: {record.code.replace("_", " ")} {record.value}
+              </p>
+            ))}
             {records?.activities.slice(0, 3).map((record) => (
               <p key={record.externalId} className="text-caption text-muted">
                 {record.localDate}:{" "}

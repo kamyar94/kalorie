@@ -16,6 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 import { db } from "@/db";
 import {
+  bodyMeasurements,
   dishComponents,
   foods,
   integrations,
@@ -520,6 +521,26 @@ describe("openGym", () => {
     await syncOpenGym(user.id);
     expect((await mine()).map((a) => a.title)).toEqual(["Legs"]);
     expect(await listActivities((await createUser()).id)).toEqual([]);
+  });
+
+  it("keeps weigh-ins as Body's weight values and follows removals in openGym", async () => {
+    const user = await createUser();
+    expect(await pairOpenGym(user.id, mocks.opengym.newCode())).toEqual({ ok: true });
+    const values = () =>
+      db
+        .select()
+        .from(bodyMeasurements)
+        .where(eq(bodyMeasurements.userId, user.id))
+        .orderBy(bodyMeasurements.localDate);
+    expect((await values()).map((v) => [v.code, v.value, v.source])).toEqual([
+      ["weight", 81.2, "opengym"],
+      ["weight", 80.4, "opengym"],
+      ["weight", 79.6, "opengym"],
+    ]);
+    const state = mocks.opengym.state as { bodyweight: { w: number }[] };
+    mocks.opengym.state = { ...state, bodyweight: state.bodyweight.filter((b) => b.w !== 80.4) };
+    await syncOpenGym(user.id);
+    expect((await values()).map((v) => v.value)).toEqual([81.2, 79.6]);
   });
 
   it("keeps the fresh token /api/me hands out, converts pounds, and notices a sign-out", async () => {

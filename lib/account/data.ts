@@ -1,20 +1,22 @@
 // "Export my data" and "Delete my data" (Settings). The export holds everything Kal keeps about
 // the person except secrets (no keys, no password hash, no integration tokens) and the photo
 // files themselves. Deleting removes every logged meal, photo file, item, personal food,
-// correction memory, medicine, medicine log and label photo, activity, badge, key, integration,
-// notification subscription and custom target, and resets the profile; the account itself (name, username,
-// password, role) stays so the person can go on.
+// correction memory, medicine, medicine log and label photo, activity, badge, body measurement,
+// the health profile, key, integration, notification subscription and custom target, and resets
+// the profile; the account itself (name, username, password, role) stays so the person can go on.
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import {
   activities,
   aiKeys,
+  bodyMeasurements,
   aiSettings,
   aiUsage,
   dishComponents,
   foodMemory,
   foods,
+  healthProfiles,
   integrations,
   jobs,
   mealItems,
@@ -29,8 +31,10 @@ import {
   userTargets,
 } from "@/db/schema";
 import { toActivityDto } from "@/lib/activities/service";
+import { toMeasurementDto } from "@/lib/body/service";
 import { audit } from "@/lib/audit";
 import type { ActivityDto } from "@/lib/contracts/activities";
+import type { MeasurementDto } from "@/lib/contracts/body";
 import type { MealDto } from "@/lib/contracts/meals";
 import type { MedicineDto, MedicineLogDto } from "@/lib/contracts/medicines";
 import { NUTRIENT_CATALOGUE } from "@/lib/contracts/nutrients";
@@ -69,6 +73,10 @@ export type ExportData = {
   activities: ActivityDto[];
   /** Move's badges and the day each was earned. */
   badges: { code: string; earnedOn: string }[];
+  /** Weight, body composition and tape measurements from every source, oldest first. */
+  bodyMeasurements: MeasurementDto[];
+  /** The private health profile (height, birth year and goal are in account.profile). */
+  healthProfile: { conditions: string; allergies: string; notes: string; useInAnalysis: boolean };
 };
 
 /** Everything about the person as JSON-ready data. Null for an unknown account. */
@@ -94,6 +102,8 @@ export const exportUserData = async (
     medicineLogRows,
     activityRows,
     badgeRows,
+    measurementRows,
+    healthRows,
   ] = await Promise.all([
     ids.length ? dbx.select().from(mealPhotos).where(inArray(mealPhotos.mealId, ids)) : [],
     ids.length
@@ -129,6 +139,12 @@ export const exportUserData = async (
       .from(userBadges)
       .where(eq(userBadges.userId, userId))
       .orderBy(asc(userBadges.earnedOn)),
+    dbx
+      .select()
+      .from(bodyMeasurements)
+      .where(eq(bodyMeasurements.userId, userId))
+      .orderBy(asc(bodyMeasurements.measuredAt), asc(bodyMeasurements.code)),
+    dbx.select().from(healthProfiles).where(eq(healthProfiles.userId, userId)),
   ]);
 
   return {
@@ -190,6 +206,13 @@ export const exportUserData = async (
     medicineLogs: medicineLogRows.map(toLogDto),
     activities: activityRows.map(toActivityDto),
     badges: badgeRows.map((b) => ({ code: b.code, earnedOn: b.earnedOn })),
+    bodyMeasurements: measurementRows.map(toMeasurementDto),
+    healthProfile: {
+      conditions: healthRows[0]?.conditions ?? "",
+      allergies: healthRows[0]?.allergies ?? "",
+      notes: healthRows[0]?.notes ?? "",
+      useInAnalysis: healthRows[0]?.useInAnalysis ?? false,
+    },
   };
 };
 
@@ -285,6 +308,8 @@ export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) =>
     await tx.delete(medicineScans).where(eq(medicineScans.userId, userId));
     await tx.delete(activities).where(eq(activities.userId, userId));
     await tx.delete(userBadges).where(eq(userBadges.userId, userId));
+    await tx.delete(bodyMeasurements).where(eq(bodyMeasurements.userId, userId));
+    await tx.delete(healthProfiles).where(eq(healthProfiles.userId, userId));
     // Parts of their own dishes first: a dish part may be another of their own foods, which
     // dish_components protects (ON DELETE RESTRICT) until the part row is gone.
     const ownFoods = tx.select({ id: foods.id }).from(foods).where(eq(foods.ownerId, userId));
