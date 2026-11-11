@@ -10,17 +10,22 @@ import {
   Clock,
   ImageIcon,
   Mic,
+  Pill,
   RefreshCcw,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import { MedicineCapture } from "@/components/medicines/medicine-capture";
 import { cn } from "@/components/ui/cn";
 import { startDictation, speechSupported, type Dictation } from "@/lib/client/speech";
 import { UPLOAD_LIMITS } from "@/lib/contracts/meals";
+import type { LoggedMedicine } from "@/lib/contracts/medicines";
 import { deviceTimeZone, preparePhoto } from "@/lib/photos/client";
+import { useOnline } from "@/lib/ui/hooks";
 import { whenLabel, whenSpoken } from "@/lib/ui/when";
 
+import { CaptureTabs, captureTabId, type CaptureKind } from "./capture-tabs";
 import { WhenSheet } from "./when-sheet";
 
 export type Shot = {
@@ -136,18 +141,25 @@ const sideButton =
  * and close. "Type" switches to a meal described in words: the camera stops and a large text
  * field takes its place; Send then works with words alone. Without camera access it offers the
  * phone's own camera through a file input instead.
+ *
+ * Above the shutter, "Meal · Medicine" (capture-tabs.tsx) switches what is captured. Medicine
+ * takes one photo of a box or blister (or one from the gallery); the person's AI provider reads
+ * it and the medicine sheet opens to check and save it ("Type" opens the sheet empty).
  */
 export const CameraScreen = ({
   open,
   mode,
   onClose,
   onSend,
+  onMedicineSaved,
 }: {
   open: boolean;
-  mode: "meal" | "label";
+  /** label: a package photo for the Add screen (no tabs); medicine opens on the Medicine tab. */
+  mode: "meal" | "label" | "medicine";
   onClose: () => void;
   /** at: the time chosen with the When chip, null for the photo's own time (or now). */
   onSend: (shots: Shot[], note: string, at: Date | null) => void;
+  onMedicineSaved: (logged: LoggedMedicine) => void;
 }) => {
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -174,6 +186,14 @@ export const CameraScreen = ({
   const [busy, setBusy] = useState(false);
   const [flash, setFlash] = useState(0);
   const [announcement, setAnnouncement] = useState("");
+  const [kind, setKind] = useState<CaptureKind>(mode === "medicine" ? "medicine" : "meal");
+  /** Medicine mode: the label photo being read (or null with typing for the empty sheet). */
+  const [medicine, setMedicine] = useState<{
+    key: number;
+    blob: Blob | null;
+    url: string | null;
+  } | null>(null);
+  const online = useOnline();
   const dictation = useRef<Dictation | null>(null);
   const hold = useRef<{ timer: number | null; active: boolean; suppressClick: boolean }>({
     timer: null,
@@ -183,6 +203,15 @@ export const CameraScreen = ({
   const noteId = useId();
   const mealTextId = useId();
   const mealTextHelpId = useId();
+  const tabsId = useId();
+  const panelId = useId();
+
+  // Each opening starts on the tab it was opened for.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setKind(mode === "medicine" ? "medicine" : "meal");
+  }
 
   // A new video element (each time the dialog opens) shows the running stream at once.
   const attachVideo = useCallback((element: HTMLVideoElement | null) => {
@@ -195,11 +224,15 @@ export const CameraScreen = ({
 
   const full = shots.length >= MAX;
   const label = mode === "label";
+  const medicineKind = !label && kind === "medicine";
   const tz = deviceTimeZone();
   const hasText = note.trim().length > 0;
   // A label photo needs the photo; a meal can also be words alone.
   const canSend = (shots.length > 0 || (!label && hasText)) && !busy;
-  const cameraOn = open && !textMode;
+  // The camera rests while the meal is typed and while a medicine photo is read or checked.
+  const cameraOn = open && !textMode && !(medicineKind && medicine);
+  // "Meal · Medicine" shows on the live camera (not over a package label or typed words).
+  const showTabs = !label && !textMode && !medicine;
 
   // Start and stop the camera with the screen (and stop it while the meal is typed). Each way of
   // opening it must show a frame within FIRST_FRAME_MS; if none does, the screen offers the
@@ -276,6 +309,8 @@ export const CameraScreen = ({
   // flash left over from the last meal would cover the next meal's viewfinder.
   const reset = (revoke: boolean) => {
     setFlash(0);
+    if (medicine?.url) URL.revokeObjectURL(medicine.url);
+    setMedicine(null);
     dictation.current?.abort();
     dictation.current = null;
     if (revoke) for (const shot of shots) URL.revokeObjectURL(shot.url);
@@ -349,6 +384,42 @@ export const CameraScreen = ({
       return current.filter((s) => s.id !== id);
     });
     setAnnouncement("Photo removed.");
+  };
+
+  // ---- Medicine: one photo of the box or blister, read by the person's AI provider ----
+
+  const takeMedicinePhoto = async (file: Blob | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const prepared = await preparePhoto(file);
+      setMedicine({
+        key: Date.now(),
+        blob: prepared.blob,
+        url: URL.createObjectURL(prepared.blob),
+      });
+      setAnnouncement("Photo taken. Reading the label.");
+    } catch (error) {
+      setAnnouncement(error instanceof Error ? error.message : "That photo could not be used.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const shootMedicine = async () => {
+    if (!video.current || !stream.current || busy) return;
+    setFlash((n) => n + 1);
+    try {
+      await takeMedicinePhoto(await grabStill(video.current, stream.current));
+    } catch {
+      setAnnouncement("The photo could not be taken. Try again.");
+    }
+  };
+
+  /** Back to the live camera after the medicine sheet closed without saving. */
+  const endMedicine = () => {
+    if (medicine?.url) URL.revokeObjectURL(medicine.url);
+    setMedicine(null);
   };
 
   // ---- Note: hold to talk, tap to type (and the microphone of the text mode) ----
@@ -425,6 +496,18 @@ export const CameraScreen = ({
     setHeard("");
   };
 
+  const switchKind = (next: CaptureKind) => {
+    if (next === kind) return;
+    stopDictation();
+    setTyping(false);
+    setKind(next);
+    setAnnouncement(
+      next === "medicine"
+        ? "Medicine: photograph the box or blister, or type its name."
+        : "Meal: take photos of your plate.",
+    );
+  };
+
   const switchToText = () => {
     stopDictation();
     setTyping(false);
@@ -448,13 +531,15 @@ export const CameraScreen = ({
 
   // Keep focus on the next useful control: the shutter once the camera runs, the phone camera
   // button without one, and Send once three photos are taken. (Closing the When sheet gives
-  // focus back to the When chip; this does not run then.)
+  // focus back to the When chip; this does not run then.) A tab chosen with the arrow keys keeps
+  // the focus.
   useEffect(() => {
-    if (!open || typing || textMode) return;
-    if (full) sendButton.current?.focus();
+    if (!open || typing || textMode || medicine) return;
+    if (document.activeElement?.getAttribute("role") === "tab") return;
+    if (full && !medicineKind) sendButton.current?.focus();
     else if (state === "live") shutter.current?.focus();
     else if (state === "unavailable" || state === "denied") fallbackButton.current?.focus();
-  }, [open, state, full, typing, textMode]);
+  }, [open, state, full, typing, textMode, medicine, medicineKind]);
 
   const send = () => {
     if (!canSend) return;
@@ -508,8 +593,8 @@ export const CameraScreen = ({
             textMode ? "bg-bg text-text" : "bg-black text-white",
           )}
           data-testid="camera"
-          data-camera-state={textMode ? "off" : state}
-          data-mode={textMode ? "text" : "photo"}
+          data-camera-state={cameraOn ? state : "off"}
+          data-mode={textMode ? "text" : medicineKind ? "medicine" : "photo"}
         >
           <Dialog.Title className="sr-only">
             {label ? "Photograph a label or package" : "Camera"}
@@ -541,6 +626,17 @@ export const CameraScreen = ({
             />
           )}
 
+          {medicine?.url && (
+            // The label photo stays on screen while it is read and checked (its top shows above
+            // the sheet).
+            // eslint-disable-next-line @next/next/no-img-element -- local preview
+            <img
+              src={medicine.url}
+              alt=""
+              className="absolute inset-0 size-full bg-black object-cover object-top"
+            />
+          )}
+
           {/* Top bar: close, when, flip */}
           <div className="relative flex items-center justify-between gap-2 px-3 pt-[max(env(safe-area-inset-top),0.875rem)]">
             <Dialog.Close
@@ -552,6 +648,10 @@ export const CameraScreen = ({
             {label ? (
               <p className="text-label rounded-full bg-black/50 px-3 py-1.5 backdrop-blur-sm">
                 Label or package
+              </p>
+            ) : medicineKind ? (
+              <p className="text-label inline-flex min-h-11 items-center gap-1.5 rounded-full bg-black/50 px-3.5 backdrop-blur-sm">
+                <Pill aria-hidden className="size-4" /> Medicine label
               </p>
             ) : (
               <button
@@ -571,7 +671,7 @@ export const CameraScreen = ({
                 <ChevronDown aria-hidden className="size-3.5 shrink-0" />
               </button>
             )}
-            {canFlip && state === "live" && !textMode ? (
+            {canFlip && state === "live" && cameraOn ? (
               <button
                 type="button"
                 aria-label={flipLabel}
@@ -642,8 +742,13 @@ export const CameraScreen = ({
             </div>
           ) : (
             // Middle, photo mode: the viewfinder, or what to do without one.
-            <div className="relative flex flex-1 items-center justify-center px-6">
-              {state === "starting" && (
+            <div
+              className="relative flex flex-1 items-center justify-center px-6"
+              {...(showTabs
+                ? { role: "tabpanel", id: panelId, "aria-labelledby": captureTabId(tabsId, kind) }
+                : {})}
+            >
+              {state === "starting" && cameraOn && (
                 <div className="max-w-xs text-center">
                   <p className="text-body text-white/80" role="status">
                     Starting the camera…
@@ -660,7 +765,7 @@ export const CameraScreen = ({
                   )}
                 </div>
               )}
-              {(state === "unavailable" || state === "denied") && (
+              {(state === "unavailable" || state === "denied") && !medicine && (
                 <div className="max-w-xs text-center">
                   <Camera aria-hidden className="mx-auto size-10 text-white/70" />
                   <p className="text-headline mt-3">
@@ -682,7 +787,7 @@ export const CameraScreen = ({
                   </button>
                 </div>
               )}
-              {label && state === "live" && (
+              {(label || medicineKind) && state === "live" && cameraOn && (
                 <div
                   aria-hidden
                   className="pointer-events-none aspect-[3/4] w-[78%] max-w-sm rounded-3xl border-2 border-white/70"
@@ -691,147 +796,196 @@ export const CameraScreen = ({
             </div>
           )}
 
-          {/* Bottom: thumbnails and note (photo mode), then the controls */}
-          <div
-            className={cn(
-              "relative flex flex-col gap-3.5 px-4 pt-3.5 pb-[max(env(safe-area-inset-bottom),1.375rem)]",
-              !textMode && "bg-black/72",
-            )}
-          >
-            {!textMode && typing && (
-              <div className="rounded-2xl bg-white/12 p-2 backdrop-blur-md">
-                <label htmlFor={noteId} className="sr-only">
-                  Note about the meal
-                </label>
-                <textarea
-                  ref={noteField}
-                  id={noteId}
-                  dir="auto"
-                  rows={2}
-                  maxLength={UPLOAD_LIMITS.maxNoteChars}
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  placeholder="For example: ate half, fried in olive oil"
-                  className="text-body w-full resize-none rounded-xl bg-transparent px-2 py-1 text-white placeholder:text-white/55 focus:outline-none"
-                />
-                <div className="flex justify-end">
+          {/* Bottom: thumbnails and note (meal photos), the tabs, then the controls. Hidden while a
+              medicine photo is read and checked (MedicineCapture takes the place). */}
+          {!medicine && (
+            <div
+              className={cn(
+                "relative flex flex-col gap-3.5 px-4 pt-3.5 pb-[max(env(safe-area-inset-bottom),1.375rem)]",
+                !textMode && "bg-black/72",
+              )}
+            >
+              {!textMode && !medicineKind && typing && (
+                <div className="rounded-2xl bg-white/12 p-2 backdrop-blur-md">
+                  <label htmlFor={noteId} className="sr-only">
+                    Note about the meal
+                  </label>
+                  <textarea
+                    ref={noteField}
+                    id={noteId}
+                    dir="auto"
+                    rows={2}
+                    maxLength={UPLOAD_LIMITS.maxNoteChars}
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    placeholder="For example: ate half, fried in olive oil"
+                    className="text-body w-full resize-none rounded-xl bg-transparent px-2 py-1 text-white placeholder:text-white/55 focus:outline-none"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setTyping(false)}
+                      className="text-label inline-flex min-h-11 items-center gap-1.5 rounded-full bg-white px-4 text-black"
+                    >
+                      <Check aria-hidden className="size-4" /> Done
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!textMode && !medicineKind && (
+                <div className="flex items-center gap-2.5">
+                  {thumbnails}
+                  <p className="text-caption min-w-0 flex-1 text-white/80">
+                    {shots.length} of {MAX} photos
+                  </p>
                   <button
                     type="button"
-                    onClick={() => setTyping(false)}
-                    className="text-label inline-flex min-h-11 items-center gap-1.5 rounded-full bg-white px-4 text-black"
+                    aria-label={
+                      speechSupported() ? "Note: hold to talk, tap to type" : "Note: tap to type"
+                    }
+                    aria-pressed={listening || undefined}
+                    onPointerDown={onNotePointerDown}
+                    onPointerUp={onNotePointerEnd}
+                    onPointerCancel={onNotePointerEnd}
+                    onPointerLeave={onNotePointerEnd}
+                    onContextMenu={(event) => event.preventDefault()}
+                    onClick={onNoteClick}
+                    className={cn(
+                      "grid size-13 shrink-0 touch-none place-items-center rounded-full bg-white/15 transition-colors select-none [-webkit-touch-callout:none]",
+                      listening && "animate-pulse-soft bg-red-600",
+                    )}
                   >
-                    <Check aria-hidden className="size-4" /> Done
+                    <Mic aria-hidden className="size-5.5" />
                   </button>
                 </div>
-              </div>
-            )}
+              )}
 
-            {!textMode && (
-              <div className="flex items-center gap-2.5">
-                {thumbnails}
-                <p className="text-caption min-w-0 flex-1 text-white/80">
-                  {shots.length} of {MAX} photos
+              {!textMode && !medicineKind && (note || heard) && !typing && (
+                <p
+                  dir="auto"
+                  className="text-body -mt-1.5 line-clamp-2 text-white/90"
+                  data-testid="capture-note"
+                >
+                  {heard || note}
                 </p>
-                <button
-                  type="button"
-                  aria-label={
-                    speechSupported() ? "Note: hold to talk, tap to type" : "Note: tap to type"
-                  }
-                  aria-pressed={listening || undefined}
-                  onPointerDown={onNotePointerDown}
-                  onPointerUp={onNotePointerEnd}
-                  onPointerCancel={onNotePointerEnd}
-                  onPointerLeave={onNotePointerEnd}
-                  onContextMenu={(event) => event.preventDefault()}
-                  onClick={onNoteClick}
-                  className={cn(
-                    "grid size-13 shrink-0 touch-none place-items-center rounded-full bg-white/15 transition-colors select-none [-webkit-touch-callout:none]",
-                    listening && "animate-pulse-soft bg-red-600",
+              )}
+              {!textMode && !medicineKind && listening && !heard && (
+                <p className="text-caption -mt-1.5 text-white/75">
+                  Listening… let go when you are done.
+                </p>
+              )}
+              {medicineKind && (
+                <p className="text-caption text-center text-white/80">
+                  Photograph the box or blister so the name and strength show.
+                </p>
+              )}
+
+              {showTabs && (
+                <CaptureTabs
+                  value={kind}
+                  onChange={switchKind}
+                  idBase={tabsId}
+                  panelId={panelId}
+                  disabled={busy}
+                />
+              )}
+
+              <div className="grid grid-cols-3 items-center">
+                <div className="flex justify-start gap-2.5">
+                  {textMode && (
+                    <button type="button" onClick={switchToPhoto} className={cn(sideButton, side)}>
+                      <Camera aria-hidden className="size-5.5" />
+                      Photo
+                    </button>
                   )}
-                >
-                  <Mic aria-hidden className="size-5.5" />
-                </button>
-              </div>
-            )}
-
-            {!textMode && (note || heard) && !typing && (
-              <p
-                dir="auto"
-                className="text-body -mt-1.5 line-clamp-2 text-white/90"
-                data-testid="capture-note"
-              >
-                {heard || note}
-              </p>
-            )}
-            {!textMode && listening && !heard && (
-              <p className="text-caption -mt-1.5 text-white/75">
-                Listening… let go when you are done.
-              </p>
-            )}
-
-            <div className="grid grid-cols-3 items-center">
-              <div className="flex justify-start gap-2.5">
-                {textMode && (
-                  <button type="button" onClick={switchToPhoto} className={cn(sideButton, side)}>
-                    <Camera aria-hidden className="size-5.5" />
-                    Photo
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => gallery.current?.click()}
-                  disabled={full || busy}
-                  aria-label="Gallery: pick photos"
-                  className={cn(sideButton, side)}
-                >
-                  <ImageIcon aria-hidden className="size-5.5" />
-                  Gallery
-                </button>
-                {!textMode && !label && (
                   <button
                     type="button"
-                    onClick={switchToText}
-                    aria-label="Type: describe the meal in words"
+                    onClick={() => gallery.current?.click()}
+                    disabled={(full && !medicineKind) || busy}
+                    aria-label={
+                      medicineKind ? "Gallery: pick a photo of the label" : "Gallery: pick photos"
+                    }
                     className={cn(sideButton, side)}
                   >
-                    <CaseSensitive aria-hidden className="size-5.5" />
-                    Type
+                    <ImageIcon aria-hidden className="size-5.5" />
+                    Gallery
                   </button>
-                )}
-              </div>
-              <div className="flex justify-center">
-                {!textMode && (
-                  <button
-                    ref={shutter}
-                    type="button"
-                    onClick={() => void takePhoto()}
-                    disabled={state !== "live" || full || busy}
-                    aria-label={full ? "Three photos taken, the most for one meal" : "Take photo"}
-                    className="grid size-20 place-items-center rounded-full border-4 border-white transition-transform active:scale-95 disabled:opacity-40"
-                  >
-                    <span className="block size-16 rounded-full bg-white" />
-                  </button>
-                )}
-              </div>
-              <div className="flex justify-end">
-                <button
-                  ref={sendButton}
-                  type="button"
-                  onClick={send}
-                  disabled={!canSend}
-                  aria-label={sendLabel}
-                  className={cn(
-                    "bg-primary text-on-primary inline-flex min-h-14 items-center gap-2 rounded-full px-5 text-[0.9375rem] font-semibold shadow-lg",
-                    textMode
-                      ? "disabled:bg-surface-2 disabled:text-muted disabled:shadow-none"
-                      : "disabled:bg-white/15 disabled:text-white/60",
+                  {!textMode && !label && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        medicineKind
+                          ? setMedicine({ key: Date.now(), blob: null, url: null })
+                          : switchToText()
+                      }
+                      aria-label={
+                        medicineKind
+                          ? "Type: write the name of the medicine"
+                          : "Type: describe the meal in words"
+                      }
+                      className={cn(sideButton, side)}
+                    >
+                      <CaseSensitive aria-hidden className="size-5.5" />
+                      Type
+                    </button>
                   )}
-                >
-                  Send <ArrowRight aria-hidden className="size-4" />
-                </button>
+                </div>
+                <div className="flex justify-center">
+                  {!textMode && (
+                    <button
+                      ref={shutter}
+                      type="button"
+                      onClick={() => void (medicineKind ? shootMedicine() : takePhoto())}
+                      disabled={state !== "live" || (full && !medicineKind) || busy}
+                      aria-label={
+                        medicineKind
+                          ? "Photograph the label"
+                          : full
+                            ? "Three photos taken, the most for one meal"
+                            : "Take photo"
+                      }
+                      className="grid size-20 place-items-center rounded-full border-4 border-white transition-transform active:scale-95 disabled:opacity-40"
+                    >
+                      <span className="block size-16 rounded-full bg-white" />
+                    </button>
+                  )}
+                </div>
+                <div className="flex justify-end">
+                  {!medicineKind && (
+                    <button
+                      ref={sendButton}
+                      type="button"
+                      onClick={send}
+                      disabled={!canSend}
+                      aria-label={sendLabel}
+                      className={cn(
+                        "bg-primary text-on-primary inline-flex min-h-14 items-center gap-2 rounded-full px-5 text-[0.9375rem] font-semibold shadow-lg",
+                        textMode
+                          ? "disabled:bg-surface-2 disabled:text-muted disabled:shadow-none"
+                          : "disabled:bg-white/15 disabled:text-white/60",
+                      )}
+                    >
+                      Send <ArrowRight aria-hidden className="size-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {medicineKind && medicine && (
+            <MedicineCapture
+              key={medicine.key}
+              photo={medicine.blob}
+              online={online}
+              onCancel={endMedicine}
+              onSaved={(logged) => {
+                onMedicineSaved(logged);
+                reset(true);
+              }}
+            />
+          )}
 
           <p aria-live="polite" className="sr-only" data-testid="camera-status">
             {announcement}
@@ -848,21 +1002,23 @@ export const CameraScreen = ({
             onChange={(event) => {
               const files = Array.from(event.target.files ?? []);
               event.target.value = "";
-              void addPhotos(files, new Date());
+              if (medicineKind) void takeMedicinePhoto(files[0]);
+              else void addPhotos(files, new Date());
             }}
           />
           <input
             ref={gallery}
             type="file"
             accept="image/*"
-            multiple
+            multiple={!medicineKind}
             hidden
             data-testid="gallery-input"
             aria-label="Photos from the gallery"
             onChange={(event) => {
               const files = Array.from(event.target.files ?? []);
               event.target.value = "";
-              void addPhotos(files, null);
+              if (medicineKind) void takeMedicinePhoto(files[0]);
+              else void addPhotos(files, null);
             }}
           />
 

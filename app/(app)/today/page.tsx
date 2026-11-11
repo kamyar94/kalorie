@@ -7,6 +7,7 @@ import { TodayCapture } from "@/components/app/today-capture";
 import { FavoriteChips } from "@/components/favorites/favorite-chips";
 import { DayPlanSection } from "@/components/today/day-plan";
 import { DaySwipe } from "@/components/today/day-swipe";
+import { MedicinesCard } from "@/components/today/medicines-card";
 import { Timeline } from "@/components/today/timeline";
 import { WaterCard } from "@/components/today/water-card";
 import { Card } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import { getDayPlan } from "@/lib/integrations/day";
 import { listFavorites } from "@/lib/meals/favorites";
 import { listMealsForDay } from "@/lib/meals/service";
 import { isLocalDate, shiftLocalDate } from "@/lib/meals/time";
+import { medicineDay } from "@/lib/medicines/service";
 import { getTargets } from "@/lib/targets/service";
 import { dayTitle, formatKcal, longDate } from "@/lib/ui/format";
 import { viewerToday } from "@/lib/ui/viewer-time";
@@ -39,11 +41,12 @@ export default async function TodayPage({
   // The future has nothing to log yet.
   const date = isLocalDate(requested) && requested <= today ? requested : today;
 
-  const [meals, { targets, hydration }, plan, favorites] = await Promise.all([
+  const [meals, { targets, hydration }, plan, favorites, medicines] = await Promise.all([
     listMealsForDay(user.id, date),
     getTargets(user.id),
     getDayPlan(user.id, date, { today }),
     listFavorites(user.id, 6),
+    medicineDay(user.id, date),
   ]);
   const totals = sumNutrients(meals.map((m) => m.totals));
   const waterMl = meals.reduce((sum, meal) => sum + meal.waterMl, 0);
@@ -137,6 +140,7 @@ export default async function TodayPage({
             </div>
           </Card>
           <WaterCard date={date} today={today} totalMl={waterMl} goalMl={hydration.goalMl} />
+          <MedicinesCard day={medicines} date={date} today={today} />
           <FavoriteChips favorites={favorites} date={date} today={today} />
           <DayPlanSection plan={plan} />
         </div>

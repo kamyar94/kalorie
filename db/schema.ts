@@ -25,6 +25,11 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { MEAL_SLOTS, MEAL_SOURCES, MEAL_STATUSES } from "../lib/contracts/meals";
+import {
+  MEDICINE_FORMS,
+  type MedicineIngredient,
+  type MedicineReading,
+} from "../lib/contracts/medicines";
 import type { NutrientMap } from "../lib/contracts/nutrients";
 import { DEFAULT_MEAL_WINDOWS, type MealWindows } from "../lib/meals/time";
 
@@ -546,6 +551,80 @@ export const foodMemory = pgTable(
   (t) => [
     uniqueIndex("food_memory_user_name_idx").on(t.userId, t.nameKey),
     index("food_memory_user_used_idx").on(t.userId, t.lastUsedAt),
+  ],
+);
+
+// ---- Medicines (lib/medicines) ----
+
+// The person's own list, for one-tap logging. Archived medicines stay for the history.
+export const medicines = pgTable(
+  "medicines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userRef(),
+    name: text("name").notNull(),
+    strength: text("strength"),
+    form: text("form", { enum: MEDICINE_FORMS }),
+    usualAmount: real("usual_amount").notNull().default(1),
+    unit: text("unit"),
+    ingredients: jsonb("ingredients").$type<MedicineIngredient[]>().notNull().default([]),
+    notes: text("notes"),
+    archived: boolean("archived").notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("medicines_user_idx").on(t.userId, t.archived)],
+);
+
+export const MEDICINE_SCAN_STATUSES = ["queued", "reading", "done", "failed"] as const;
+
+// A photo of a box or blister and what the person's AI provider read on it (the job
+// "read-medicine-label"). Paths are relative to PHOTO_ROOT, as for meal photos. Photos that never
+// became part of a log are removed after a day (lib/medicines/scans.ts).
+export const medicineScans = pgTable(
+  "medicine_scans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userRef(),
+    status: text("status", { enum: MEDICINE_SCAN_STATUSES }).notNull().default("queued"),
+    originalPath: text("original_path").notNull(),
+    analysisPath: text("analysis_path").notNull(),
+    thumbPath: text("thumb_path").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    bytes: integer("bytes").notNull(),
+    sha256: text("sha256").notNull(),
+    reading: jsonb("reading").$type<MedicineReading | null>(),
+    error: jsonb("error").$type<MealErrorRow | null>(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("medicine_scans_user_idx").on(t.userId, t.createdAt)],
+);
+
+// What was taken and when. Name, strength and form are copied at the time, so the log stays true
+// when the medicine in the list is edited or archived later.
+export const medicineLogs = pgTable(
+  "medicine_logs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userRef(),
+    medicineId: uuid("medicine_id").references(() => medicines.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    strength: text("strength"),
+    form: text("form", { enum: MEDICINE_FORMS }),
+    amount: real("amount").notNull(),
+    unit: text("unit"),
+    takenAt: tz("taken_at").notNull(),
+    tz: text("tz").notNull(),
+    localDate: date("local_date", { mode: "string" }).notNull(),
+    scanId: uuid("scan_id").references(() => medicineScans.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("medicine_logs_user_day_idx").on(t.userId, t.localDate, t.takenAt),
+    index("medicine_logs_medicine_idx").on(t.medicineId),
+    index("medicine_logs_scan_idx").on(t.scanId),
   ],
 );
 

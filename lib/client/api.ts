@@ -19,6 +19,15 @@ import type {
   MealSlot,
   MealSummaryDto,
 } from "@/lib/contracts/meals";
+import type {
+  LoggedMedicine,
+  MedicineDayDto,
+  MedicineDto,
+  MedicineInput,
+  MedicinePatch,
+  MedicineScanDto,
+  NewMedicineLog,
+} from "@/lib/contracts/medicines";
 import type { NutrientMap } from "@/lib/contracts/nutrients";
 
 export class ApiError extends Error {
@@ -159,6 +168,24 @@ export const api = {
   /** Logs a favorite again (a copy of the meal as it is now) at that time. */
   logFavorite: (mealId: string, when: { eatenAt: string; tz: string }) =>
     request<MealDto>(`/api/favorites/${id(mealId)}/log`, { method: "POST", body: when }),
+  medicines: () => request<{ medicines: MedicineDto[] }>("/api/medicines").then((r) => r.medicines),
+  createMedicine: (input: MedicineInput) =>
+    request<MedicineDto>("/api/medicines", { method: "POST", body: input }),
+  updateMedicine: (medicineId: string, patch: MedicinePatch) =>
+    request<MedicineDto>(`/api/medicines/${id(medicineId)}`, { method: "PATCH", body: patch }),
+  medicineDay: (date: string) => request<MedicineDayDto>(`/api/medicine-logs?date=${id(date)}`),
+  logMedicine: (input: NewMedicineLog) =>
+    request<LoggedMedicine>("/api/medicine-logs", { method: "POST", body: input }),
+  deleteMedicineLog: (logId: string) =>
+    request<{ ok: true }>(`/api/medicine-logs/${id(logId)}`, { method: "DELETE" }),
+  /** Sends a photo of a medicine's label; the reading follows (medicineScan). */
+  scanMedicine: (photo: Blob) => {
+    const form = new FormData();
+    form.set("photo", photo, "label.jpg");
+    return requestForm<MedicineScanDto>("/api/medicine-scans", form);
+  },
+  medicineScan: (scanId: string, signal?: AbortSignal) =>
+    request<MedicineScanDto>(`/api/medicine-scans/${id(scanId)}`, { signal }),
   createManualMeal: (input: NewManualMealInput) =>
     request<MealDto>("/api/manual-meals", { method: "POST", body: input }),
   searchFoods: (query: string, signal?: AbortSignal) =>

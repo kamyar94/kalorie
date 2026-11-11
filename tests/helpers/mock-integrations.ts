@@ -594,6 +594,15 @@ export type GoogleMock = {
   reset: () => void;
 };
 
+/** What the mock reads on any medicine label (lib/medicines/label.ts MEDICINE_LABEL_SCHEMA). */
+export const E2E_MEDICINE = {
+  is_medicine: true,
+  name: "Ibuprofen",
+  strength: "200 mg",
+  form: "tablet",
+  active_ingredients: [{ name: "Ibuprofen", strength: "200 mg" }],
+};
+
 /** A plate whose items match the FoodData Central fixture foods and the seeded doogh. */
 export const E2E_MEAL = {
   is_food: true,
@@ -694,6 +703,8 @@ const handleGoogle = (mock: GoogleMock, body: unknown): Reply => {
     (body as { generationConfig?: { responseJsonSchema?: unknown } })?.generationConfig
       ?.responseJsonSchema ?? {},
   );
+  // A medicine label asks for the label schema (is_medicine) with its photo.
+  if (schema.includes('"is_medicine"')) return googleReply(E2E_MEDICINE);
   if (parts.some((p) => p.inlineData) || schema.includes('"is_food"'))
     return googleReply(mock.analyses.shift() ?? E2E_MEAL);
   const prompt = parts.find((p) => typeof p.text === "string")?.text ?? "";

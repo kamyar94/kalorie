@@ -13,7 +13,9 @@ import {
 } from "react";
 
 import { useToast } from "@/components/ui/toast";
+import { api } from "@/lib/client/api";
 import type { MealSummaryDto } from "@/lib/contracts/meals";
+import { formatDose, medicineTitle, type LoggedMedicine } from "@/lib/contracts/medicines";
 import {
   listQueued,
   newClientId,
@@ -34,7 +36,8 @@ import { CameraScreen, type Shot } from "./camera-screen";
 /** A note the label photo carries, so the analysis reads the package instead of a plate. */
 export const LABEL_NOTE = "Photo of a package or nutrition label: read the label.";
 
-export type CaptureMode = "meal" | "label";
+/** meal: the camera on its Meal tab; medicine: on its Medicine tab; label: a package for Add. */
+export type CaptureMode = "meal" | "label" | "medicine";
 
 type CaptureContextValue = {
   userId: string;
@@ -242,6 +245,35 @@ export const CaptureProvider = ({
     [reload],
   );
 
+  // A medicine was logged from the camera: show it on its day (the Medicines page stays put),
+  // with Undo.
+  const medicineSaved = useCallback(
+    ({ log }: LoggedMedicine) => {
+      setCamera((c) => ({ ...c, open: false }));
+      const today = localParts(new Date(), deviceTimeZone()).date;
+      const target = log.localDate === today ? "/today" : `/today?date=${log.localDate}`;
+      if (pathname.startsWith("/medicines") || `${pathname}${window.location.search}` === target)
+        router.refresh();
+      else router.push(target);
+      show({
+        title: `${medicineTitle(log)} logged`,
+        body: `${formatDose(log.amount, log.unit)} at ${log.localTime}`,
+        tone: "success",
+        action: {
+          label: "Undo",
+          onClick: () =>
+            void api
+              .deleteMedicineLog(log.id)
+              .then(() => router.refresh())
+              .catch((error) =>
+                show({ title: "Not undone", body: (error as Error).message, tone: "error" }),
+              ),
+        },
+      });
+    },
+    [pathname, router, show],
+  );
+
   const openCamera = useCallback((mode: CaptureMode = "meal") => {
     setCamera({ open: true, mode });
   }, []);
@@ -269,6 +301,7 @@ export const CaptureProvider = ({
         open={camera.open}
         mode={camera.mode}
         onClose={() => setCamera((c) => ({ ...c, open: false }))}
+        onMedicineSaved={medicineSaved}
         onSend={(shots, note, at) => {
           const mode = camera.mode;
           setCamera((c) => ({ ...c, open: false }));

@@ -29,6 +29,13 @@
       "when": 1794364205681,
       "tag": "0003_meal_favorites",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794364798598,
+      "tag": "0004_medicines",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { ChevronRight, LogOut, ShieldCheck, Star } from "lucide-react";
+import { ChevronRight, LogOut, Pill, ShieldCheck, Star } from "lucide-react";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
@@ -88,6 +88,13 @@ export default async function SettingsPage() {
                 <Link href="/favorites" className={listLink}>
                   <Star aria-hidden className="text-primary size-5" />
                   <span className="flex-1">Favorites: meals to log again</span>
+                  <ChevronRight aria-hidden className="text-muted size-5" />
+                </Link>
+              </li>
+              <li>
+                <Link href="/medicines" className={listLink}>
+                  <Pill aria-hidden className="text-primary size-5" />
+                  <span className="flex-1">Medicines: your list and what you took</span>
                   <ChevronRight aria-hidden className="text-muted size-5" />
                 </Link>
               </li>
