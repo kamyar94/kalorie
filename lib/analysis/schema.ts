@@ -82,7 +82,7 @@ const ITEM = object({
   ),
   kind: { type: "string", enum: [...ANALYSIS_ITEM_KINDS] },
   emoji: str(
-    "Exactly one emoji that pictures this food or drink, for example a rice bowl for rice, a poultry leg for chicken, a droplet for water. Empty when none fits.",
+    "Exactly one emoji that pictures this food or drink (the head food: grape tomatoes are a tomato), for example a rice bowl for rice, a poultry leg for chicken, a droplet for water. Empty when none fits.",
   ),
   preparation: str(
     "How it was prepared: raw, boiled, steamed, fried, deep-fried, grilled, roasted, baked, stewed, sauteed... Empty when it does not apply.",

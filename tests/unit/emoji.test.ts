@@ -100,6 +100,100 @@ describe("emojiFor", () => {
     expect(emojiFor("Something unusual", "dish")).toBe("🍽️");
     expect(emojiFor(null, null)).toBe("🍽️");
   });
+
+  it("shows the food a compound name is about (its head), not the first food word in it", () => {
+    const cases: [string, string][] = [
+      // A food word inside another word is not that food.
+      ["Grapefruit", "🍊"],
+      ["Pineapple", "🍍"],
+      ["Butternut squash", "🎃"],
+      ["Coconut", "🥥"],
+      ["Strawberry", "🍓"],
+      ["Watermelon", "🍉"],
+      ["Eggplant", "🍆"],
+      ["Butterscotch", "🍬"],
+      ["Buttermilk", "🥛"],
+      ["Lemonade", "🥤"],
+      ["Pine nuts", "🥜"],
+      ["Popcorn", "🍿"],
+      // English puts the head last.
+      ["Grape tomatoes", "🍅"],
+      ["Cherry tomatoes", "🍅"],
+      ["Plum tomatoes", "🍅"],
+      ["Chocolate milk", "🥛"],
+      ["Milk chocolate", "🍫"],
+      ["Grape juice", "🧃"],
+      ["Watermelon juice", "🧃"],
+      ["Egg noodles", "🍝"],
+      ["Rice noodles", "🍝"],
+      ["Rice milk", "🥛"],
+      ["Oat milk", "🥛"],
+      ["Chicken salad", "🥗"],
+      ["Apple pie", "🥧"],
+      ["Banana bread", "🍞"],
+      ["Coffee cake", "🍰"],
+      ["Strawberry yogurt", "🥣"],
+      ["Fish sauce", "🫙"],
+      ["Salad dressing", "🫒"],
+      ["Mango lassi", "🥛"],
+      ["Sweet potato fries", "🍟"],
+      ["Shrimp fried rice", "🍚"],
+      ["Butter chicken", "🍗"],
+      ["Black bean burger", "🍔"],
+      ["Peanut butter cookies", "🍪"],
+      // Compounds that are a food of their own.
+      ["Peanut butter", "🥜"],
+      ["Sweet potato", "🍠"],
+      ["Hot dog", "🌭"],
+      ["Corn dog", "🌭"],
+      ["Hot chocolate", "☕"],
+      ["Rice cake", "🍘"],
+      ["Rice cakes with peanut butter", "🍘"],
+      ["Fish cakes", "🐟"],
+      ["Crab cakes", "🦀"],
+      ["Tuna steak", "🐟"],
+      ["Coconut milk", "🥥"],
+      ["Coconut water", "🥥"],
+      ["Ice cream sandwich", "🍨"],
+      ["Spring rolls", "🥟"],
+      ["Chocolate chips", "🍫"],
+      ["Jelly beans", "🍬"],
+      ["Apple sauce", "🍎"],
+      ["Root beer", "🥤"],
+      ["Ginger ale", "🥤"],
+      ["Stuffed grape leaves", "🥬"],
+      // What follows "with", "in", "on" goes with the food.
+      ["Sardines in olive oil", "🐟"],
+      ["Beans on toast", "🫘"],
+      ["Pancakes with maple syrup", "🥞"],
+      ["Cup of tea", "🍵"],
+      // Persian dish words in Latin letters name the dish first; polo dishes end in the rice.
+      ["Persian ghormeh sabzi", "🍲"],
+      ["Albaloo polo", "🍚"],
+      ["Chicken fesenjan", "🍲"],
+    ];
+    for (const [name, emoji] of cases) expect(emojiFor(name, "dish"), name).toBe(emoji);
+    expect(cases.length).toBeGreaterThanOrEqual(40);
+  });
+
+  it("reads Persian names head first, except the rice dishes named after what is in them", () => {
+    const cases: [string, string][] = [
+      ["گوجه گیلاسی", "🍅"], // cherry tomatoes
+      ["شیر کاکائو", "🥛"], // chocolate milk
+      ["کیک شکلاتی", "🍰"], // chocolate cake
+      ["آب پرتقال", "🧃"], // orange juice
+      ["آب سیب", "🧃"], // apple juice
+      ["سیب زمینی", "🥔"], // potato
+      ["سیب زمینی شیرین", "🍠"], // sweet potato
+      ["سیب‌زمینی سرخ کرده", "🍟"], // fries
+      ["کره بادام زمینی", "🥜"], // peanut butter
+      ["شیر برنج", "🍮"], // rice pudding
+      ["آلبالو پلو", "🍚"], // sour cherry rice
+      ["زرشک پلو با مرغ", "🍚"], // barberry rice with chicken
+      ["مرغ با سیب زمینی", "🍗"], // chicken with potatoes
+    ];
+    for (const [name, emoji] of cases) expect(emojiFor(name, "dish"), name).toBe(emoji);
+  });
 });
 
 describe("cleanEmoji", () => {
