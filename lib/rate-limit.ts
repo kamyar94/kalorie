@@ -4,7 +4,7 @@
 //
 // Buckets used today (see the callers):
 //   signin-ip:<ip>       failed sign-ins and code attempts per address   (lib/auth/login.ts)
-//   upload:<userId>      photo uploads per account                       (app/api/meals/route.ts)
+//   upload:<userId>      photo uploads per account (meals, medicine labels) (app/api/meals/route.ts)
 //   meal-photos:<userId> photos added to, removed from or reordered in meals (lib/http/meal-photos.ts)
 //   ai:<userId>          AI requests per account                         (lib/ai/service.ts)
 import { sql } from "drizzle-orm";

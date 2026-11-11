@@ -200,6 +200,46 @@ test("a meal in words is analysed by the mock provider without a photo", async (
   await expectAccessible(page);
 });
 
+test("a medicine label from the gallery is read by the mock provider", async ({ page }, info) => {
+  const userId = await signUp(page, info.project.name);
+  await saveGoogleKey(page);
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Take a photo of a meal" }).click();
+  const camera = page.getByRole("dialog", { name: "Camera" });
+  await camera.getByRole("tab", { name: "Medicine" }).click();
+  await camera.getByTestId("gallery-input").setInputFiles("tests/fixtures/meal.jpg");
+
+  // What the label says, to check; two tablets taken.
+  const sheet = page.getByRole("dialog", { name: "Medicine found on the label" });
+  await expect(sheet).toBeVisible({ timeout: 30_000 });
+  await expect(sheet.getByTestId("medicine-name")).toHaveText("Ibuprofen 200 mg");
+  await expect(sheet).toContainText("Read from the label");
+  await expect(sheet).toContainText("Tablet");
+  await expect(sheet).toContainText("Active ingredients: Ibuprofen 200 mg");
+  await sheet.getByRole("button", { name: "More (How many did you take?)" }).click();
+  await sheet.getByRole("button", { name: "More (How many did you take?)" }).click();
+  await expect(sheet.getByRole("spinbutton", { name: "How many did you take?" })).toHaveAttribute(
+    "aria-valuetext",
+    "2 tablets",
+  );
+  await expectAccessible(page);
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(camera).toBeHidden();
+
+  const card = page.getByRole("region", { name: "Medicines" });
+  await expect(card.getByTestId("medicine-taken")).toContainText("Ibuprofen 200 mg · 2 tablets");
+  const stored = await pool.query(
+    `select l.name, l.strength, l.amount, s.status, s.reading->>'name' as read
+     from medicine_logs l join medicine_scans s on s.id = l.scan_id where l.user_id = $1`,
+    [userId],
+  );
+  expect(stored.rows).toEqual([
+    { name: "Ibuprofen", strength: "200 mg", amount: 2, status: "done", read: "Ibuprofen" },
+  ]);
+  const usage = await pool.query("select task from ai_usage where user_id = $1", [userId]);
+  expect(usage.rows).toEqual([{ task: "medicine-label" }]);
+});
+
 test("Mealie: connect, then log a planned recipe with servings", async ({ page }, info) => {
   const userId = await signUp(page, info.project.name);
   await connectMealie(page);

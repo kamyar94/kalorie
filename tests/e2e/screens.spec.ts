@@ -952,6 +952,118 @@ test("favorites: star a meal, log it again from Today with Undo, on an earlier d
   expect(row.rows[0].favorite_at).toBeNull();
 });
 
+test("medicines: the camera's Medicine tab without an AI key, Today's card with Log now, the Medicines page", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  const card = page.getByRole("region", { name: "Medicines" });
+  await expect(page.getByRole("heading", { name: "Meals" })).toBeVisible();
+  await expect(card).toHaveCount(0);
+
+  // "Meal · Medicine" above the shutter; arrow keys move between the tabs.
+  const camera = await openCamera(page);
+  const tabs = camera.getByRole("tablist", { name: "What to capture" });
+  await expect(tabs.getByRole("tab")).toHaveText(["Meal", "Medicine"]);
+  await expect(tabs.getByRole("tab", { name: "Meal" })).toHaveAttribute("aria-selected", "true");
+  await expectAccessible(page);
+  await tabs.getByRole("tab", { name: "Meal" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(tabs.getByRole("tab", { name: "Medicine" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(tabs.getByRole("tab", { name: "Medicine" })).toBeFocused();
+  await expect(page.getByTestId("camera")).toHaveAttribute("data-mode", "medicine");
+  await expect(camera.getByRole("button", { name: /^Send/ })).toHaveCount(0);
+  await expectAccessible(page);
+
+  // One photo of the box; without an AI key the sheet opens empty with the reason.
+  await camera.getByRole("button", { name: "Photograph the label" }).click();
+  const sheet = page.getByRole("dialog", { name: "What did you take?" });
+  await expect(sheet).toBeVisible({ timeout: 20_000 });
+  await expect(sheet.getByRole("status").first()).toContainText("Save an AI key in Settings");
+  await expect(sheet).toContainText(
+    "Cal records what you took. It does not check doses or interactions; ask a pharmacist or doctor about those.",
+  );
+  await sheet.getByLabel("Name").fill("Vitamin D");
+  await sheet.getByLabel("Strength").fill("1000 IU");
+  await sheet.getByLabel("Form").selectOption("tablet");
+  await expect(sheet.getByRole("spinbutton", { name: "How many did you take?" })).toHaveAttribute(
+    "aria-valuetext",
+    "1 tablet",
+  );
+  await expect(sheet.getByRole("button", { name: "Taken: now. Change the time" })).toBeVisible();
+  await expect(
+    sheet.getByRole("checkbox", { name: "Keep it in my medicines for one-tap logging" }),
+  ).toBeChecked();
+  await expectAccessible(page);
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(sheet).toBeHidden();
+  await expect(camera).toBeHidden();
+
+  // Today: taken with its time.
+  await expect(card.getByTestId("medicine-taken")).toContainText("Vitamin D 1000 IU · 1 tablet");
+  await expect(card.getByTestId("medicine-taken")).toContainText(/Taken \d\d:\d\d/);
+  const stored = await pool.query(
+    `select l.name, l.strength, l.form, l.amount, l.unit, l.scan_id is not null as photo,
+       m.usual_amount from medicine_logs l join medicines m on m.id = l.medicine_id
+     where l.user_id = $1`,
+    [userId],
+  );
+  expect(stored.rows).toEqual([
+    {
+      name: "Vitamin D",
+      strength: "1000 IU",
+      form: "tablet",
+      amount: 1,
+      unit: "tablet",
+      photo: true,
+      usual_amount: 1,
+    },
+  ]);
+  await expectAccessible(page);
+
+  // The Medicines page, from Settings: add one by hand.
+  await page.goto("/settings");
+  await page.getByRole("link", { name: /^Medicines/ }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Medicines" })).toBeVisible();
+  await page.getByRole("button", { name: "Add a medicine" }).click();
+  const add = page.getByRole("dialog", { name: "Add a medicine" });
+  await add.getByLabel("Name").fill("Omega-3");
+  await add.getByLabel("Form").selectOption("capsule");
+  await add.getByRole("button", { name: "Save" }).click();
+  await expect(add).toBeHidden();
+  await expect(page.getByTestId("medicine-list")).toContainText("Omega-3");
+  await expect(page.getByTestId("medicine-history")).toContainText("Vitamin D 1000 IU · 1 tablet");
+  await expectAccessible(page);
+
+  // Today: Omega-3 is due; Log now with Undo.
+  await page.goto("/today");
+  const due = card.getByRole("button", { name: "Log now: Omega-3" });
+  await expect(card.getByTestId("medicine-due")).toContainText("Omega-3 · 1 capsule");
+  await due.click();
+  await expect(card.getByTestId("medicine-taken")).toHaveCount(2);
+  await expect(card.getByTestId("medicine-due")).toHaveCount(0);
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Omega-3 logged" })
+    .getByRole("button", { name: "Undo" })
+    .click();
+  await expect(card.getByTestId("medicine-due")).toContainText("Omega-3");
+
+  // Archived medicines leave Today.
+  await page.goto("/medicines");
+  await page.getByRole("button", { name: "Edit: Omega-3" }).click();
+  await page
+    .getByRole("dialog", { name: "Edit the medicine" })
+    .getByRole("button", { name: "Archive" })
+    .click();
+  await expect(page.getByTestId("archived-medicines")).toContainText("Omega-3");
+  await page.goto("/today");
+  await expect(card.getByTestId("medicine-due")).toHaveCount(0);
+  await expect(card.getByTestId("medicine-taken")).toHaveCount(1);
+});
+
 test("add without a photo: scan a barcode", async ({ page }, info) => {
   await signUp(page, info.project.name);
   const code = "4006381333931";

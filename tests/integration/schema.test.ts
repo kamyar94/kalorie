@@ -1,4 +1,5 @@
-// The first migration builds the whole schema of every phase.
+// The migrations build the whole schema: the first one every phase's tables, later ones the
+// medicines (0004).
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
@@ -21,6 +22,9 @@ const TABLES = [
   "meal_items",
   "meal_photos",
   "meals",
+  "medicine_logs",
+  "medicine_scans",
+  "medicines",
   "nutrients",
   "push_subscriptions",
   "rate_limits",

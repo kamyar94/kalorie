@@ -11,7 +11,12 @@ const ITEMS = [
   { href: "/add", label: "Add", icon: CirclePlus, also: [] },
   { href: "/trends", label: "Trends", icon: BarChart3, also: [] },
   // Favorites and Medicines are opened from Settings for now.
-  { href: "/settings", label: "Settings", icon: Settings, also: ["/admin", "/favorites"] },
+  {
+    href: "/settings",
+    label: "Settings",
+    icon: Settings,
+    also: ["/admin", "/favorites", "/medicines"],
+  },
 ] as const;
 
 /**

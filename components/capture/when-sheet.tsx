@@ -28,6 +28,7 @@ export const WhenSheet = ({
   onOpenChange,
   value,
   tz,
+  title = "When did you eat this?",
   description,
   elevated = false,
   returnFocus,
@@ -38,6 +39,8 @@ export const WhenSheet = ({
   /** The time chosen so far; null is "Now". */
   value: Date | null;
   tz: string;
+  /** The question; a medicine asks when it was taken. */
+  title?: string;
   description: string;
   /** Above the full-screen camera. */
   elevated?: boolean;
@@ -101,7 +104,7 @@ export const WhenSheet = ({
     <BottomSheet
       open={open}
       onOpenChange={onOpenChange}
-      title="When did you eat this?"
+      title={title}
       description={description}
       elevated={elevated}
       onCloseAutoFocus={
