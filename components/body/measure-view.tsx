@@ -108,13 +108,13 @@ export const MeasureView = ({
           autoComplete="off"
           value={values[code] ?? ""}
           onChange={(event) => set(code, event.target.value)}
-          placeholder={info.hint ? `${unit} · ${info.hint}` : lastText(code)}
+          placeholder={lastText(code) ?? (info.tip ? `${unit} · ${info.tip}` : undefined)}
           aria-describedby={info.hint ? hintId : undefined}
           className={input}
         />
         {info.hint && (
           <span id={hintId} className="text-caption text-muted hidden group-focus-within:block">
-            {info.hint[0]!.toUpperCase() + info.hint.slice(1)}
+            {info.hint}
           </span>
         )}
       </div>

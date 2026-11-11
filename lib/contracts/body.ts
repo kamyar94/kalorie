@@ -34,12 +34,20 @@ export type MeasureInfo = {
   /** A change smaller than this is "steady". */
   steady: number;
   decimals: number;
-  /** How to measure it (board 12). */
+  /** How to measure it (board 12), shown under the field while it is being filled in. */
   hint?: string;
+  /** The same in a few words, for the empty field ("cm · below the Adam's apple"). */
+  tip?: string;
 };
 
-const tape = (code: string, label: string, hint: string, judge: MeasureJudge = "size") =>
-  ({ code, label, unit: "cm", group: "tape", judge, steady: 1, decimals: 1, hint }) as const;
+const tape = (
+  code: string,
+  label: string,
+  tip: string,
+  hint: string,
+  judge: MeasureJudge = "size",
+) =>
+  ({ code, label, unit: "cm", group: "tape", judge, steady: 1, decimals: 1, tip, hint }) as const;
 
 export const MEASURES: MeasureInfo[] = [
   {
@@ -151,20 +159,20 @@ export const MEASURES: MeasureInfo[] = [
     decimals: 0,
   },
   { code: "bmi", label: "BMI", unit: "", group: "scale", judge: "mass", steady: 0.2, decimals: 1 },
-  tape("neck", "Neck", "below the Adam's apple"),
-  tape("shoulders", "Shoulders", "around the widest part, arms down"),
-  tape("chest", "Chest", "across the nipples, breathing out"),
-  tape("waist", "Waist", "at the navel, relaxed, breathing out", "fat"),
-  tape("hips", "Hips", "at the widest point of the buttocks"),
-  tape("upper_arm_l", "Upper arm (left)", "halfway between shoulder and elbow, relaxed"),
-  tape("upper_arm_r", "Upper arm (right)", "halfway between shoulder and elbow, relaxed"),
-  tape("forearm_l", "Forearm (left)", "at the widest part, relaxed"),
-  tape("forearm_r", "Forearm (right)", "at the widest part, relaxed"),
-  tape("wrist", "Wrist", "just above the wrist bone"),
-  tape("thigh_l", "Thigh (left)", "just below the buttock, standing"),
-  tape("thigh_r", "Thigh (right)", "just below the buttock, standing"),
-  tape("calf_l", "Calf (left)", "at the widest part, standing"),
-  tape("calf_r", "Calf (right)", "at the widest part, standing"),
+  tape("neck", "Neck", "below the Adam's apple", "Below the Adam's apple, tape level all round"),
+  tape("shoulders", "Shoulders", "widest part", "Around the widest part, arms down"),
+  tape("chest", "Chest", "across the nipples", "Across the nipples, breathing out"),
+  tape("waist", "Waist", "at the navel", "At the navel, relaxed, breathing out", "fat"),
+  tape("hips", "Hips", "widest point", "At the widest point of the buttocks"),
+  tape("upper_arm_l", "Upper arm (left)", "halfway", "Halfway between shoulder and elbow"),
+  tape("upper_arm_r", "Upper arm (right)", "halfway", "Halfway between shoulder and elbow"),
+  tape("forearm_l", "Forearm (left)", "widest part", "At the widest part, arm relaxed"),
+  tape("forearm_r", "Forearm (right)", "widest part", "At the widest part, arm relaxed"),
+  tape("wrist", "Wrist", "above the bone", "Just above the wrist bone"),
+  tape("thigh_l", "Thigh (left)", "below the buttock", "Just below the buttock, standing"),
+  tape("thigh_r", "Thigh (right)", "below the buttock", "Just below the buttock, standing"),
+  tape("calf_l", "Calf (left)", "widest part", "At the widest part, standing"),
+  tape("calf_r", "Calf (right)", "widest part", "At the widest part, standing"),
 ];
 
 /** Ratios Kal works out (never stored): waist to height, waist to hip. */

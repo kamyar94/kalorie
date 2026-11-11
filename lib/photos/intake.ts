@@ -70,7 +70,7 @@ const fullSize = (input: Buffer, quality: number) =>
     .rotate()
     .flatten({ background: "#ffffff" })
     .toColourspace("srgb")
-    .jpeg({ quality, mozjpeg: true, chromaSubsampling: "4:4:4" })
+    .jpeg({ quality, chromaSubsampling: "4:4:4" })
     .toBuffer({ resolveWithObject: true });
 
 export const processBodyPhoto = async (input: Buffer): Promise<ProcessedBodyPhoto> => {

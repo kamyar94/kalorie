@@ -46,8 +46,8 @@ const asUser = async (role: "member" | "admin" = "member") => {
   };
 };
 
-/** A tall photo larger than meal photos are kept, with EXIF metadata in it. */
-const photo = (width = 2400, height = 3200) =>
+/** A photo wider than meal photos are kept (2048 px), with EXIF metadata in it. */
+const photo = (width = 2400, height = 1200) =>
   sharp({ create: { width, height, channels: 3, background: "#b8a48c" } })
     .withExif({ IFD0: { Make: "Example camera", Artist: "Someone" } })
     .jpeg({ quality: 80 })
@@ -122,7 +122,7 @@ describe("body photos", () => {
     expect(saved.body.photo).toMatchObject({
       pose: "front",
       width: 2400,
-      height: 3200,
+      height: 1200,
       facing: "user",
       source: "camera",
     });
@@ -131,7 +131,7 @@ describe("body photos", () => {
     expect(original.status).toBe(200);
     expect(original.headers.get("cache-control")).toBe("private, max-age=31536000, immutable");
     const meta = await sharp(Buffer.from(await original.arrayBuffer())).metadata();
-    expect([meta.width, meta.height, meta.exif]).toEqual([2400, 3200, undefined]);
+    expect([meta.width, meta.height, meta.exif]).toEqual([2400, 1200, undefined]);
     const view = await sharp(
       Buffer.from(await (await read(saved.body.photo.id, "view")).arrayBuffer()),
     ).metadata();
