@@ -1,5 +1,5 @@
 // The migrations build the whole schema: the first one every phase's tables, later ones the
-// medicines (0004) and the activities (0005).
+// medicines (0004), the activities (0005) and Move's badges (0006).
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
@@ -31,6 +31,7 @@ const TABLES = [
   "rate_limits",
   "reset_codes",
   "sessions",
+  "user_badges",
   "user_targets",
   "users",
 ];

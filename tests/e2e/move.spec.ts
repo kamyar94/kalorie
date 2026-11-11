@@ -4,7 +4,7 @@
 import { expect, test } from "@playwright/test";
 
 import { exerciseCsv, pedometerCsv, samsungFileName, samsungZip } from "../helpers/samsung-export";
-import { expectAccessible, localDay, pool, signUp, installE2eHooks } from "./helpers";
+import { expectAccessible, installE2eHooks, localDay, pool, signUp, zone } from "./helpers";
 
 installE2eHooks();
 
@@ -111,4 +111,85 @@ test("move: + Activity, a Samsung Health zip imported twice, and a CSV with its 
   await expect(details).toBeHidden();
   await expect(list.getByTestId("activity")).toHaveCount(4);
   await expect(list).not.toContainText("Running");
+});
+
+test("move: level, streak, the week by category and badges; Today's Move card", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  const add = (date: string, values: Record<string, unknown>) =>
+    pool().query(
+      `insert into activities (user_id, category, type, title, started_at, tz, local_date,
+         duration_min, intensity, steps, source, source_app, external_id)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [
+        userId,
+        values.category,
+        values.type,
+        values.title,
+        new Date(`${date}T07:30:00Z`),
+        zone(),
+        date,
+        values.durationMin ?? null,
+        values.intensity ?? null,
+        values.steps ?? null,
+        values.source ?? "manual",
+        values.sourceApp ?? null,
+        values.externalId ?? null,
+      ],
+    );
+  await add(localDay(0), {
+    category: "strength",
+    type: "weights",
+    title: "Full body A",
+    durationMin: 45,
+    intensity: "moderate",
+    source: "opengym",
+    externalId: "e2e-gym",
+  });
+  await add(localDay(0), {
+    category: "walking",
+    type: "steps",
+    title: "Steps",
+    steps: 6240,
+    source: "import",
+    sourceApp: "samsung-health",
+    externalId: `samsung:steps:${localDay(0)}`,
+  });
+  await add(localDay(-1), { category: "walking", type: "steps", title: "Steps", steps: 10_400 });
+  await add(localDay(-2), {
+    category: "cardio",
+    type: "run",
+    title: "Running",
+    durationMin: 30,
+    intensity: "vigorous",
+  });
+
+  // Today: 45 min of strength from openGym, imported steps, 90 points.
+  await page.goto("/today");
+  const card = page.getByTestId("move-card");
+  await expect(card.getByTestId("move-minutes")).toHaveText("45 minStrength, openGym");
+  await expect(card.getByTestId("move-steps")).toHaveText("6,240Steps, imported");
+  await expect(card.getByTestId("move-points")).toHaveText("+90Points today");
+  await expectAccessible(page);
+
+  // Move: 90 + 50 + 60 = 200 points, level 2, a 3-day streak, badges.
+  await card.getByRole("link", { name: "Details" }).click();
+  await expect(page).toHaveURL(/\/move$/);
+  await expect(page.getByTestId("move-level")).toHaveText("Level 2 · 200 points");
+  await expect(page.getByText("250 points to level 3")).toBeVisible();
+  await expect(page.getByTestId("move-streak")).toHaveText("3-day streak");
+  await expect(page.getByRole("progressbar", { name: "Progress to level 3" })).toHaveAttribute(
+    "aria-valuenow",
+    "200",
+  );
+  const week = page.getByTestId("week-rows");
+  await expect(week).toContainText("Strength1 of 2 days");
+  const badges = page.getByTestId("badges");
+  for (const code of ["first_workout", "streak_3", "steps_10k"])
+    await expect(badges.locator(`[data-badge="${code}"]`)).toHaveAttribute("data-earned", "true");
+  const locked = badges.locator('[data-badge="streak_30"]');
+  await expect(locked).toHaveAttribute("data-earned", "false");
+  await expect(locked).toContainText("locked: Be active 30 days in a row");
+  await expectAccessible(page);
 });
