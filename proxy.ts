@@ -18,14 +18,18 @@ const PUBLIC_PAGES = new Set([
   "/.well-known/assetlinks.json",
   "/android/version.json",
 ]);
-const PUBLIC_API = new Set(["/api/health"]);
+// The Android app's own calls (lib/devices/http.ts) carry a one-time code or the phone's device
+// token instead of the session cookie. A page elsewhere cannot add that token, so they need neither
+// the cookie nor the same-origin check (the routes check the token themselves).
+const DEVICE_API = new Set(["/api/devices/claim", "/api/devices/self", "/api/health-connect/sync"]);
+const PUBLIC_API = new Set(["/api/health", ...DEVICE_API]);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isApi = pathname.startsWith("/api/");
 
-  if (!SAFE_METHODS.has(req.method) && !isSameOrigin(req.headers))
+  if (!SAFE_METHODS.has(req.method) && !DEVICE_API.has(pathname) && !isSameOrigin(req.headers))
     return NextResponse.json({ error: "Cross-site request refused." }, { status: 403 });
 
   const signedIn = req.cookies.has(SESSION_COOKIE);
