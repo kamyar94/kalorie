@@ -23,6 +23,8 @@ docs
 # tests/ stays: Next.js type-checks every .ts file, and unit tests sit next to the code.
 # The standalone trace leaves tests out of the image (outputFileTracingExcludes).
 deploy
+# The Android app is built on its own (scripts/android-build.mjs), never into the server image.
+android
 *.tsbuildinfo
 .vscode
 .idea

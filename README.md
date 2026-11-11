@@ -29,6 +29,10 @@ Created by Kamyar Fatemifar.
   export), tape measurements with where to measure, changes judged from your goal, a private
   health profile, and guided front, side and back photos kept on your server, never sent to an
   AI.
+- **Kal for Android (optional).** The same Kal in an Android app that also reads Health Connect,
+  where Samsung Health, a Galaxy watch and Renpho keep steps, workouts, heart rate, sleep and
+  weigh-ins, and sends them to your server. It is built from [android/](android/README.md) and
+  downloaded from your own server, not a store.
 - **Integrations (optional).** [Mealie](https://github.com/mealie-recipes/mealie) for today's
   meal plan, recipes as foods and plan suggestions; [openGym](https://github.com/DuarteSantos8/openGym)
   for body weight and workouts. Kal only reads from openGym, and writes to Mealie only when you

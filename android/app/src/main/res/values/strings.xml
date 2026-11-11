@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kal</string>
+    <string name="shortcut_health_short">Health Connect</string>
+    <string name="shortcut_health_long">Health Connect in Kal</string>
+
+    <!-- Board 14: connect Health Connect. -->
+    <string name="connect_title">Bring in your watch, phone and scale</string>
+    <string name="connect_intro">Kal reads these from Health Connect. You choose which ones on the next screen; you can change it later.</string>
+    <string name="connect_list_label">What Kal can read</string>
+    <string name="connect_steps">Steps</string>
+    <string name="connect_steps_hint">Day totals, for Move</string>
+    <string name="connect_workouts">Workouts</string>
+    <string name="connect_workouts_hint">Type, time and energy, for Move and water</string>
+    <string name="connect_heart">Heart rate</string>
+    <string name="connect_heart_hint">Resting and during workouts</string>
+    <string name="connect_sleep">Sleep</string>
+    <string name="connect_sleep_hint">When you slept and for how long</string>
+    <string name="connect_body">Weight and body composition</string>
+    <string name="connect_body_hint">Weigh-ins from Renpho or Samsung Health, for Body</string>
+    <string name="connect_background">Also send in the background, about once an hour</string>
+    <string name="connect_background_unavailable">Sending in the background needs a newer Health Connect on this phone. Kal sends while its Health Connect screen is open.</string>
+    <string name="connect_footer">Sent only to your Kal server. Kal never writes to Health Connect.</string>
+    <string name="connect_how">How Kal uses this data</string>
+    <string name="connect_choose">Choose what Kal may read</string>
+    <string name="connect_not_now">Not now</string>
+    <string name="connect_linking">Linking this phone…</string>
+    <string name="connect_sending">Sending your records to Kal…</string>
+    <string name="connect_nothing_allowed">Kal may read nothing yet. Choose at least one kind of record.</string>
+    <string name="connect_no_code">Open Kal, then More, Kal for Android, and tap Connect Health Connect.</string>
+    <string name="connect_open_kal">Open Kal</string>
+
+    <!-- Availability. -->
+    <string name="hc_old_android">Health Connect needs Android 9 or newer. On this phone Kal works without it: everything else is the same.</string>
+    <string name="hc_missing">Health Connect is not on this phone yet. Install it from the Play Store, then come back.</string>
+    <string name="hc_update">Health Connect needs an update. Update it from the Play Store, then come back.</string>
+    <string name="hc_install">Install Health Connect</string>
+    <string name="hc_update_button">Update Health Connect</string>
+
+    <!-- Board 15: status. -->
+    <string name="status_title">Health Connect</string>
+    <string name="status_back">Back to Kal</string>
+    <string name="status_linked">Linked to your Kal account</string>
+    <string name="status_unlinked">Unlinked. Link again.</string>
+    <string name="status_link_again">Link again</string>
+    <string name="status_last_sent">Last sent</string>
+    <string name="status_today">Today</string>
+    <string name="status_next">Next</string>
+    <string name="status_not_yet">Not yet</string>
+    <string name="status_next_background">About %1$s, in the background</string>
+    <string name="status_next_open">When you open this screen</string>
+    <string name="status_send_now">Send now</string>
+    <string name="status_sending">Sending…</string>
+    <string name="status_sent">Sent</string>
+    <string name="status_access_label">Access</string>
+    <string name="status_access_activity">Steps, workouts, heart rate, sleep</string>
+    <string name="status_access_body">Weight and body composition</string>
+    <string name="status_access_background">Read in the background</string>
+    <string name="status_allowed">Allowed</string>
+    <string name="status_partly">Partly allowed</string>
+    <string name="status_not_allowed">Not allowed</string>
+    <string name="status_change_access">Change access in Health Connect</string>
+    <string name="status_note_no_background">Without background access, Kal sends only while this screen is open. Samsung Health and the Renpho app must also be set to share with Health Connect.</string>
+    <string name="status_note_sharing">Samsung Health and the Renpho app must also be set to share with Health Connect.</string>
+    <string name="status_how_title">How Kal uses this data</string>
+    <string name="status_how_body">Kal reads the records you allowed and sends them to your own Kal server, where only you can see them. They feed Move, water and Body. Nothing is sold, shared or sent to an AI. Removing your Kal data deletes them on the server too.</string>
+    <string name="status_how_note">This screen is also what Android shows from Health Connect\'s “privacy policy” link.</string>
+    <string name="status_unlink">Unlink this phone</string>
+    <string name="status_unlink_confirm_title">Unlink this phone?</string>
+    <string name="status_unlink_confirm_body">Kal stops sending from this phone. Your records already on the server stay.</string>
+    <string name="status_unlink_keep">Keep it</string>
+    <string name="status_update">Kal %1$s is ready. Download it from your Kal server to update.</string>
+    <string name="status_update_button">Download the new version</string>
+    <string name="status_error_network">Not sent: no connection to your Kal server. Kal tries again later.</string>
+    <string name="status_error_server">Not sent: your Kal server answered with an error. Kal tries again later.</string>
+    <string name="status_error_permission">Not sent: Health Connect did not allow reading. Check the access below.</string>
+    <string name="status_today_none">Nothing yet</string>
+
+    <!-- Update notification. -->
+    <string name="update_channel">App updates</string>
+    <string name="update_title">A newer Kal is ready</string>
+    <string name="update_text">Version %1$s. Tap to download it from your Kal server.</string>
+</resources>

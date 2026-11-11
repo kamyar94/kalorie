@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kal's tokens (app/globals.css), dark theme. -->
+<resources>
+    <color name="kal_bg">#0e100f</color>
+    <color name="kal_surface">#171a18</color>
+    <color name="kal_surface_2">#202421</color>
+    <color name="kal_border">#2f3531</color>
+    <color name="kal_text">#f1f2ee</color>
+    <color name="kal_text_soft">#d5d7d1</color>
+    <color name="kal_muted">#a9ada6</color>
+    <color name="kal_primary">#4cc38a</color>
+    <color name="kal_on_primary">#06210f</color>
+    <color name="kal_primary_soft">#16301f</color>
+    <color name="kal_on_primary_soft">#a6e9c4</color>
+    <color name="kal_danger">#ff7a6e</color>
+    <color name="kal_warning_soft">#33270f</color>
+    <color name="kal_on_warning_soft">#ffd88a</color>
+    <color name="kal_ripple">#33ffffff</color>
+</resources>

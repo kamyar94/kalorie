@@ -1,0 +1,15 @@
+# This server's address and app id, the SDK path and signing never go into git.
+kal.properties
+local.properties
+keystore.properties
+*.jks
+*.keystore
+# Build output and caches.
+.gradle/
+.kotlin/
+.cache/
+build/
+app/build/
+captures/
+.idea/
+*.iml

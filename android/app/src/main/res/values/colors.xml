@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Kal's tokens (app/globals.css), light theme. values-night has the dark ones. -->
+<resources>
+    <color name="kal_bg">#f6f6f3</color>
+    <color name="kal_surface">#ffffff</color>
+    <color name="kal_surface_2">#efeee9</color>
+    <color name="kal_border">#dedcd5</color>
+    <color name="kal_text">#191a17</color>
+    <color name="kal_text_soft">#3c3d38</color>
+    <color name="kal_muted">#5b5c56</color>
+    <color name="kal_primary">#1d7349</color>
+    <color name="kal_on_primary">#ffffff</color>
+    <color name="kal_primary_soft">#e3f1e9</color>
+    <color name="kal_on_primary_soft">#14532f</color>
+    <color name="kal_danger">#b42318</color>
+    <color name="kal_warning_soft">#fff4dc</color>
+    <color name="kal_on_warning_soft">#7a4a00</color>
+    <color name="kal_ripple">#22000000</color>
+
+    <!-- Fixed colours for the Trusted Web Activity's bars and splash (light and dark page). -->
+    <color name="kal_bar_light">#f6f6f3</color>
+    <color name="kal_bar_dark">#0e100f</color>
+    <color name="kal_border_light">#dedcd5</color>
+    <color name="kal_border_dark">#2f3531</color>
+    <color name="kal_brand">#1d7349</color>
+</resources>
