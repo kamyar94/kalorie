@@ -12,6 +12,7 @@ export const Switch = ({
   disabled,
   onChange,
   className,
+  labelClassName,
 }: {
   label: string;
   hint?: string;
@@ -19,12 +20,13 @@ export const Switch = ({
   disabled?: boolean;
   onChange: (checked: boolean) => void;
   className?: string;
+  labelClassName?: string;
 }) => {
   const id = useId();
   return (
     <div className={cn("flex min-h-11 items-center gap-3", className)}>
       <div className="min-w-0 flex-1">
-        <label htmlFor={id} className="text-body block">
+        <label htmlFor={id} className={cn("text-body block", labelClassName)}>
           {label}
         </label>
         {hint && (

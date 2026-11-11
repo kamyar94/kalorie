@@ -37,6 +37,7 @@ import { DetailsSheet } from "./details-sheet";
 import { FixSentence } from "./fix-sentence";
 import { ItemSheet } from "./item-sheet";
 import { MacroSummary } from "./macro-summary";
+import { MealPhotos } from "./meal-photos";
 import { NutrientTable } from "./nutrient-table";
 import { PhotoCarousel } from "./photo-carousel";
 import { Questions } from "./questions";
@@ -250,6 +251,14 @@ export const MealView = ({
               </div>
             </Card>
           )}
+
+          <MealPhotos
+            meal={meal}
+            onChange={(change) => {
+              setMeal(change.meal);
+              router.refresh();
+            }}
+          />
 
           {analysing && (
             <div

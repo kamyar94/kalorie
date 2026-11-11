@@ -22,7 +22,7 @@ export const PhotoCarousel = ({ photos, title }: { photos: MealPhotoDto[]; title
   };
 
   return (
-    <section aria-label="Photos" className="relative">
+    <section aria-label="Meal photos" className="relative">
       <div
         ref={strip}
         data-no-swipe

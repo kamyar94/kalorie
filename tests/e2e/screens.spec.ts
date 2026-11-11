@@ -770,6 +770,113 @@ test("answer in your own words: the field grows over lines and Answer sits under
     .toBe(`${long} no sauce`);
 });
 
+test("meal photos: add from the gallery and the camera, choose the cover, remove one; the items stay", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  const mealId = await meal(userId, { status: "ready", title: "Rice plate", source: "text" });
+  await pool.query(
+    `insert into meal_items (meal_id, user_id, position, name, kind, emoji, grams, nutrients)
+     values ($1, $2, 0, 'Rice, white, cooked', 'dish', '🍚', 180, '{"energy":232}')`,
+    [mealId, userId],
+  );
+  await pool.query(
+    `update meals set totals = '{"energy":232}', note = 'A plate of rice' where id = $1`,
+    [mealId],
+  );
+  const state = async () =>
+    (
+      await pool.query(
+        `select m.status, m.source, (m.totals->>'energy')::float as kcal,
+           (select count(*) from meal_items i where i.meal_id = m.id)::int as items,
+           (select count(*) from jobs j where j.payload->>'mealId' = m.id::text)::int as jobs,
+           array(select p.id::text from meal_photos p where p.meal_id = m.id order by p.position)
+             as photos
+         from meals m where m.id = $1`,
+        [mealId],
+      )
+    ).rows[0] as {
+      status: string;
+      source: string;
+      kcal: number;
+      items: number;
+      jobs: number;
+      photos: string[];
+    };
+
+  await page.goto(`/meals/${mealId}`);
+  const photos = page.getByRole("region", { name: "Photos", exact: true });
+  const count = photos.getByTestId("photo-count");
+  await expect(count).toHaveText("0 of 3");
+  const update = photos.getByRole("switch", { name: "Update items from the photos" });
+  await expect(update).toHaveAttribute("aria-checked", "false");
+  await expect(photos).toContainText(
+    "Off: added or removed photos are kept for the record; items and calories stay as they are.",
+  );
+  await expectAccessible(page);
+
+  // From the gallery, then with the phone's camera.
+  const addFrom = async (choice: "From the gallery" | "Take a photo") => {
+    await photos.getByRole("button", { name: "Add a photo" }).click();
+    const sheet = page.getByRole("dialog", { name: "Add a photo" });
+    const chooser = page.waitForEvent("filechooser");
+    await sheet.getByRole("button", { name: choice }).click();
+    await (await chooser).setFiles("tests/fixtures/meal.jpg");
+    await expect(sheet).toBeHidden();
+  };
+  await addFrom("From the gallery");
+  await expect(count).toHaveText("1 of 3");
+  await expect(photos.getByRole("button", { name: "Photo 1, the cover" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await addFrom("Take a photo");
+  await expect(count).toHaveText("2 of 3 · tap to choose the cover");
+  // Off: only the photos changed.
+  let stored = await state();
+  expect(stored).toMatchObject({ status: "ready", source: "text", kcal: 232, items: 1, jobs: 0 });
+  expect(stored.photos).toHaveLength(2);
+  await expect(page.getByTestId("item-kcal")).toHaveText("232");
+
+  // Tap the second photo: it becomes the cover, also on Today's card.
+  await photos.getByRole("button", { name: "Photo 2, make it the cover" }).click();
+  await expect(photos.getByRole("listitem").first()).toHaveAttribute(
+    "data-photo-id",
+    stored.photos[1]!,
+  );
+  await expect(photos.getByRole("button", { name: "Photo 1, the cover" })).toBeVisible();
+  expect((await state()).photos).toEqual([stored.photos[1], stored.photos[0]]);
+  await expectAccessible(page);
+  await page.goto("/today");
+  await expect(page.locator(`article[data-meal-id="${mealId}"] img`)).toHaveAttribute(
+    "src",
+    `/api/photos/${stored.photos[1]}/thumb`,
+  );
+
+  // Remove the cover after a confirmation; the other photo moves up, the items stay.
+  const [coverId, otherId] = (await state()).photos;
+  await page.goto(`/meals/${mealId}`);
+  await photos.getByRole("button", { name: "Remove photo 1" }).click();
+  const confirm = page.getByRole("dialog", { name: "Remove photo 1?" });
+  await expect(confirm).toContainText("The photo is deleted. Items and calories stay as they are.");
+  await confirm.getByRole("button", { name: "Remove" }).click();
+  await expect(confirm).toBeHidden();
+  await expect(count).toHaveText("1 of 3");
+  stored = await state();
+  expect(stored).toMatchObject({ status: "ready", kcal: 232, items: 1, jobs: 0 });
+  expect(stored.photos).toEqual([otherId]);
+  expect(coverId).not.toBe(otherId);
+
+  // On: the next change analyses the meal again from its photos.
+  await update.click();
+  await expect(update).toHaveAttribute("aria-checked", "true");
+  await addFrom("From the gallery");
+  await expect(count).toHaveText("2 of 3 · tap to choose the cover");
+  await expect.poll(async () => (await state()).jobs).toBe(1);
+  const job = await pool.query("select payload from jobs where payload->>'mealId' = $1", [mealId]);
+  expect(job.rows[0].payload).toMatchObject({ reason: "retry", replaceEdits: false });
+});
+
 test("add without a photo: scan a barcode", async ({ page }, info) => {
   await signUp(page, info.project.name);
   const code = "4006381333931";
