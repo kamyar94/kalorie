@@ -11,7 +11,7 @@ import { takeRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-/** openGym does not throttle redeeming, so Cal does: 10 codes per 10 minutes per account. */
+/** openGym does not throttle redeeming, so Kal does: 10 codes per 10 minutes per account. */
 const PAIR_WINDOWS = [{ name: "10m", windowMs: 600_000, max: 10 }];
 
 export const POST = async (req: NextRequest) => {

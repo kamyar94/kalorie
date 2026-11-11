@@ -1,6 +1,6 @@
 // CONTRACT: the nutrient catalogue and nutrient math shared by the app, the worker and the scripts.
 //
-// A NutrientMap holds amounts by nutrient code: the codes below for the nutrients Cal shows,
+// A NutrientMap holds amounts by nutrient code: the codes below for the nutrients Kal shows,
 // and "fdc:<id>" for any other value imported from FoodData Central (all FDC values are kept).
 // Units are fixed per code (see NUTRIENT_CATALOGUE); energy is kcal. Foods store their map per
 // 100 g; meal items store the map for their own amount. Plain data, safe for client components.

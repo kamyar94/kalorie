@@ -1,6 +1,6 @@
 // POST /api/integrations/opengym/sync -> {ok, weighIns, workouts, latestWeight}: reads openGym now.
 // 409 before openGym is paired, 503 when this server has no openGym address, 502 when openGym is
-// unreachable or signed Cal out; each with a sentence.
+// unreachable or signed Kal out; each with a sentence.
 import type { NextRequest } from "next/server";
 
 import { apiUser, errorJson, json } from "@/lib/http/route";

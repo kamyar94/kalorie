@@ -1,7 +1,7 @@
 // One emoji per food, for the item tiles, the timeline line ("🍳 Egg · 🍞 Toast") and the plate
 // icon of meals without a photo. The analysis model suggests one (checked with cleanEmoji); every
 // other item, and older rows without one, get emojiFor: keywords in English and in the Persian
-// dishes Cal seeds (scripts/data/persian-dishes.json), in the Latin spelling and in Persian
+// dishes Kal seeds (scripts/data/persian-dishes.json), in the Latin spelling and in Persian
 // script. Plain functions, safe for client components.
 import type { ItemKind } from "@/lib/contracts/meals";
 

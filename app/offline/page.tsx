@@ -13,7 +13,7 @@ export default function OfflinePage() {
       <EmptyState
         icon={<WifiOff className="size-7" />}
         title="You are offline"
-        body="Cal needs a connection to show this page. Meals you capture are kept on this device and sent when you are back online."
+        body="Kal needs a connection to show this page. Meals you capture are kept on this device and sent when you are back online."
         action={
           <a
             href="/today"

@@ -113,7 +113,7 @@ export const Timeline = ({
         title={date === today ? "Nothing logged yet" : "No meals this day"}
         body={
           date === today
-            ? "Press the camera button and take one to three photos of your plate. Cal does the rest."
+            ? "Press the camera button and take one to three photos of your plate. Kal does the rest."
             : "Meals you log for this day show up here."
         }
       />

@@ -1,4 +1,4 @@
-// The whole Cal database (docs/DESIGN.md section 10). Every table that holds a person's data
+// The whole Kal database (docs/DESIGN.md section 10). Every table that holds a person's data
 // carries user_id, and every query in lib/ filters on it. Times are timestamptz (UTC on the wire);
 // the time zone a meal was eaten in is kept next to it as an IANA name.
 //
@@ -391,7 +391,7 @@ export const FOOD_SOURCES = [
 ] as const;
 export const FOOD_KINDS = ["food", "dish", "recipe", "packaged"] as const;
 
-// Every food Cal knows: imported (FDC, Open Food Facts), seeded dishes, Mealie recipes and the
+// Every food Kal knows: imported (FDC, Open Food Facts), seeded dishes, Mealie recipes and the
 // person's own foods (owner_id set; visible only to that person). nutrients are per 100 g.
 // search_text is the normalised English and Persian names and synonyms (lib/food), indexed for
 // trigram and full-text search.
@@ -533,7 +533,7 @@ export const userTargets = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.nutrientCode] })],
 );
 
-// What Cal learned from corrections: a normalised item name and the food it turned out to be,
+// What Kal learned from corrections: a normalised item name and the food it turned out to be,
 // with typical grams. snapshot keeps the corrected item for "usual meals".
 export const foodMemory = pgTable(
   "food_memory",

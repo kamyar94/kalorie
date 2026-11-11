@@ -1,4 +1,4 @@
-// A Mealie recipe's ingredients as grams of foods Cal knows, for recipes whose nutrition is empty
+// A Mealie recipe's ingredients as grams of foods Kal knows, for recipes whose nutrition is empty
 // (docs/DESIGN.md section 8: "computed from the recipe's ingredients through matching").
 //
 // Mealie ingredients come parsed ({quantity, unit {name, abbreviation}, food {name}, note}) or as

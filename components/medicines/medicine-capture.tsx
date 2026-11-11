@@ -24,7 +24,7 @@ type Phase =
     };
 
 /**
- * Medicine mode after the shutter (or "Type"): the photo goes to Cal, which asks the person's AI
+ * Medicine mode after the shutter (or "Type"): the photo goes to Kal, which asks the person's AI
  * provider to read the label; meanwhile a progress line shows over the photo. Then the medicine
  * sheet, filled in from the label, or empty for typing when there is no reading (no AI key, not a
  * medicine, a failure, offline, or no photo at all). Mount it with a key per photo.
@@ -52,7 +52,7 @@ export const MedicineCapture = ({
           reading: null,
           scanId: null,
           notice: photo
-            ? "You are offline, so Cal cannot read the label now. Type the name, and save once you are back online."
+            ? "You are offline, so Kal cannot read the label now. Type the name, and save once you are back online."
             : null,
         },
   );
@@ -78,11 +78,11 @@ export const MedicineCapture = ({
         while (scan.status === "queued" || scan.status === "reading") {
           if (cancelled) return;
           if (Date.now() - started > READ_TIMEOUT_MS)
-            return done(scan, "Cal could not read the label in time. Type the name instead.");
+            return done(scan, "Kal could not read the label in time. Type the name instead.");
           await wait(POLL_MS);
           scan = await api.medicineScan(scan.id, controller.signal);
         }
-        done(scan, scan.error?.message ?? "Cal could not read the label. Type the name instead.");
+        done(scan, scan.error?.message ?? "Kal could not read the label. Type the name instead.");
       } catch (error) {
         if ((error as Error)?.name === "AbortError") return;
         done(null, `${(error as Error).message} Type the name instead.`);

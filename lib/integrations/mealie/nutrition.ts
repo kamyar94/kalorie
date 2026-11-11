@@ -1,5 +1,5 @@
 // Mealie's nutrition fields (strings per serving, for example "350", "350 kcal", "12.5 g",
-// "1,200 mg") to Cal's nutrient codes and back. Pure code.
+// "1,200 mg") to Kal's nutrient codes and back. Pure code.
 //
 // Units: Mealie labels calories in kcal, sodium and cholesterol in milligrams and the rest in
 // grams. A number with its own unit ("0.5 g" sodium, "1500 kJ") is converted.
@@ -9,7 +9,7 @@ import type { MealieNutrition, MealieNutritionKey } from "./client";
 
 type FieldInfo = { code: string; unit: "kcal" | "g" | "mg"; decimals: number };
 
-/** Mealie field -> Cal nutrient code and the unit Mealie means by a bare number. */
+/** Mealie field -> Kal nutrient code and the unit Mealie means by a bare number. */
 export const MEALIE_FIELDS: Partial<Record<MealieNutritionKey, FieldInfo>> = {
   calories: { code: "energy", unit: "kcal", decimals: 0 },
   proteinContent: { code: "protein", unit: "g", decimals: 1 },
@@ -70,7 +70,7 @@ export const isNutritionEmpty = (nutrition: MealieNutrition | null | undefined) 
   return !(typeof values.energy === "number" && values.energy > 0);
 };
 
-/** Cal's values of one serving as Mealie's strings (bare numbers in Mealie's units). */
+/** Kal's values of one serving as Mealie's strings (bare numbers in Mealie's units). */
 export const nutrientsToMealie = (perServing: NutrientMap): MealieNutrition => {
   const out: MealieNutrition = {};
   for (const [key, info] of Object.entries(MEALIE_FIELDS)) {

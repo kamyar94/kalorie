@@ -21,7 +21,7 @@ const INFO = {
   opengym: {
     name: "openGym",
     icon: Dumbbell,
-    text: "Body weight for your targets and trends, and workouts with an energy estimate. Cal only reads from openGym.",
+    text: "Body weight for your targets and trends, and workouts with an energy estimate. Kal only reads from openGym.",
   },
 } as const;
 
@@ -133,7 +133,7 @@ const MealieControls = ({ status }: { status: IntegrationStatusDto }) => {
           spellCheck={false}
           value={token}
           onChange={(e) => setToken(e.target.value)}
-          hint="In Mealie, open your profile, then API Tokens, and create one for Cal. Cal keeps it encrypted."
+          hint="In Mealie, open your profile, then API Tokens, and create one for Kal. Kal keeps it encrypted."
         />
         <Button type="submit" loading={busy === "connect"} disabled={token.trim().length < 10}>
           Test and connect

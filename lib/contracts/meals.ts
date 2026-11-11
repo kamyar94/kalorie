@@ -161,7 +161,7 @@ export type MealSummaryDto = {
   /** Local wall-clock time, HH:MM, for display. */
   localTime: string;
   slot: MealSlot;
-  /** The person chose the slot by hand; Cal does not change it any more. */
+  /** The person chose the slot by hand; Kal does not change it any more. */
   slotLocked: boolean;
   /** One of the person's favorites ("Log a favorite again"). */
   favorite: boolean;

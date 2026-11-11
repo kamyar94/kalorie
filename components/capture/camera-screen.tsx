@@ -46,9 +46,9 @@ const HOLD_MS = 280;
 
 /** After this long without a picture, the phone's own camera is offered next to the live one. */
 const SLOW_START_MS = 4000;
-/** How long an opened camera may take to show its first frame before Cal tries the next way. */
+/** How long an opened camera may take to show its first frame before Kal tries the next way. */
 const FIRST_FRAME_MS = 5000;
-/** How long a full sensor photo may take before Cal uses the video frame instead. */
+/** How long a full sensor photo may take before Kal uses the video frame instead. */
 const STILL_MS = 4000;
 
 /**
@@ -711,7 +711,7 @@ export const CameraScreen = ({
                 )}
                 <div className="flex items-center justify-between gap-3">
                   <p id={mealTextHelpId} className="text-caption text-muted">
-                    Name each food and about how much. Cal works out the rest.
+                    Name each food and about how much. Kal works out the rest.
                   </p>
                   {speechSupported() && (
                     <button
@@ -769,7 +769,7 @@ export const CameraScreen = ({
                 <div className="max-w-xs text-center">
                   <Camera aria-hidden className="mx-auto size-10 text-white/70" />
                   <p className="text-headline mt-3">
-                    {state === "denied" ? "Cal may not use the camera" : "The camera did not start"}
+                    {state === "denied" ? "Kal may not use the camera" : "The camera did not start"}
                   </p>
                   <p className="text-body mt-1 text-white/75">
                     {state === "denied"

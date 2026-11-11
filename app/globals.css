@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Cal design tokens. Light values on :root, dark values for the system dark mode unless the
+ * Kal design tokens. Light values on :root, dark values for the system dark mode unless the
  * person chose light, and for an explicit dark choice (data-theme on <html>, from Settings).
  * Text pairs meet WCAG AA (4.5:1) and chart colours 3:1 against the surface; tests/unit/tokens
  * checks them. Components use the Tailwind names below (bg-surface, text-muted, ...).

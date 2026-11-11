@@ -1,4 +1,4 @@
-# Cal, production image. One image runs both processes of the stack:
+# Kal, production image. One image runs both processes of the stack:
 #   node dist/start.mjs     the web app (applies the database migrations first)   [default]
 #   node dist/worker.mjs    the background worker (photo analysis, push messages)
 #   node dist/cal.mjs ...   the server tool (invites, resets, food data)

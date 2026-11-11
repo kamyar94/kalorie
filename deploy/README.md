@@ -1,6 +1,6 @@
-# Deploying Cal with Docker
+# Deploying Kal with Docker
 
-This folder runs Cal as a hardened Docker stack on a home server (Windows with Docker Desktop and
+This folder runs Kal as a hardened Docker stack on a home server (Windows with Docker Desktop and
 Windows PowerShell 5.1). It holds templates and scripts only: no secrets and no addresses of real
 machines. Every address below, such as `cal.example.org`, is a placeholder for your own.
 
@@ -31,7 +31,7 @@ CPU and processes, and its log files rotate. No service publishes a port on the 
 
 | Service  | What it is                                                                                         | Networks            | Runs as                           |
 | -------- | -------------------------------------------------------------------------------------------------- | ------------------- | --------------------------------- |
-| `app`    | The web app (`node dist/start.mjs`): applies the database migrations, then serves Cal on port 3000 | tunnel, backend     | node (1000)                       |
+| `app`    | The web app (`node dist/start.mjs`): applies the database migrations, then serves Kal on port 3000 | tunnel, backend     | node (1000)                       |
 | `worker` | The same image, `node dist/worker.mjs`: photo analysis and push messages                           | backend             | node (1000)                       |
 | `db`     | Postgres, data in the Docker volume `db`                                                           | backend             | postgres (70)                     |
 | `egress` | Squid, the only way out for `app` and `worker`                                                     | backend, egress-out | the image's own unprivileged user |
@@ -46,7 +46,7 @@ Only `egress-out` (for the proxy) and `tunnel-out` (for the connector) lead out.
 - **worker** takes jobs from the Postgres queue. It mounts the photo folder read-only and writes a
   heartbeat file every 15 seconds that its health check reads.
 - **egress** accepts HTTPS tunnels (`CONNECT` on port 443) to the hosts in `squid.conf` and refuses
-  everything else: other hosts, other ports, plain http and bare IP addresses. Cal encrypts end to
+  everything else: other hosts, other ports, plain http and bare IP addresses. Kal encrypts end to
   end through the tunnel, so the proxy sees only which host is contacted. The allowed hosts are the
   three AI APIs (`api.openai.com`, `api.anthropic.com`, `generativelanguage.googleapis.com`), Open
   Food Facts (`world.openfoodfacts.org`), the FoodData Central downloads (`fdc.nal.usda.gov`), the
@@ -87,13 +87,13 @@ and `vapid.env` (the Web Push keys) by `app` and `worker`; `cloudflared.env` by 
    (no quotes, no spaces). In the tunnel's **Public hostname** tab add the hostname
    `cal.example.org`, with service type **HTTP** and URL `app:3000`. The connector reaches the app by
    that name over the internal network, so nothing on the server listens for it. You do not need a
-   Cloudflare Access policy: Cal has its own sign-in and accepts only invited people. If you add
+   Cloudflare Access policy: Kal has its own sign-in and accepts only invited people. If you add
    one anyway, leave `/sw.js` and `/manifest.webmanifest` reachable without it, or installed apps
    cannot update.
 
 4. **First setup without the tunnel.** Run `.\Start.ps1 -NoTunnel`. It makes `db.env`, `app.env` and
    `vapid.env` with random values that are never shown, locks them, pulls the pinned images, builds
-   the Cal image (a few minutes), starts the database, proxy, app and worker, and waits until the
+   the Kal image (a few minutes), starts the database, proxy, app and worker, and waits until the
    app answers and the worker reports in. Nothing is reachable from outside yet. Then load the
    food data and make the first invite code:
 
@@ -114,7 +114,7 @@ and `vapid.env` (the Web Push keys) by `app` and `worker`; `cloudflared.env` by 
    password, and add each person's AI key under Settings, AI (the keys are theirs, encrypted with
    `app.env`'s key).
 
-`-SkipPull` uses the images already on the computer; `-SkipBuild` uses the Cal image already built;
+`-SkipPull` uses the images already on the computer; `-SkipBuild` uses the Kal image already built;
 `-TunnelWaitSeconds` changes how long Start.ps1 waits for the tunnel (60 by default).
 
 ## Daily use

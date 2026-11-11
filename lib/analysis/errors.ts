@@ -13,7 +13,7 @@ export type MealErrorKind = AiErrorKind | "not-food" | "no-photos" | "internal";
 export type MealError = { kind: MealErrorKind; message: string };
 
 const MESSAGES: Record<MealErrorKind, string> = {
-  "no-key": "Add an API key in the AI settings so Cal can analyse your photos.",
+  "no-key": "Add an API key in the AI settings so Kal can analyse your photos.",
   auth: "The AI provider did not accept your API key. Check or replace it in the AI settings.",
   quota: "Your AI provider account has no credit or quota left. Check it, then try again.",
   config: "AI analysis is not set up on this server yet. Ask the admin, or add the items by hand.",
@@ -49,14 +49,14 @@ export const mealErrorKind = (error: unknown): MealErrorKind =>
 const NOT_FOOD_TEXT =
   "This description does not seem to name a food or drink. Fix it with a sentence or add the items by hand.";
 
-/** The message for a meal that stopped; waiting adds when Cal tries again. */
+/** The message for a meal that stopped; waiting adds when Kal tries again. */
 export const mealError = (
   kind: MealErrorKind,
   options: { willRetry?: boolean; detail?: string; textOnly?: boolean } = {},
 ): MealError => {
   let message = kind === "not-food" && options.textOnly ? NOT_FOOD_TEXT : MESSAGES[kind];
   if (options.detail) message = `${message} ${options.detail}`;
-  if (options.willRetry) message = `${message} Cal will try again shortly.`;
+  if (options.willRetry) message = `${message} Kal will try again shortly.`;
   else if (
     ![
       "no-key",

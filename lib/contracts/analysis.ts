@@ -129,11 +129,11 @@ export type PlannedRecipe = {
   name: string;
   /** The planned slot, when the plan says. */
   slot: MealSlot | null;
-  /** The food row of the recipe in Cal (source "mealie"), when there is one. */
+  /** The food row of the recipe in Kal (source "mealie"), when there is one. */
   foodId: string | null;
   /** Grams of one serving, when known. */
   servingGrams: number | null;
-  /** Nutrients of one serving; null when Mealie has none and Cal did not compute them. */
+  /** Nutrients of one serving; null when Mealie has none and Kal did not compute them. */
   nutritionPerServing: NutrientMap | null;
 };
 

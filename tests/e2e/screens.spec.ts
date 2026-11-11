@@ -516,7 +516,7 @@ test("meal names: water alone is a Drink, and a name picked by hand stays", asyn
   await expect(names.getByRole("radio")).toHaveCount(7);
   await expect(names.getByRole("radio", { name: "Drink" })).toHaveAttribute("aria-checked", "true");
   await expect(sheet).toContainText(
-    "Cal names the meal from its food and time until you pick one.",
+    "Kal names the meal from its food and time until you pick one.",
   );
   await expectAccessible(page);
   await names.getByRole("radio", { name: "Supper" }).click();
@@ -559,7 +559,7 @@ test("a camera that never answers: the phone's camera is offered while it starts
   await expect(photosInStrip(page)).toHaveCount(1);
 });
 
-test("a camera without a picture (older phones): Cal gives up and offers the phone's camera", async ({
+test("a camera without a picture (older phones): Kal gives up and offers the phone's camera", async ({
   page,
 }, info) => {
   await signUp(page, info.project.name);
@@ -983,7 +983,7 @@ test("medicines: the camera's Medicine tab without an AI key, Today's card with 
   await expect(sheet).toBeVisible({ timeout: 20_000 });
   await expect(sheet.getByRole("status").first()).toContainText("Save an AI key in Settings");
   await expect(sheet).toContainText(
-    "Cal records what you took. It does not check doses or interactions; ask a pharmacist or doctor about those.",
+    "Kal records what you took. It does not check doses or interactions; ask a pharmacist or doctor about those.",
   );
   await sheet.getByLabel("Name").fill("Vitamin D");
   await sheet.getByLabel("Strength").fill("1000 IU");
@@ -1083,7 +1083,7 @@ test("add without a photo: scan a barcode", async ({ page }, info) => {
   await page.goto("/add");
   await expect(page.getByRole("heading", { level: 1, name: "Add food" })).toBeVisible();
   await expectAccessible(page);
-  // Browsers without BarcodeDetector use the ZXing WebAssembly reader: it is served by Cal and
+  // Browsers without BarcodeDetector use the ZXing WebAssembly reader: it is served by Kal and
   // the CSP lets it compile.
   const wasm = await page.evaluate(async () => {
     const response = await fetch("/vendor/zxing_reader.wasm");

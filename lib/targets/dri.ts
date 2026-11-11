@@ -1,4 +1,4 @@
-// US Dietary Reference Intakes for the vitamins and minerals Cal tracks, by sex and age band
+// US Dietary Reference Intakes for the vitamins and minerals Kal tracks, by sex and age band
 // (docs/DESIGN.md section 6). A static table: lib/targets/service.ts reads it directly, and
 // scripts/lib/reference.mjs copies it into the dri_targets table. Node scripts import this file
 // directly, so it has no runtime imports.
@@ -236,7 +236,7 @@ export const DRI_NUTRIENTS: readonly DriNutrient[] = [
     female: [26, 25, 25, 21, 21],
     ul: null,
     ulScope: null,
-    note: "14 g per 1,000 kcal; Cal uses that rule with the computed energy target when it can",
+    note: "14 g per 1,000 kcal; Kal uses that rule with the computed energy target when it can",
   },
   {
     code: "water",

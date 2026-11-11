@@ -10,7 +10,7 @@ const SECURITY_HEADERS = [
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   {
-    // The camera and microphone are for Cal's own pages only (capture and dictated notes).
+    // The camera and microphone are for Kal's own pages only (capture and dictated notes).
     key: "Permissions-Policy",
     value:
       "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), bluetooth=(), interest-cohort=()",

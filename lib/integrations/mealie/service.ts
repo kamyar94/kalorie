@@ -154,11 +154,11 @@ export const disconnectMealie = async (userId: string, dbx: DbOrTx = defaultDb) 
 
 // ---- Planned meals ----
 
-/** Mealie's entry types that are Cal's meal slots (all but side); null for side. */
+/** Mealie's entry types that are Kal's meal slots (all but side); null for side. */
 export const slotOfEntry = (entryType: string): MealSlot | null =>
   (MEAL_SLOTS as readonly string[]).includes(entryType) ? (entryType as MealSlot) : null;
 
-/** Cal's slot as a Mealie entry type: Mealie has no supper, so it is dinner there. */
+/** Kal's slot as a Mealie entry type: Mealie has no supper, so it is dinner there. */
 export const mealieEntryType = (slot: MealSlot) => (slot === "supper" ? "dinner" : slot);
 
 export const PLAN_CLIENT_PREFIX = "mealie-plan:";
@@ -200,7 +200,7 @@ export const planEntriesFor = async (
 
 export const clearPlannedCache = () => plannedCache.clear();
 
-/** Recipe of a plan entry, imported into Cal (null for entries without a recipe). */
+/** Recipe of a plan entry, imported into Kal (null for entries without a recipe). */
 const recipeOfEntry = async (
   userId: string,
   client: MealieClient,
@@ -332,7 +332,7 @@ export const logPlannedMeal = async (
     return {
       ok: false,
       status: 422,
-      error: "Cal could not work out this recipe's nutrition. Add its foods by hand.",
+      error: "Kal could not work out this recipe's nutrition. Add its foods by hand.",
     };
 
   const servings = Math.min(Math.max(input.servings, 0.25), 20);
@@ -414,7 +414,7 @@ const recipeFailure = (error: unknown): RecipeResult => {
 
 const cleanSlug = (value: string) => (/^[\w-]{1,200}$/.test(value) ? value : null);
 
-/** A Mealie recipe, imported into Cal (nutrition from Mealie or computed). */
+/** A Mealie recipe, imported into Kal (nutrition from Mealie or computed). */
 export const getRecipeInfo = async (
   userId: string,
   slug: string,
@@ -431,7 +431,7 @@ export const getRecipeInfo = async (
 };
 
 /**
- * "Save nutrition to Mealie": writes Cal's computed values per serving into the recipe's empty
+ * "Save nutrition to Mealie": writes Kal's computed values per serving into the recipe's empty
  * nutrition fields. Only this call writes recipes, and only when Mealie's nutrition is empty.
  */
 export const saveNutritionToMealie = async (
@@ -450,14 +450,14 @@ export const saveNutritionToMealie = async (
           return {
             ok: false as const,
             status: 409 as const,
-            error: "Mealie already has nutrition for this recipe; Cal leaves it as it is.",
+            error: "Mealie already has nutrition for this recipe; Kal leaves it as it is.",
           };
         const info = await importRecipe(userId, recipe, { force: true }, dbx);
         if (info.nutritionSource !== "computed")
           return {
             ok: false as const,
             status: 422 as const,
-            error: "Cal could not compute this recipe's nutrition from its ingredients.",
+            error: "Kal could not compute this recipe's nutrition from its ingredients.",
           };
         const saved = await client.patchNutrition(recipe.slug, nutrientsToMealie(info.perServing));
         const updated = await importRecipe(
@@ -493,7 +493,7 @@ export const saveNutritionToMealie = async (
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_PLAN_DAYS = 14;
 const MAX_RECIPE_PAGES = 3;
-/** Recipe details fetched per suggestion for recipes Cal has not seen. */
+/** Recipe details fetched per suggestion for recipes Kal has not seen. */
 const MAX_DETAIL_CALLS = 60;
 
 export type PlanResult =
@@ -519,7 +519,7 @@ const cleanSlots = (slots: unknown) => {
   return clean.length ? clean : null;
 };
 
-/** Recipes with nutrition per serving: Mealie's own, or Cal's computed dish of the recipe. */
+/** Recipes with nutrition per serving: Mealie's own, or Kal's computed dish of the recipe. */
 const planRecipes = async (userId: string, client: MealieClient, dbx: DbOrTx) => {
   const summaries = [];
   for (let page = 1; page <= MAX_RECIPE_PAGES; page++) {
@@ -579,7 +579,7 @@ export const suggestMealPlan = async (
       return {
         ok: false,
         status: 422,
-        error: "None of your Mealie recipes has nutrition yet. Open a recipe in Cal to compute it.",
+        error: "None of your Mealie recipes has nutrition yet. Open a recipe in Kal to compute it.",
       };
     return {
       ok: true,

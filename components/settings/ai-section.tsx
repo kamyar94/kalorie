@@ -286,7 +286,7 @@ export const AiSection = ({
         AI
       </h2>
       <p className="text-caption text-muted">
-        Cal uses your own key with the provider you choose. Photos go only to that provider, only
+        Kal uses your own key with the provider you choose. Photos go only to that provider, only
         for the analysis.
       </p>
     </div>

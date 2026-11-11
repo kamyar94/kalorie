@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "SEE LICENSE IN LICENSE.md",
-  "description": "Cal: a self-hosted, photo-first food log.",
+  "description": "Kal: a self-hosted, photo-first food log.",
   "type": "module",
   "packageManager": "pnpm@11.11.0",
   "engines": {

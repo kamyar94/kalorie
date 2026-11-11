@@ -148,7 +148,7 @@ export const ensureReleaseFile = async (release, cacheDir, out, { download = tru
   try {
     const response = await undiciFetch(url, {
       dispatcher,
-      headers: { "user-agent": "Cal food log (FoodData Central importer)" },
+      headers: { "user-agent": "Kal food log (FoodData Central importer)" },
       signal: AbortSignal.timeout(15 * 60_000),
     });
     if (!response.ok || !response.body)

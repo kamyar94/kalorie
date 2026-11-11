@@ -1,4 +1,4 @@
-// Cal's service worker: caches the app shell only.
+// Kal's service worker: caches the app shell only.
 //
 //   - Build assets (/_next/static/, hashed and immutable), icons and the manifest: cache first.
 //   - Page navigations: always from the network; when offline, the cached /offline page.
@@ -164,7 +164,7 @@ self.addEventListener("sync", (event) => {
 
 // Notifications (lib/push/service.ts sends them, encrypted for this device): "analysis ready" and
 // "a question about your meal". The payload is {title, body, url, tag}; a tap opens the meal in
-// an open Cal window, or a new one. Only same-origin paths are opened.
+// an open Kal window, or a new one. Only same-origin paths are opened.
 const safePath = (url) => {
   try {
     const target = new URL(url, self.location.origin);
@@ -181,7 +181,7 @@ self.addEventListener("push", (event) => {
   } catch {
     message = {};
   }
-  const title = typeof message.title === "string" ? message.title : "Cal";
+  const title = typeof message.title === "string" ? message.title : "Kal";
   event.waitUntil(
     self.registration.showNotification(title, {
       body: typeof message.body === "string" ? message.body : "",

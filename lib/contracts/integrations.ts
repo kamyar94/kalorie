@@ -60,7 +60,7 @@ export type PlannedMealDto = {
   recipeSlug: string | null;
   name: string;
   slot: MealSlot | null;
-  /** Energy of one serving when Mealie (or Cal's computed values) knows it. */
+  /** Energy of one serving when Mealie (or Kal's computed values) knows it. */
   kcalPerServing: number | null;
   /** Servings suggested by the plan (default 1). */
   servings: number;
@@ -98,12 +98,12 @@ export type LogPlannedResult =
 export type MealieRecipeHit = { id: string; slug: string; name: string };
 
 /**
- * Where a Mealie recipe's nutrition comes from: Mealie's own fields, Cal's computation from the
+ * Where a Mealie recipe's nutrition comes from: Mealie's own fields, Kal's computation from the
  * ingredients (kept as a dish marked "computed"), or nothing usable.
  */
 export type RecipeNutritionSource = "mealie" | "computed" | "none";
 
-/** A Mealie recipe as Cal sees it, with its food row for logging. */
+/** A Mealie recipe as Kal sees it, with its food row for logging. */
 export type RecipeInfoDto = {
   id: string;
   slug: string;
@@ -115,11 +115,11 @@ export type RecipeInfoDto = {
   perServing: NutrientMap;
   /** Grams of one serving: from the ingredients when known, else a nominal 300 g. */
   servingGrams: number;
-  /** How many ingredients matched foods in Cal. */
+  /** How many ingredients matched foods in Kal. */
   ingredients: { total: number; matched: number };
-  /** Mealie's nutrition is empty and Cal has computed values: "Save nutrition to Mealie". */
+  /** Mealie's nutrition is empty and Kal has computed values: "Save nutrition to Mealie". */
   canSaveToMealie: boolean;
-  /** The food row in Cal (source "mealie"), null when the source is "none". */
+  /** The food row in Kal (source "mealie"), null when the source is "none". */
   food: FoodResult | null;
 };
 

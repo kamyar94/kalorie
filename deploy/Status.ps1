@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Shows whether Cal, its worker, its database, its egress proxy and its Cloudflare tunnel are up.
+  Shows whether Kal, its worker, its database, its egress proxy and its Cloudflare tunnel are up.
   Run ON THE SERVER from the deploy folder.
 #>
 Set-Location -LiteralPath $PSScriptRoot

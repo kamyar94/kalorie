@@ -1,5 +1,5 @@
 // POST /api/mealie/recipes/:slug/nutrition -> RecipeInfoDto: "Save nutrition to Mealie". Writes
-// Cal's computed values per serving into the recipe, only when Mealie's nutrition is empty
+// Kal's computed values per serving into the recipe, only when Mealie's nutrition is empty
 // (409 when it is not). The only route that changes a Mealie recipe.
 import type { NextRequest } from "next/server";
 

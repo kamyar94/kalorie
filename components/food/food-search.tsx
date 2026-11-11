@@ -88,7 +88,7 @@ export const FoodSearch = ({
       if (info.food) onPick(info.food);
       else
         setRecipeError(
-          `Cal could not work out the nutrition of ${info.name}. Add its foods one by one.`,
+          `Kal could not work out the nutrition of ${info.name}. Add its foods one by one.`,
         );
     } catch (err) {
       setRecipeError((err as Error).message);

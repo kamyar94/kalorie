@@ -177,7 +177,7 @@ export const MealView = ({
   const answer = async (questionId: string, value: string) => {
     try {
       setMeal(await api.answer(meal.id, questionId, value));
-      show({ title: "Thanks, Cal is updating the meal", tone: "success" });
+      show({ title: "Thanks, Kal is updating the meal", tone: "success" });
     } catch (error) {
       fail("The answer was not sent", error);
     }
@@ -186,7 +186,7 @@ export const MealView = ({
   const correct = async (text: string, replaceEdits: boolean) => {
     try {
       setMeal(await api.correct(meal.id, text, replaceEdits));
-      show({ title: "Cal is updating the meal", tone: "success" });
+      show({ title: "Kal is updating the meal", tone: "success" });
       return true;
     } catch (error) {
       fail("The correction was not sent", error);

@@ -1,5 +1,5 @@
 // Server-side settings of the integrations (docs/DESIGN.md section 8). The Mealie and openGym
-// addresses are set on the server only, never typed by a person, so nobody can point Cal's server
+// addresses are set on the server only, never typed by a person, so nobody can point Kal's server
 // at another address (no server-side request forgery). An integration without its address is
 // shown as "not set up on this server".
 //

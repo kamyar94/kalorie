@@ -1,4 +1,4 @@
-// The browser's calls to Cal's JSON routes, typed with the contracts. Screens call these and never
+// The browser's calls to Kal's JSON routes, typed with the contracts. Screens call these and never
 // build requests themselves, so data access stays in one place. Browser only.
 import type { FoodResult } from "@/lib/contracts/food-search";
 import type {
@@ -200,7 +200,7 @@ export const api = {
     ).then((r) => ({ foods: r.foods, recipes: r.recipes ?? [] })),
   getFood: (foodId: string) => request<FoodResult>(`/api/foods/${id(foodId)}`),
   usedFoods: () => request<{ recent: UsedFood[]; frequent: UsedFood[] }>("/api/foods/used"),
-  /** The product, or null when Cal does not know the barcode. */
+  /** The product, or null when Kal does not know the barcode. */
   barcode: async (code: string) => {
     try {
       return await request<FoodResult>(`/api/foods/barcode/${id(code)}`);

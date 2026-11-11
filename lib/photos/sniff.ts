@@ -2,7 +2,7 @@
 
 export type SniffedImage = "image/jpeg" | "image/png" | "image/webp" | "image/heic" | "image/avif";
 
-/** The image type of the bytes, or null when they are not an image Cal knows. */
+/** The image type of the bytes, or null when they are not an image Kal knows. */
 export const sniffImageType = (bytes: Uint8Array): SniffedImage | null => {
   const at = (i: number) => bytes[i] ?? -1;
   const ascii = (start: number, text: string) =>

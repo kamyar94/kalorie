@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { cleanEmoji, emojiFor, shortFoodName } from "@/lib/food/emoji";
 
 describe("emojiFor", () => {
-  it("knows the Persian dishes Cal seeds, by their Latin and Persian names", () => {
+  it("knows the Persian dishes Kal seeds, by their Latin and Persian names", () => {
     const dishes = (
       JSON.parse(
         readFileSync(path.join(process.cwd(), "scripts/data/persian-dishes.json"), "utf8"),

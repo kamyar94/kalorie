@@ -176,7 +176,7 @@ describe("meal errors", () => {
     expect(mealError("not-food").message).toContain("These photos");
   });
 
-  it("gives a clear message per kind and says when Cal tries again", () => {
+  it("gives a clear message per kind and says when Kal tries again", () => {
     expect(mealError("no-key").message).toContain("AI settings");
     expect(mealError("auth").message).toContain("did not accept your API key");
     expect(mealError("quota").message).toContain("no credit");
@@ -185,7 +185,7 @@ describe("meal errors", () => {
       "a cat",
     );
     expect(mealError("timeout", { willRetry: true }).message).toBe(
-      "The AI provider took too long to answer. Cal will try again shortly.",
+      "The AI provider took too long to answer. Kal will try again shortly.",
     );
     expect(mealError("timeout").message).toContain("Try again, or add the items by hand.");
     expect(describeAiError(new AiError("timeout", "x"))).toBeTruthy();

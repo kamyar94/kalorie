@@ -1,5 +1,5 @@
 // Reading product barcodes from the camera: the browser's BarcodeDetector where it exists
-// (Android, macOS, iOS 17+ Safari), otherwise a WebAssembly build of ZXing served from Cal itself
+// (Android, macOS, iOS 17+ Safari), otherwise a WebAssembly build of ZXing served from Kal itself
 // (/vendor/zxing_reader.wasm, copied from the zxing-wasm package by scripts/vendor-assets.mjs).
 // Browser only.
 

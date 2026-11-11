@@ -107,8 +107,8 @@ export const DetailsSheet = ({
           />
           <p className="text-caption text-muted">
             {meal.slotLocked
-              ? "Chosen by you: Cal keeps this name."
-              : "Cal names the meal from its food and time until you pick one."}
+              ? "Chosen by you: Kal keeps this name."
+              : "Kal names the meal from its food and time until you pick one."}
           </p>
         </div>
         {error && (

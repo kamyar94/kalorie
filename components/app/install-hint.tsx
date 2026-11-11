@@ -32,7 +32,7 @@ const isIosSafari = () => {
 };
 
 /**
- * Suggests installing Cal: the browser's own install prompt where there is one (Chromium), and the
+ * Suggests installing Kal: the browser's own install prompt where there is one (Chromium), and the
  * Share, Add to Home Screen steps on iPhone and iPad, where web push and a full-screen camera need
  * the installed app. Hidden once installed or dismissed.
  */
@@ -74,7 +74,7 @@ export const InstallHint = () => {
 
   return (
     <aside
-      aria-label="Install Cal"
+      aria-label="Install Kal"
       className="animate-fade-in border-border bg-surface shadow-raised fixed inset-x-3 top-[max(env(safe-area-inset-top),0.75rem)] z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border p-3 md:right-6 md:left-auto"
     >
       <div className="bg-primary-soft text-on-primary-soft grid size-10 shrink-0 place-items-center rounded-xl">
@@ -87,12 +87,12 @@ export const InstallHint = () => {
       <p className="text-caption min-w-0 flex-1">
         {ios ? (
           <>
-            <span className="text-label block">Add Cal to your Home Screen</span>
+            <span className="text-label block">Add Kal to your Home Screen</span>
             Tap Share, then Add to Home Screen.
           </>
         ) : (
           <>
-            <span className="text-label block">Install Cal</span>
+            <span className="text-label block">Install Kal</span>
             Opens like an app, straight to the camera.
           </>
         )}

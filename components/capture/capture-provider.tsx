@@ -212,7 +212,7 @@ export const CaptureProvider = ({
       await reload();
       if (!(await queueIsPersistent()))
         show({
-          title: "Keep Cal open until the meal is sent",
+          title: "Keep Kal open until the meal is sent",
           body: "This browser cannot store meals for later.",
           tone: "neutral",
         });

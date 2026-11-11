@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Builds, starts or updates Cal. Run it ON THE SERVER from the deploy folder of the repository.
+  Builds, starts or updates Kal. Run it ON THE SERVER from the deploy folder of the repository.
 
 .DESCRIPTION
   1. Checks that Docker is running.
@@ -12,7 +12,7 @@
   4. Checks that cloudflared.env holds a tunnel token (skipped with -NoTunnel).
   5. Locks the secret files (and, the first time, the photos and backups folders) to you,
      SYSTEM and Administrators.
-  6. Pulls the pinned Postgres, Squid and cloudflared images and builds the Cal image.
+  6. Pulls the pinned Postgres, Squid and cloudflared images and builds the Kal image.
   7. Starts the database, the egress proxy, the app and the worker, with no published port, and
      waits until the app answers and the worker reports in.
   8. Starts the tunnel and waits for "Registered tunnel connection" (skipped with -NoTunnel).
@@ -25,7 +25,7 @@
   Use the Postgres, Squid and cloudflared images already on this computer (no download).
 
 .PARAMETER SkipBuild
-  Use the Cal image already built on this computer.
+  Use the Kal image already built on this computer.
 
 .PARAMETER TunnelWaitSeconds
   How long to wait for the tunnel to connect (default 60).
@@ -78,7 +78,7 @@ if (-not (Test-Path -LiteralPath $siteEnv)) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'site.env.example') -Destination $siteEnv
     Write-Host ''
     Write-Host 'site.env was made from site.env.example.' -ForegroundColor Yellow
-    Write-Host 'Open it, set BASE_URL (the public address of Cal) and your contact address, then run Start.ps1 again.'
+    Write-Host 'Open it, set BASE_URL (the public address of Kal) and your contact address, then run Start.ps1 again.'
     exit 1
 }
 $baseUrl = Get-EnvValue $siteEnv 'BASE_URL'
@@ -186,9 +186,9 @@ if (-not $SkipPull) {
 }
 
 if (-not $SkipBuild) {
-    Step 'Building the Cal image (a few minutes the first time)'
+    Step 'Building the Kal image (a few minutes the first time)'
     Invoke-Compose build app
-    if ($LASTEXITCODE -ne 0) { Fail 'Building the Cal image failed (see above).' }
+    if ($LASTEXITCODE -ne 0) { Fail 'Building the Kal image failed (see above).' }
 } else {
     $image = Get-ComposeSetting 'CAL_IMAGE' 'cal-app:local'
     Invoke-Quiet docker image inspect $image

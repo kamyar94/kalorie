@@ -1,4 +1,4 @@
-// Mealie's REST API as Cal uses it. Shapes from the Mealie source (mealie-recipes/mealie, branch
+// Mealie's REST API as Kal uses it. Shapes from the Mealie source (mealie-recipes/mealie, branch
 // mealie-next, read 31 Oct 2026); JSON keys are camelCase because every Mealie schema uses
 // alias_generator=camelize (mealie/schema/_mealie/mealie_model.py):
 //   GET   /api/users/self                          the token's user (connection test)
@@ -82,7 +82,7 @@ const list = <T>(value: unknown): T[] => {
   if (Array.isArray(value)) return value as T[];
   const items = (value as { items?: unknown } | null)?.items;
   if (Array.isArray(items)) return items as T[];
-  throw new IntegrationError("bad_reply", "Mealie sent a list Cal cannot read.");
+  throw new IntegrationError("bad_reply", "Mealie sent a list Kal cannot read.");
 };
 
 export const mealieClient = (baseUrl: string, token: string, timeoutMs = 8000) => {

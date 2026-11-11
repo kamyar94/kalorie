@@ -1,6 +1,6 @@
-# Cal
+# Kal
 
-Cal is a self-hosted, photo-first food log. Take one to three photos of what you eat and press
+Kal is a self-hosted, photo-first food log. Take one to three photos of what you eat and press
 Send. The server works out the foods, amounts, calories and nutrients, files the meal by time,
 and lets you review and correct every detail. It installs as an app on phones, tablets and
 desktops, and accounts are by invitation only.
@@ -23,16 +23,16 @@ Created by Kamyar Fatemifar.
 - **Targets and trends.** Daily targets from the person's profile, and day, week and month views.
 - **Integrations (optional).** [Mealie](https://github.com/mealie-recipes/mealie) for today's
   meal plan, recipes as foods and plan suggestions; [openGym](https://github.com/DuarteSantos8/openGym)
-  for body weight and workouts. Cal only reads from openGym, and writes to Mealie only when you
+  for body weight and workouts. Kal only reads from openGym, and writes to Mealie only when you
   confirm.
-- **Notifications (optional).** Web Push when an analysis is ready or Cal has a question.
+- **Notifications (optional).** Web Push when an analysis is ready or Kal has a question.
 
 The full design is in [docs/DESIGN.md](docs/DESIGN.md).
 
 ## Running it
 
-Cal runs as a hardened Docker stack: the web app, a background worker, Postgres, an egress proxy
-that allows only the services Cal needs, and a Cloudflare Tunnel connector, with no published
+Kal runs as a hardened Docker stack: the web app, a background worker, Postgres, an egress proxy
+that allows only the services Kal needs, and a Cloudflare Tunnel connector, with no published
 ports. [deploy/README.md](deploy/README.md) covers the first start, updates, backups and
 troubleshooting.
 
@@ -52,11 +52,11 @@ Settings for development are described in [.env.example](.env.example).
 
 ## License
 
-Cal is published under the [KF Source-Available License 1.0](LICENSE.md). You may read it,
+Kal is published under the [KF Source-Available License 1.0](LICENSE.md). You may read it,
 download it, fork it and run it privately for yourself; deploying it for others, changing it or
 using it commercially needs written permission. It is not an open-source license.
 
-Third-party material keeps its own license: the npm packages Cal depends on; USDA FoodData
+Third-party material keeps its own license: the npm packages Kal depends on; USDA FoodData
 Central data (public domain), including the small extracts in `tests/fixtures/fdc`; and Open
 Food Facts data (Open Database License), including the recorded replies in
 `tests/fixtures/off`.

@@ -1,4 +1,4 @@
-// What Cal learns from corrections (docs/DESIGN.md section 1, principle 4): food_memory keeps, per
+// What Kal learns from corrections (docs/DESIGN.md section 1, principle 4): food_memory keeps, per
 // person and normalised item name, the food it turned out to be, the usual portion and a snapshot
 // of the corrected item. The analysis shows the top 30 as "usual meals" to the vision model,
 // matches items to them, and the matching step tries a remembered food first.

@@ -1,4 +1,4 @@
-// What Cal asks the models. The system prompts are fixed; the user prompt carries the meal's
+// What Kal asks the models. The system prompts are fixed; the user prompt carries the meal's
 // context: the note, local time and slot, the person's usual meals and planned recipes, preferred
 // cuisines and units, earlier answers, corrections and (on a re-analysis) the current items.
 // Short ids (u3, p1, i2, c7) stand for database ids so the model never copies a long id wrong;
@@ -8,7 +8,7 @@ import type { MealSlot } from "@/lib/contracts/meals";
 
 import type { PromptRefs } from "./parse";
 
-export const ANALYSIS_SYSTEM = `You are the food recognition step of Cal, a food log. You get one to three photos of one meal and some context, and you answer with JSON that matches the schema. Some meals come without a photo: the person described them in words.
+export const ANALYSIS_SYSTEM = `You are the food recognition step of Kal, a food log. You get one to three photos of one meal and some context, and you answer with JSON that matches the schema. Some meals come without a photo: the person described them in words.
 
 Is it food?
 - First decide whether the photos show food or drink that someone is about to eat or drink, or just ate: a plate, bowl, snack, fruit, drink, a packaged food or its nutrition label. Menus, recipes or food on a screen, an empty plate, people, pets, rooms and other objects are not food. Then set is_food false, items and questions empty, and title a few words on what the photo shows.
@@ -186,7 +186,7 @@ export const buildAnalysisPrompt = (
 
 // ---- Matching ----
 
-export const MATCHING_SYSTEM = `You match foods from a meal photo to entries of a food composition database, for Cal, a food log.
+export const MATCHING_SYSTEM = `You match foods from a meal photo to entries of a food composition database, for Kal, a food log.
 For each numbered food choose the candidate that is the same food in the same state: cooked or raw, the preparation, the variety, the cut. Answer with its id, or none when no candidate is a reasonable match.
 - A close generic entry is better than none ("Rice, white, long-grain, cooked" for "steamed basmati rice").
 - A different food is worse than none: never match chicken to beef, or a whole dish to one of its ingredients.

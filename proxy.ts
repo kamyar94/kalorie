@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { buildCsp, isSameOrigin, newNonce } from "@/lib/security/csp";
 
 // First gate for every page and API request:
-//  1. state-changing requests must come from Cal's own pages (CSRF);
+//  1. state-changing requests must come from Kal's own pages (CSRF);
 //  2. without a session cookie, pages redirect to sign-in and API routes answer 401 (every page
 //     and route still checks the session itself against the database);
 //  3. a fresh CSP nonce for the page render.

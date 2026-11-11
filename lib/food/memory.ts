@@ -1,4 +1,4 @@
-// What Cal learns from corrections (CONTRACT: lib/contracts/foods.ts; table food_memory): for a
+// What Kal learns from corrections (CONTRACT: lib/contracts/foods.ts; table food_memory): for a
 // normalised item name, the food the person chose, typical grams, how often and when last.
 // The app itself writes and reads food_memory through lib/analysis/memory.ts (item edits and the
 // analysis) and lists recent foods with lib/meals/recent-foods.ts; nothing in the app calls this

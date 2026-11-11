@@ -1,4 +1,4 @@
-// POST /api/items/:id/remember -> { ok: true }: the person corrected this item; Cal keeps the
+// POST /api/items/:id/remember -> { ok: true }: the person corrected this item; Kal keeps the
 // corrected food and amount in food_memory so the next photo of the same dish starts from it
 // (lib/analysis/memory.ts). The item sheet sends this once when it closes after changes; edits
 // already remember the item, and repeated calls for the same meal count once.

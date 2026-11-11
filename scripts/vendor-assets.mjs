@@ -1,4 +1,4 @@
-// Copies browser assets that come from packages into public/vendor/, so Cal serves them itself
+// Copies browser assets that come from packages into public/vendor/, so Kal serves them itself
 // (the CSP allows no other origins): the ZXing WebAssembly barcode reader. Run by `pnpm build`,
 // `pnpm dev` and the end-to-end server; public/vendor/ is not committed.
 import { copyFileSync, mkdirSync } from "node:fs";

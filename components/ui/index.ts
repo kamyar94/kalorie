@@ -1,4 +1,4 @@
-// Cal's base components. Tokens and the type scale live in app/globals.css.
+// Kal's base components. Tokens and the type scale live in app/globals.css.
 export { BottomSheet, type BottomSheetProps } from "./bottom-sheet";
 export { Button, type ButtonProps } from "./button";
 export { Card, type CardProps } from "./card";

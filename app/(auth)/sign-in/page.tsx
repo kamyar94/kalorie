@@ -15,7 +15,7 @@ export default async function SignInPage() {
       <p className="text-muted mt-1 mb-6">Welcome back. Your meals are waiting.</p>
       <SignInForm />
       <p className="text-caption text-muted mt-6">
-        New here? Ask the person who runs this Cal server for an invite code. Forgot your password?
+        New here? Ask the person who runs this Kal server for an invite code. Forgot your password?
         They can make you a reset code.
       </p>
     </>
