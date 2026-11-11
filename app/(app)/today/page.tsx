@@ -22,6 +22,7 @@ import { listMealsForDay } from "@/lib/meals/service";
 import { isLocalDate, shiftLocalDate } from "@/lib/meals/time";
 import { medicineDay } from "@/lib/medicines/service";
 import { getMoveDay } from "@/lib/move/service";
+import { activityWaterMl } from "@/lib/move/water";
 import { getTargets } from "@/lib/targets/service";
 import { dayTitle, formatKcal, longDate } from "@/lib/ui/format";
 import { viewerToday } from "@/lib/ui/viewer-time";
@@ -143,7 +144,14 @@ export default async function TodayPage({
               />
             </div>
           </Card>
-          <WaterCard date={date} today={today} totalMl={waterMl} goalMl={hydration.goalMl} />
+          <WaterCard
+            date={date}
+            today={today}
+            totalMl={waterMl}
+            baseMl={hydration.goalMl}
+            activityMl={activityWaterMl(move.sweatMinutes)}
+            activityMinutes={move.sweatMinutes}
+          />
           <MoveCard day={move} isToday={date === today} />
           <MedicinesCard day={medicines} date={date} today={today} />
           <FavoriteChips favorites={favorites} date={date} today={today} />
