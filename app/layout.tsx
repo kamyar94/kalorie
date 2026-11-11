@@ -9,9 +9,9 @@ import { ToastProvider } from "@/components/ui/toast";
 import { THEME_COOKIE, parseTheme } from "@/lib/ui/theme";
 
 export const metadata: Metadata = {
-  title: { default: "Cal", template: "%s · Cal" },
+  title: { default: "Kal", template: "%s · Kal" },
   description: "A photo-first food log.",
-  applicationName: "Cal",
+  applicationName: "Kal",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     ],
     apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
   },
-  appleWebApp: { capable: true, title: "Cal", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Kal", statusBarStyle: "default" },
   formatDetection: { telephone: false, email: false, address: false },
   robots: { index: false, follow: false },
 };

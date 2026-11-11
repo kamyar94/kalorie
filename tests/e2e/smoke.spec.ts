@@ -54,7 +54,12 @@ test("security headers and the installable app shell", async ({ page, request })
   expect(response.headers()["x-content-type-options"]).toBe("nosniff");
 
   const manifest = await (await request.get("/manifest.webmanifest")).json();
-  expect(manifest).toMatchObject({ display: "standalone", start_url: "/today" });
+  expect(manifest).toMatchObject({
+    name: "Kal",
+    short_name: "Kal",
+    display: "standalone",
+    start_url: "/today",
+  });
   expect((await request.get("/icons/maskable-512.png")).status()).toBe(200);
 
   // Cross-site posts are refused before they reach any route.
@@ -68,8 +73,10 @@ test("security headers and the installable app shell", async ({ page, request })
   await expect(page.locator('link[rel="manifest"]')).toHaveCount(1);
   await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute(
     "content",
-    "Cal",
+    "Kal",
   );
+  await expect(page.locator('meta[name="application-name"]')).toHaveAttribute("content", "Kal");
+  await expect(page).toHaveTitle("Sign in · Kal");
   const scope = await page.evaluate(async () => (await navigator.serviceWorker.ready).scope);
   expect(scope).toMatch(/\/$/);
 });
