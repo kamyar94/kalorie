@@ -1,7 +1,7 @@
 // "Export my data" and "Delete my data" (Settings). The export holds everything Kal keeps about
 // the person except secrets (no keys, no password hash, no integration tokens) and the photo
 // files themselves. Deleting removes every logged meal, photo file, item, personal food,
-// correction memory, medicine, medicine log and label photo, activity, key, integration,
+// correction memory, medicine, medicine log and label photo, activity, badge, key, integration,
 // notification subscription and custom target, and resets the profile; the account itself (name, username,
 // password, role) stays so the person can go on.
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
@@ -24,6 +24,7 @@ import {
   medicines,
   medicineScans,
   pushSubscriptions,
+  userBadges,
   users,
   userTargets,
 } from "@/db/schema";
@@ -66,6 +67,8 @@ export type ExportData = {
   medicineLogs: MedicineLogDto[];
   /** Workouts, typed activities, imported sessions and steps per day, oldest first. */
   activities: ActivityDto[];
+  /** Move's badges and the day each was earned. */
+  badges: { code: string; earnedOn: string }[];
 };
 
 /** Everything about the person as JSON-ready data. Null for an unknown account. */
@@ -90,6 +93,7 @@ export const exportUserData = async (
     medicineRows,
     medicineLogRows,
     activityRows,
+    badgeRows,
   ] = await Promise.all([
     ids.length ? dbx.select().from(mealPhotos).where(inArray(mealPhotos.mealId, ids)) : [],
     ids.length
@@ -120,6 +124,11 @@ export const exportUserData = async (
       .from(activities)
       .where(eq(activities.userId, userId))
       .orderBy(asc(activities.startedAt)),
+    dbx
+      .select()
+      .from(userBadges)
+      .where(eq(userBadges.userId, userId))
+      .orderBy(asc(userBadges.earnedOn)),
   ]);
 
   return {
@@ -180,6 +189,7 @@ export const exportUserData = async (
     medicines: medicineRows.map((m) => toMedicineDto(m)),
     medicineLogs: medicineLogRows.map(toLogDto),
     activities: activityRows.map(toActivityDto),
+    badges: badgeRows.map((b) => ({ code: b.code, earnedOn: b.earnedOn })),
   };
 };
 
@@ -274,6 +284,7 @@ export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) =>
     await tx.delete(medicines).where(eq(medicines.userId, userId));
     await tx.delete(medicineScans).where(eq(medicineScans.userId, userId));
     await tx.delete(activities).where(eq(activities.userId, userId));
+    await tx.delete(userBadges).where(eq(userBadges.userId, userId));
     // Parts of their own dishes first: a dish part may be another of their own foods, which
     // dish_components protects (ON DELETE RESTRICT) until the part row is gone.
     const ownFoods = tx.select({ id: foods.id }).from(foods).where(eq(foods.ownerId, userId));

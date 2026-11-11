@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { BadgesSection, LevelCard, WeekCard } from "@/components/move/move-summary";
 import { MoveView, type OpenGymState } from "@/components/move/move-view";
 import { listActivities } from "@/lib/activities/service";
 import { requireUser } from "@/lib/auth/session";
@@ -7,6 +8,7 @@ import { bodyWeightOn } from "@/lib/body/weight";
 import { getIntegrationStatuses } from "@/lib/integrations/day";
 import { openGymData } from "@/lib/integrations/opengym/service";
 import { shiftLocalDate } from "@/lib/meals/time";
+import { getMoveSummary } from "@/lib/move/service";
 import { weekLabel, weekStart } from "@/lib/move/week";
 import { viewerToday } from "@/lib/ui/viewer-time";
 
@@ -20,10 +22,11 @@ export default async function MovePage() {
   const today = await viewerToday(user.timeZone);
   // A sync older than 10 minutes is read again first, so new openGym workouts show.
   await openGymData(user.id).catch(() => null);
-  const [activities, statuses, weightKg] = await Promise.all([
+  const [activities, statuses, weightKg, summary] = await Promise.all([
     listActivities(user.id, { from: shiftLocalDate(today, -LIST_DAYS), to: today, limit: 200 }),
     getIntegrationStatuses(user.id),
     bodyWeightOn(user.id, today),
+    getMoveSummary(user.id, today),
   ]);
   const gym = statuses.find((s) => s.kind === "opengym");
   const openGym: OpenGymState = !gym?.available
@@ -38,6 +41,10 @@ export default async function MovePage() {
       activities={activities}
       weightKg={weightKg}
       openGym={openGym}
-    />
+    >
+      <LevelCard summary={summary} />
+      <WeekCard summary={summary} />
+      <BadgesSection badges={summary.badges} />
+    </MoveView>
   );
 }

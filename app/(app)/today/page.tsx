@@ -8,6 +8,7 @@ import { FavoriteChips } from "@/components/favorites/favorite-chips";
 import { DayPlanSection } from "@/components/today/day-plan";
 import { DaySwipe } from "@/components/today/day-swipe";
 import { MedicinesCard } from "@/components/today/medicines-card";
+import { MoveCard } from "@/components/today/move-card";
 import { Timeline } from "@/components/today/timeline";
 import { WaterCard } from "@/components/today/water-card";
 import { Card } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import { listFavorites } from "@/lib/meals/favorites";
 import { listMealsForDay } from "@/lib/meals/service";
 import { isLocalDate, shiftLocalDate } from "@/lib/meals/time";
 import { medicineDay } from "@/lib/medicines/service";
+import { getMoveDay } from "@/lib/move/service";
 import { getTargets } from "@/lib/targets/service";
 import { dayTitle, formatKcal, longDate } from "@/lib/ui/format";
 import { viewerToday } from "@/lib/ui/viewer-time";
@@ -48,6 +50,8 @@ export default async function TodayPage({
     listFavorites(user.id, 6),
     medicineDay(user.id, date),
   ]);
+  // After the day plan: it reads openGym again when its data is old, which updates the activities.
+  const move = await getMoveDay(user.id, date);
   const totals = sumNutrients(meals.map((m) => m.totals));
   const waterMl = meals.reduce((sum, meal) => sum + meal.waterMl, 0);
   const pending = meals.some((m) => m.status === "queued" || m.status === "analysing");
@@ -140,6 +144,7 @@ export default async function TodayPage({
             </div>
           </Card>
           <WaterCard date={date} today={today} totalMl={waterMl} goalMl={hydration.goalMl} />
+          <MoveCard day={move} isToday={date === today} />
           <MedicinesCard day={medicines} date={date} today={today} />
           <FavoriteChips favorites={favorites} date={date} today={today} />
           <DayPlanSection plan={plan} />

@@ -667,6 +667,19 @@ export const activities = pgTable(
   ],
 );
 
+// Move's badges, stored the first time they are earned (lib/move/service.ts), so a badge stays
+// when older data is removed later. code is a BadgeCode of lib/contracts/move.ts.
+export const userBadges = pgTable(
+  "user_badges",
+  {
+    userId: userRef(),
+    code: text("code").notNull(),
+    earnedOn: date("earned_on", { mode: "string" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.code] })],
+);
+
 // ---- Integrations and notifications ----
 
 export const integrations = pgTable(
