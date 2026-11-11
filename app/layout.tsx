@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 
+import { AppMarker } from "@/components/app/app-marker";
 import { PwaRegister } from "@/components/app/pwa-register";
 import { ToastProvider } from "@/components/ui/toast";
 import { THEME_COOKIE, parseTheme } from "@/lib/ui/theme";
@@ -49,6 +50,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         </a>
         <ToastProvider>{children}</ToastProvider>
         <PwaRegister />
+        <AppMarker />
       </body>
     </html>
   );

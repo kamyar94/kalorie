@@ -35,3 +35,37 @@ export const formatBytes = (bytes: number) =>
 
 /** The file name the download gets ("Kal-1.0.apk"). */
 export const apkFileName = (versionName: string) => `Kal-${versionName}.apk`;
+
+// ---- Inside the app ----
+//
+// The app opens Kal at /?source=android-app&hc=1|0&appVersion=<versionCode>. The proxy keeps that
+// in a short cookie across the first redirects (sign-in, Today); the page copies it into the tab's
+// sessionStorage and removes the cookie (lib/client/android-app.ts), so a browser tab of the same
+// Chrome, which shares cookies with the app, never takes itself for the app.
+
+export const APP_COOKIE = "kal_app";
+/** Seconds the cookie lives: long enough for the redirects of the first load. */
+export const APP_COOKIE_SECONDS = 300;
+
+export type AppContext = {
+  inApp: boolean;
+  /** The phone can run Health Connect (Android 9 or newer). */
+  healthConnect: boolean;
+  /** The app's versionCode, when it said. */
+  appVersion: number | null;
+};
+
+export const NOT_IN_APP: AppContext = { inApp: false, healthConnect: false, appVersion: null };
+
+/** The cookie value for the app's start URL parameters ("android.1.3"), or null. */
+export const appMarkerFromParams = (params: URLSearchParams) => {
+  if (params.get("source") !== "android-app") return null;
+  const version = /^\d{1,9}$/.test(params.get("appVersion") ?? "") ? params.get("appVersion") : "0";
+  return `android.${params.get("hc") === "0" ? "0" : "1"}.${version}`;
+};
+
+/** "android.1.3" -> in the app, Health Connect possible, version 3. Null for anything else. */
+export const parseAppMarker = (value: string | null | undefined): AppContext | null => {
+  const m = /^android\.([01])\.(\d{1,9})$/.exec(value ?? "");
+  return m ? { inApp: true, healthConnect: m[1] === "1", appVersion: Number(m[2]) || null } : null;
+};
