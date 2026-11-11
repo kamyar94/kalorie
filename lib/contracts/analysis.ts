@@ -92,8 +92,23 @@ export type AnalysisItem = {
   estimate: NutrientEstimate;
 };
 
+/**
+ * What a photo (or a description) that is not food shows, as far as the analysis can tell: a
+ * medicine or a supplement (the meal can then be logged as a medicine), or something else.
+ */
+export const NOT_FOOD_KINDS = ["medicine", "supplement", "other"] as const;
+export type NotFoodKind = (typeof NOT_FOOD_KINDS)[number];
+
+export const isNotFoodKind = (value: unknown): value is NotFoodKind =>
+  typeof value === "string" && (NOT_FOOD_KINDS as readonly string[]).includes(value);
+
 export type AnalysisOutput = {
   is_food: boolean;
+  /**
+   * When it is not food: what it is (null for food). Analyses from before this field have none;
+   * lib/analysis/not-food.ts then reads the stored words.
+   */
+  not_food_kind?: NotFoodKind | null;
   title: string;
   /**
    * The model's name for the meal (a slot), judged from the food, the amount and the local time;

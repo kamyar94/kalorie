@@ -20,11 +20,13 @@ import { AutoRefresh } from "@/components/app/auto-refresh";
 import { PlateIcon } from "@/components/app/plate-icon";
 import { WhenSheet } from "@/components/capture/when-sheet";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
+import { LogAsMedicine } from "@/components/medicines/log-as-medicine";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { logsAsMedicine } from "@/lib/analysis/not-food";
 import { api } from "@/lib/client/api";
 import type { ItemInput, MealDto, MealItemDto, MealPatch } from "@/lib/contracts/meals";
 import { ANALYSED_SOURCES, MEAL_SLOT_LABELS } from "@/lib/contracts/meals";
@@ -317,6 +319,8 @@ export const MealView = ({
                 {meal.error?.message ?? "The analysis did not finish."}
               </p>
               <div className="flex flex-wrap gap-2">
+                {/* A medicine or supplement photographed as a meal: log it as what it is. */}
+                {logsAsMedicine(meal) && <LogAsMedicine meal={meal} variant="button" />}
                 {meal.error?.settingsLink && (
                   <Button asChild variant="secondary">
                     <Link href="/settings#ai">

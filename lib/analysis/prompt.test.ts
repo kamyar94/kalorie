@@ -31,6 +31,7 @@ describe("analysis prompt", () => {
   it("covers what the design asks of the model", () => {
     for (const topic of [
       "is_food false",
+      "not_food_kind says what it is: medicine, supplement",
       "components",
       "grams_low",
       "ml is the volume",

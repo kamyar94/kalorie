@@ -5,6 +5,7 @@
 // empty string, 0 or an empty array, and lib/analysis/parse.ts turns those into nulls.
 // Plain data, no imports from the server.
 import type { JsonSchema } from "@/lib/ai/types";
+import { NOT_FOOD_KINDS } from "@/lib/contracts/analysis";
 import { MEAL_SLOTS } from "@/lib/contracts/meals";
 
 export const ANALYSIS_ITEM_KINDS = ["dish", "ingredient", "drink", "packaged"] as const;
@@ -124,11 +125,15 @@ const ITEM = object({
 /** The photo analysis reply (task "analysis"). */
 export const ANALYSIS_SCHEMA: JsonSchema = object({
   is_food: { type: "boolean", description: "Whether the photos show food or drink to log." },
+  // The system prompt says what each kind covers ("Is it food?").
+  not_food_kind: {
+    type: "string",
+    enum: ["none", ...NOT_FOOD_KINDS],
+    description: "What it is when not food; none for food.",
+  },
   cuisine: str('The main cuisine ("Persian", "Italian"), empty when mixed or unclear.'),
   items: { type: "array", description: "Every item to log, each once.", items: ITEM },
-  title: str(
-    "A short name for the meal, at most six words. When it is not food: a few words on what the photo shows.",
-  ),
+  title: str("A short name for the meal, at most six words; when not food, what the photo shows."),
   meal_type: {
     type: "string",
     enum: [...MEAL_SLOTS],
@@ -191,6 +196,7 @@ export type RawItem = {
 
 export type RawAnalysis = {
   is_food: boolean;
+  not_food_kind: string;
   cuisine: string;
   items: RawItem[];
   title: string;

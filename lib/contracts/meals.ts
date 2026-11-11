@@ -15,6 +15,7 @@
 // Creating a photo meal is lib/meals/create.ts (createPhotoMeal), used by POST /api/meals.
 // The photos of an existing meal: lib/meals/photos.ts (addMealPhotos, removeMealPhoto,
 // reorderMealPhotos). Favorites: lib/meals/favorites.ts (listFavorites, logFavorite).
+import type { NotFoodKind } from "./analysis";
 import type { NutrientMap } from "./nutrients";
 
 export const MEAL_STATUSES = ["queued", "analysing", "needs_input", "ready", "failed"] as const;
@@ -104,6 +105,12 @@ export type MealErrorDto = {
   message: string;
   /** True when the fix is in the AI settings (missing or refused key, no credit). */
   settingsLink: boolean;
+  /**
+   * For "not-food": what it is instead (medicine, supplement or other), from the analysis or,
+   * for meals analysed before it said so, from the stored words; null for other errors. A
+   * medicine or supplement offers "Log as a medicine".
+   */
+  notFoodKind: NotFoodKind | null;
 };
 
 export type ItemComponentDto = {

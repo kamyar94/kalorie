@@ -56,6 +56,7 @@ describe("analysis schemas", () => {
     expect(Object.keys(top)).toEqual(
       expect.arrayContaining([
         "is_food",
+        "not_food_kind",
         "title",
         "meal_type",
         "cuisine",
@@ -89,6 +90,7 @@ describe("analysis schemas", () => {
   });
 
   it("stays small enough to send with every photo", () => {
-    expect(JSON.stringify(ANALYSIS_SCHEMA).length).toBeLessThan(6000);
+    // 6000 until not_food_kind (2026-11-11): about 1,600 tokens, small next to one photo.
+    expect(JSON.stringify(ANALYSIS_SCHEMA).length).toBeLessThan(6200);
   });
 });

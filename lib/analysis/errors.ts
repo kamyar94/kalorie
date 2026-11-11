@@ -7,10 +7,17 @@
 //   timeout     the provider took too long
 //   no-photos   the photo files are missing    internal    anything unexpected
 import { isAiError, isRetryableAiError, type AiErrorKind } from "@/lib/ai/errors";
+import type { NotFoodKind } from "@/lib/contracts/analysis";
+
+import { NOT_FOOD_DETAIL } from "./not-food";
 
 export type MealErrorKind = AiErrorKind | "not-food" | "no-photos" | "internal";
 
-export type MealError = { kind: MealErrorKind; message: string };
+/** notFoodKind: for "not-food", what the analysis says it is (lib/analysis/not-food.ts). */
+export type MealError = { kind: MealErrorKind; message: string; notFoodKind?: NotFoodKind };
+
+/** The detail a not-food message adds: what the photo seems to show. */
+export const notFoodPhotoDetail = (title: string) => `${NOT_FOOD_DETAIL} ${title}.`;
 
 const MESSAGES: Record<MealErrorKind, string> = {
   "no-key": "Add an API key in the AI settings so Kal can analyse your photos.",
@@ -52,7 +59,13 @@ const NOT_FOOD_TEXT =
 /** The message for a meal that stopped; waiting adds when Kal tries again. */
 export const mealError = (
   kind: MealErrorKind,
-  options: { willRetry?: boolean; detail?: string; textOnly?: boolean } = {},
+  options: {
+    willRetry?: boolean;
+    detail?: string;
+    textOnly?: boolean;
+    /** For "not-food": what it is instead, kept with the error. */
+    notFoodKind?: NotFoodKind;
+  } = {},
 ): MealError => {
   let message = kind === "not-food" && options.textOnly ? NOT_FOOD_TEXT : MESSAGES[kind];
   if (options.detail) message = `${message} ${options.detail}`;
@@ -70,5 +83,7 @@ export const mealError = (
     ].includes(kind)
   )
     message = `${message} Try again, or add the items by hand.`;
-  return { kind, message };
+  return kind === "not-food" && options.notFoodKind
+    ? { kind, message, notFoodKind: options.notFoodKind }
+    : { kind, message };
 };

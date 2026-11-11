@@ -1,27 +1,13 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { api } from "@/lib/client/api";
-import type { LoggedMedicine, MedicineReading, MedicineScanDto } from "@/lib/contracts/medicines";
+import type { LoggedMedicine } from "@/lib/contracts/medicines";
 
 import { MedicineSheet } from "./medicine-sheet";
-
-/** How long the camera waits for the label to be read before it offers the fields to type. */
-export const READ_TIMEOUT_MS = 45_000;
-const POLL_MS = 1000;
-
-const wait = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
-
-type Phase =
-  | { step: "reading" }
-  | {
-      step: "sheet";
-      reading: MedicineReading | null;
-      scanId: string | null;
-      notice: string | null;
-    };
+import { useLabelReading } from "./use-label-reading";
 
 /**
  * Medicine mode after the shutter (or "Type"): the photo goes to Kal, which asks the person's AI
@@ -43,57 +29,13 @@ export const MedicineCapture = ({
   onCancel: () => void;
 }) => {
   // Whether this photo is read at all is decided once, when it is taken.
-  const [read] = useState(() => photo !== null && online);
-  const [phase, setPhase] = useState<Phase>(() =>
-    read
-      ? { step: "reading" }
-      : {
-          step: "sheet",
-          reading: null,
-          scanId: null,
-          notice: photo
-            ? "You are offline, so Kal cannot read the label now. Type the name, and save once you are back online."
-            : null,
-        },
+  const phase = useLabelReading(
+    photo && online ? () => api.scanMedicine(photo) : null,
+    photo
+      ? "You are offline, so Kal cannot read the label now. Type the name, and save once you are back online."
+      : null,
   );
   const [skipped, setSkipped] = useState(false);
-
-  useEffect(() => {
-    if (!photo || !read) return;
-    const controller = new AbortController();
-    let cancelled = false;
-    const done = (scan: MedicineScanDto | null, notice: string | null) => {
-      if (cancelled) return;
-      setPhase({
-        step: "sheet",
-        reading: scan?.status === "done" ? scan.reading : null,
-        scanId: scan?.id ?? null,
-        notice: scan?.status === "done" ? null : notice,
-      });
-    };
-    const run = async () => {
-      try {
-        let scan = await api.scanMedicine(photo);
-        const started = Date.now();
-        while (scan.status === "queued" || scan.status === "reading") {
-          if (cancelled) return;
-          if (Date.now() - started > READ_TIMEOUT_MS)
-            return done(scan, "Kal could not read the label in time. Type the name instead.");
-          await wait(POLL_MS);
-          scan = await api.medicineScan(scan.id, controller.signal);
-        }
-        done(scan, scan.error?.message ?? "Kal could not read the label. Type the name instead.");
-      } catch (error) {
-        if ((error as Error)?.name === "AbortError") return;
-        done(null, `${(error as Error).message} Type the name instead.`);
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [photo, read]);
 
   if (phase.step === "reading" && !skipped)
     return (

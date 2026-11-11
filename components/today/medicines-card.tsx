@@ -80,9 +80,12 @@ export const MedicinesCard = ({
       </h2>
       <ul className="flex flex-col gap-2">
         {day.logs.map((log) => (
+          // "Show it" in the toast of "Log as a medicine" scrolls here and focuses the row.
           <li
             key={log.id}
-            className="flex min-h-10 items-center gap-2.5"
+            id={`medicine-log-${log.id}`}
+            tabIndex={-1}
+            className="flex min-h-10 items-center gap-2.5 rounded-lg outline-offset-4 focus:outline-2 focus:outline-[var(--focus)]"
             data-testid="medicine-taken"
           >
             <span className="min-w-0 flex-1 text-[0.9375rem] wrap-break-word" dir="auto">

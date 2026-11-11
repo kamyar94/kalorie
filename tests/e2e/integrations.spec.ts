@@ -240,6 +240,92 @@ test("a medicine label from the gallery is read by the mock provider", async ({ 
   expect(usage.rows).toEqual([{ task: "medicine-label" }]);
 });
 
+test("a medicine photographed as a meal is logged as a medicine from the meal page", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  await saveGoogleKey(page);
+  // The analysis of the next photo: not food, a medicine.
+  await control("/google/analysis", {
+    analysis: {
+      is_food: false,
+      not_food_kind: "medicine",
+      cuisine: "",
+      items: [],
+      title: "Pill bottle and one tablet",
+      meal_type: "",
+      questions: [],
+      overall_confidence: 0.9,
+    },
+  });
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Open the camera" }).click();
+  const camera = page.getByRole("dialog", { name: "Camera" });
+  await camera.getByTestId("capture-input").setInputFiles("tests/fixtures/meal.jpg");
+  await camera.getByRole("button", { name: "Send meal with 1 photo" }).click();
+  const failed = page.locator('article[data-state="failed"]');
+  await expect(failed).toHaveCount(1, { timeout: 30_000 });
+  await expect(failed).toContainText("Pill bottle and one tablet");
+  await expect(failed.getByRole("button", { name: "Log as a medicine" })).toBeVisible();
+  const mealId = (await failed.getAttribute("data-meal-id"))!;
+  const { rows } = await pool.query(
+    "select eaten_at, to_char(eaten_at at time zone tz, 'HH24:MI') as time from meals where id = $1",
+    [mealId],
+  );
+  const mealTime = rows[0].time as string;
+
+  // The meal page: Log as a medicine first, Try again and Add foods by hand still there.
+  await failed.locator(`a[href="/meals/${mealId}"]`).click();
+  const alert = page.getByRole("alert").filter({ hasText: "do not seem to show food" });
+  const logAs = alert.getByRole("button", { name: "Log as a medicine" });
+  await expect(logAs).toBeVisible();
+  await expect(alert.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expect(alert.getByRole("link", { name: "Add foods by hand" })).toBeVisible();
+  await expectAccessible(page);
+
+  // The label is read from the meal's photo; taken at the meal's time.
+  await logAs.click();
+  const sheet = page.getByRole("dialog", { name: "Medicine found on the label" });
+  await expect(sheet).toBeVisible({ timeout: 30_000 });
+  await expect(sheet.getByTestId("medicine-name")).toHaveText("Ibuprofen 200 mg");
+  await expect(
+    sheet.getByRole("button", { name: `Taken: today at ${mealTime}. Change the time` }),
+  ).toBeVisible();
+  await expect(sheet.getByRole("spinbutton", { name: "How many did you take?" })).toHaveAttribute(
+    "aria-valuetext",
+    "1 tablet",
+  );
+  await expectAccessible(page);
+  await sheet.getByRole("button", { name: "Save" }).click();
+
+  // Today: the medicine in its card, the meal gone.
+  await expect(page).toHaveURL(/\/today$/);
+  const card = page.getByRole("region", { name: "Medicines" });
+  await expect(card.getByTestId("medicine-taken")).toContainText("Ibuprofen 200 mg · 1 tablet");
+  await expect(card.getByTestId("medicine-taken")).toContainText(`Taken ${mealTime}`);
+  await expect(page.locator(`article[data-meal-id="${mealId}"]`)).toHaveCount(0);
+  await expect(
+    page.getByRole("status").filter({ hasText: "Ibuprofen 200 mg logged as a medicine" }),
+  ).toBeVisible();
+  await expectAccessible(page);
+  expect((await page.request.get(`/api/meals/${mealId}`)).status()).toBe(404);
+
+  const stored = await pool.query(
+    `select l.name, l.taken_at, s.status, (select count(*)::int from meals where user_id = $1)
+       as meals
+     from medicine_logs l join medicine_scans s on s.id = l.scan_id where l.user_id = $1`,
+    [userId],
+  );
+  expect(stored.rows).toEqual([
+    { name: "Ibuprofen", taken_at: rows[0].eaten_at, status: "done", meals: 0 },
+  ]);
+  const usage = await pool.query(
+    "select task from ai_usage where user_id = $1 order by created_at",
+    [userId],
+  );
+  expect(usage.rows.map((r) => r.task)).toEqual(["analysis", "medicine-label"]);
+});
+
 test("Mealie: connect, then log a planned recipe with servings", async ({ page }, info) => {
   const userId = await signUp(page, info.project.name);
   await connectMealie(page);

@@ -1,5 +1,6 @@
 // Database rows to the DTOs of lib/contracts/meals.ts.
 import type { mealItems, mealPhotos, meals } from "@/db/schema";
+import { mealNotFoodKind } from "@/lib/analysis/not-food";
 import { emojiFor } from "@/lib/food/emoji";
 import { isDrink, totalWaterMl } from "@/lib/meals/hydration";
 import type {
@@ -46,12 +47,19 @@ export const toPhotoDto = (row: PhotoRow): MealPhotoDto => ({
 // Error kinds the person fixes in the AI settings (same list as needsAiSettings in lib/ai/errors).
 const SETTINGS_KINDS = new Set(["no-key", "auth", "quota", "config"]);
 
-export const toErrorDto = (error: MealRow["error"]): MealErrorDto | null =>
-  error
+/** The meal's error; for "not-food" with what it is instead (lib/analysis/not-food.ts). */
+export const toErrorDto = (row: MealRow, photoCount: number): MealErrorDto | null =>
+  row.error
     ? {
-        kind: error.kind,
-        message: error.message,
-        settingsLink: SETTINGS_KINDS.has(error.kind),
+        kind: row.error.kind,
+        message: row.error.message,
+        settingsLink: SETTINGS_KINDS.has(row.error.kind),
+        notFoodKind: mealNotFoodKind({
+          error: row.error,
+          analysis: row.analysis,
+          note: row.note,
+          textOnly: row.source === "text" && photoCount === 0,
+        }),
       }
     : null;
 
@@ -114,7 +122,7 @@ export const toSummaryDto = (
     note: row.note,
     status: row.status,
     source: row.source,
-    error: toErrorDto(row.error),
+    error: toErrorDto(row, photos.length),
     photos: [...photos].sort((a, b) => a.position - b.position).map(toPhotoDto),
     itemCount: items.length,
     foods: sorted.map((item) => ({

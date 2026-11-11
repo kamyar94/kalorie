@@ -5,15 +5,18 @@
 // Pure code, no database.
 import { AiError } from "@/lib/ai/errors";
 import type { AiProvider, AiUsage } from "@/lib/ai/types";
-import type {
-  AnalysisItem,
-  AnalysisLabel,
-  AnalysisOutput,
-  AnalysisQuestion,
+import {
+  isNotFoodKind,
+  type AnalysisItem,
+  type AnalysisLabel,
+  type AnalysisOutput,
+  type AnalysisQuestion,
 } from "@/lib/contracts/analysis";
 import { isMealSlot } from "@/lib/contracts/meals";
 import type { NutrientEstimate } from "@/lib/contracts/nutrients";
 import { cleanEmoji } from "@/lib/food/emoji";
+
+import { notFoodKindFromWords } from "./not-food";
 
 import {
   ANALYSIS_ITEM_KINDS,
@@ -235,10 +238,18 @@ export const parseAnalysis = (
     .filter((item): item is NonNullable<typeof item> => item !== null)
     .slice(0, PARSE_LIMITS.items);
   const isFood = raw.is_food && items.length > 0;
+  const title = text(raw.title, 80);
 
   const output: AnalysisOutput = {
     is_food: isFood,
-    title: text(raw.title, 80),
+    // Not food: what it is. A reply without a valid kind ("none", or from an older prompt) is
+    // judged from its title's words, else "other".
+    not_food_kind: isFood
+      ? null
+      : isNotFoodKind(raw.not_food_kind)
+        ? raw.not_food_kind
+        : notFoodKindFromWords(title),
+    title,
     meal_type: isFood && isMealSlot(raw.meal_type) ? raw.meal_type : null,
     cuisine: orNull(text(raw.cuisine, 40)),
     overall_confidence: clamp(number(raw.overall_confidence) ?? 0.5, 0, 1),

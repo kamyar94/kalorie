@@ -200,6 +200,12 @@ export const api = {
   },
   medicineScan: (scanId: string, signal?: AbortSignal) =>
     request<MedicineScanDto>(`/api/medicine-scans/${id(scanId)}`, { signal }),
+  /** "Log as a medicine": reads the label from a failed meal's photos (medicineScan follows). */
+  mealMedicineScan: (mealId: string) =>
+    request<MedicineScanDto>(`/api/meals/${id(mealId)}/medicine-scan`, { method: "POST" }),
+  /** Logs the medicine a failed meal shows; the meal is removed. */
+  logMealAsMedicine: (mealId: string, input: NewMedicineLog) =>
+    request<LoggedMedicine>(`/api/meals/${id(mealId)}/medicine`, { method: "POST", body: input }),
   createManualMeal: (input: NewManualMealInput) =>
     request<MealDto>("/api/manual-meals", { method: "POST", body: input }),
   searchFoods: (query: string, signal?: AbortSignal) =>

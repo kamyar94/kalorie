@@ -21,6 +21,7 @@ import {
   type LoggedMedicine,
   type MedicineForm,
   type MedicineReading,
+  type NewMedicineLog,
 } from "@/lib/contracts/medicines";
 import { deviceTimeZone } from "@/lib/photos/client";
 import { useOnline } from "@/lib/ui/hooks";
@@ -37,7 +38,8 @@ const stepFor = (form: MedicineForm | null) => (form === "liquid" ? 1 : 0.5);
 /**
  * The medicine taken (board 7): what the label says (or empty fields to type it), "How many did
  * you take?", when, "Keep it in my medicines for one-tap logging" and the line that Kal does not
- * check doses. Save logs it. Used over the camera (Medicine mode) and on the Medicines page.
+ * check doses. Save logs it. Used over the camera (Medicine mode), on the Medicines page and for
+ * "Log as a medicine" (a meal that turned out to be a medicine: taken at the meal's time).
  */
 export const MedicineSheet = ({
   open,
@@ -46,7 +48,11 @@ export const MedicineSheet = ({
   scanId,
   notice,
   elevated = false,
+  takenAt = null,
+  timeZone,
+  submit = api.logMedicine,
   onSaved,
+  onCloseAutoFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -57,16 +63,26 @@ export const MedicineSheet = ({
   /** Why the fields are empty (no AI key, not a medicine, offline...). */
   notice: string | null;
   elevated?: boolean;
+  /** When it was taken, to start from; null is "Now". */
+  takenAt?: Date | null;
+  /** The time zone of the log; the device's by default. */
+  timeZone?: string;
+  /** Saves the log (POST /api/medicine-logs by default). */
+  submit?: (input: NewMedicineLog) => Promise<LoggedMedicine>;
   onSaved: (logged: LoggedMedicine) => void;
+  /** Where focus goes when the sheet closes (default: where it was before it opened). */
+  onCloseAutoFocus?: (event: Event) => void;
 }) => {
   const online = useOnline();
   const whenButton = useRef<HTMLButtonElement>(null);
+  // A second tap while the first save is on its way sends nothing.
+  const saving = useRef(false);
   const [editing, setEditing] = useState(!reading);
   const [name, setName] = useState(reading?.name ?? "");
   const [strength, setStrength] = useState(reading?.strength ?? "");
   const [form, setForm] = useState<MedicineForm | null>(reading?.form ?? null);
   const [amount, setAmount] = useState(1);
-  const [at, setAt] = useState<Date | null>(null);
+  const [at, setAt] = useState<Date | null>(takenAt);
   const [whenOpen, setWhenOpen] = useState(false);
   const [keep, setKeep] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -82,13 +98,13 @@ export const MedicineSheet = ({
       setStrength(reading?.strength ?? "");
       setForm(reading?.form ?? null);
       setAmount(1);
-      setAt(null);
+      setAt(takenAt);
       setKeep(true);
       setError(null);
     }
   }
 
-  const tz = deviceTimeZone();
+  const tz = timeZone ?? deviceTimeZone();
   const unit = unitFor(form, 1);
   const save = async () => {
     const cleanName = name.trim();
@@ -96,10 +112,12 @@ export const MedicineSheet = ({
       setEditing(true);
       return setError("Write the medicine's name.");
     }
+    if (saving.current) return;
+    saving.current = true;
     setBusy(true);
     setError(null);
     try {
-      const logged = await api.logMedicine({
+      const logged = await submit({
         name: cleanName,
         strength: strength.trim() || null,
         form,
@@ -115,6 +133,7 @@ export const MedicineSheet = ({
     } catch (err) {
       setError(err instanceof Error ? err.message : "The medicine was not saved.");
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   };
@@ -128,6 +147,7 @@ export const MedicineSheet = ({
         title={reading ? "Medicine found on the label" : "What did you take?"}
         showTitle={!reading}
         elevated={elevated}
+        onCloseAutoFocus={onCloseAutoFocus}
         footer={
           <Button
             size="lg"

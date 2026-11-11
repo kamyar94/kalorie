@@ -25,6 +25,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { ACTIVITY_CATEGORIES, ACTIVITY_SOURCES, INTENSITIES } from "../lib/contracts/activities";
+import type { NotFoodKind } from "../lib/contracts/analysis";
 import { BODY_POSES } from "../lib/contracts/body-photos";
 import { HEART_RATE_KINDS, type SleepStage } from "../lib/contracts/health-connect";
 import { MEAL_SLOTS, MEAL_SOURCES, MEAL_STATUSES } from "../lib/contracts/meals";
@@ -224,7 +225,8 @@ export type MealQuestionRow = {
   answer?: string | null;
 };
 
-export type MealErrorRow = { kind: string; message: string };
+/** notFoodKind: for kind "not-food", what the analysis said it is (lib/analysis/not-food.ts). */
+export type MealErrorRow = { kind: string; message: string; notFoodKind?: NotFoodKind };
 
 /** A correction typed by the person ("it was chicken, not beef"), sent with the next analysis. */
 export type MealCorrectionRow = { text: string; at: string };

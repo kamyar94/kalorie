@@ -215,6 +215,23 @@ describe("parseAnalysis", () => {
     expect(notFood.output).toMatchObject({ is_food: false, items: [], questions: [] });
   });
 
+  it("says what a reply that is not food shows: the model's kind, else the title's words", () => {
+    const kind = (overrides: Record<string, unknown>) =>
+      parseAnalysis(reply({ is_food: false, items: [], ...overrides }), refs()).output
+        .not_food_kind;
+    expect(kind({ not_food_kind: "medicine", title: "A white bottle" })).toBe("medicine");
+    expect(kind({ not_food_kind: "supplement", title: "A jar" })).toBe("supplement");
+    expect(kind({ not_food_kind: "other", title: "A laptop" })).toBe("other");
+    // "none" (or no kind, from an older reply) while not food: the title decides.
+    expect(kind({ not_food_kind: "none", title: "Medication bottle and tablet" })).toBe("medicine");
+    expect(kind({ title: "Vitamin D capsules" })).toBe("supplement");
+    expect(kind({ not_food_kind: "pills", title: "A cat" })).toBe("other");
+    // Food has none.
+    expect(parseAnalysis(reply({ not_food_kind: "medicine" }), refs()).output.not_food_kind).toBe(
+      null,
+    );
+  });
+
   it("refuses replies that are not the schema", () => {
     for (const value of [null, "text", [], { items: [] }, { is_food: true, items: {} }])
       expect(() => parseAnalysis(value, refs())).toThrow(AiError);
