@@ -59,7 +59,7 @@ test("the Docker stack: invite, photo, analysis, edit, isolation", async ({
   await test.step("send a photo and see it analysed through the proxy", async () => {
     // One photo through the in-app camera (the file input stands in for the shutter).
     await page.goto("/today");
-    await page.getByRole("button", { name: "Take a photo of a meal" }).click();
+    await page.getByRole("button", { name: "Open the camera" }).click();
     const camera = page.getByRole("dialog", { name: "Camera" });
     await expect(camera).toBeVisible();
     await camera.getByTestId("capture-input").setInputFiles("tests/fixtures/meal.jpg");

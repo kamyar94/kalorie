@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AutoRefresh } from "@/components/app/auto-refresh";
-import { TodayCapture } from "@/components/app/today-capture";
 import { FavoriteChips } from "@/components/favorites/favorite-chips";
 import { DayPlanSection } from "@/components/today/day-plan";
 import { DaySwipe } from "@/components/today/day-swipe";
@@ -175,7 +174,6 @@ export default async function TodayPage({
       </div>
 
       <AutoRefresh active={pending} />
-      <TodayCapture />
     </DaySwipe>
   );
 }

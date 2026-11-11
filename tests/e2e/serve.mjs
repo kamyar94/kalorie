@@ -108,4 +108,9 @@ const stop = () => {
 };
 process.on("SIGTERM", stop);
 process.on("SIGINT", stop);
-for (const child of children) child.on("exit", (code) => code && stop());
+for (const child of children)
+  child.on("exit", (code, signal) => {
+    // Says which process ended and how (an app server lost part-way through a run was seen before).
+    console.error(`[serve] process ${child.pid} ended: code ${code}, signal ${signal}`);
+    if (code) stop();
+  });
