@@ -6,6 +6,12 @@ import type {
   ImportResult,
   ManualActivityInput,
 } from "@/lib/contracts/activities";
+import type {
+  HealthProfileDto,
+  ImportedMeasurement,
+  MeasurementDto,
+  NewMeasurements,
+} from "@/lib/contracts/body";
 import type { FoodResult } from "@/lib/contracts/food-search";
 import type {
   MealieRecipeHit,
@@ -251,4 +257,15 @@ export const api = {
     request<{ ok: true }>(`/api/activities/${id(activityId)}`, { method: "DELETE" }),
   importActivities: (records: ImportedActivity[]) =>
     request<ImportResult>("/api/imports/activities", { method: "POST", body: { records } }),
+  importMeasurements: (records: ImportedMeasurement[]) =>
+    request<ImportResult>("/api/imports/measurements", { method: "POST", body: { records } }),
+  logMeasurements: (input: NewMeasurements) =>
+    request<{ measurements: MeasurementDto[] }>("/api/body/measurements", {
+      method: "POST",
+      body: input,
+    }).then((r) => r.measurements),
+  deleteMeasurement: (measurementId: string) =>
+    request<{ ok: true }>(`/api/body/measurements/${id(measurementId)}`, { method: "DELETE" }),
+  saveHealthProfile: (input: Partial<HealthProfileDto>) =>
+    request<HealthProfileDto>("/api/body/health", { method: "PUT", body: input }),
 };

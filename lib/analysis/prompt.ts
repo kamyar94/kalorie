@@ -89,6 +89,11 @@ export type AnalysisContext = {
   answers: { question: string; answer: string }[];
   corrections: string[];
   current: CurrentItemContext[];
+  /**
+   * The person's allergies and conditions, only when they turned on "use in analysis" in their
+   * health profile (off by default; lib/body/health.ts).
+   */
+  health?: { allergies: string; conditions: string } | null;
 };
 
 const quote = (value: string) => `"${value.replace(/\s+/g, " ").trim()}"`;
@@ -123,6 +128,16 @@ export const buildAnalysisPrompt = (
   );
   if (context.cuisines.length)
     lines.push(`The person usually eats: ${context.cuisines.map((c) => c.trim()).join(", ")}.`);
+  if (context.health) {
+    const notes = [
+      context.health.allergies ? `allergies: ${quote(context.health.allergies)}` : "",
+      context.health.conditions ? `health conditions: ${quote(context.health.conditions)}` : "",
+    ].filter(Boolean);
+    if (notes.length)
+      lines.push(
+        `From the person's health profile (context for naming the foods; give no medical advice): ${notes.join("; ")}.`,
+      );
+  }
   lines.push(
     context.units === "imperial"
       ? "The person uses imperial units: portion_text may use cups, ounces and fl oz; grams and ml stay metric."

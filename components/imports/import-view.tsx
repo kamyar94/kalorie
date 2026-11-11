@@ -13,8 +13,8 @@ import { ACTIVITY_LIMITS, SOURCE_APP_LABELS, type ImportResult } from "@/lib/con
 import {
   mappedDataset,
   readImportFiles,
-  type ActivityDataset,
   type ImportDataset,
+  type KnownDataset,
   type UnknownDataset,
 } from "@/lib/imports/read";
 import { deviceTimeZone } from "@/lib/photos/client";
@@ -80,25 +80,33 @@ export const ImportView = ({ from }: { from: ImportFrom }) => {
     }
   };
 
+  /** One batch of a dataset to its import route. */
+  const post = (dataset: KnownDataset, from: number) => {
+    const to = from + ACTIVITY_LIMITS.importBatch;
+    return dataset.kind === "activities"
+      ? api.importActivities(dataset.records.slice(from, to))
+      : api.importMeasurements(dataset.records.slice(from, to));
+  };
+
   const send = async () => {
-    const picked = datasets.filter((d) => d.kind !== "unknown" && chosen.has(d.id));
-    const total = picked.reduce((n, d) => n + (d.kind === "unknown" ? 0 : d.records.length), 0);
+    const picked = datasets.filter(
+      (d): d is KnownDataset => d.kind !== "unknown" && chosen.has(d.id),
+    );
+    const total = picked.reduce((n, d) => n + d.records.length, 0);
     let sent = 0;
     const done = new Map<string, ImportResult>();
     try {
       for (const dataset of picked) {
-        if (dataset.kind === "unknown") continue;
         const sum: ImportResult = { added: 0, updated: 0, skipped: 0 };
         for (let i = 0; i < dataset.records.length; i += ACTIVITY_LIMITS.importBatch) {
           setProgress(
             `Sending ${sent.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} records…`,
           );
-          const batch = dataset.records.slice(i, i + ACTIVITY_LIMITS.importBatch);
-          const result = await api.importActivities(batch);
+          const result = await post(dataset, i);
           sum.added += result.added;
           sum.updated += result.updated;
           sum.skipped += result.skipped;
-          sent += batch.length;
+          sent += Math.min(ACTIVITY_LIMITS.importBatch, dataset.records.length - i);
         }
         done.set(dataset.id, sum);
         setResults(new Map(done));
@@ -118,7 +126,7 @@ export const ImportView = ({ from }: { from: ImportFrom }) => {
     }
   };
 
-  const known = datasets.filter((d): d is ActivityDataset => d.kind !== "unknown");
+  const known = datasets.filter((d): d is KnownDataset => d.kind !== "unknown");
   const unknown = datasets.filter((d): d is UnknownDataset => d.kind === "unknown");
 
   return (
@@ -141,8 +149,9 @@ export const ImportView = ({ from }: { from: ImportFrom }) => {
           </h2>
           <p className="text-body text-muted">
             Samsung Health: in the app, Settings, then Download personal data; pick the zip it
-            makes, or the CSV files inside it. Kal reads steps and workouts from it. Any other CSV
-            works too: you choose its columns.
+            makes, or the CSV files inside it. Kal reads steps, workouts and weigh-ins from it. A
+            Renpho scale: export its data as CSV in the Renpho app. Any other CSV works too: you
+            choose its columns.
           </p>
           <p className="text-caption text-muted flex items-start gap-2">
             <ShieldCheck aria-hidden className="text-primary mt-0.5 size-4 shrink-0" />

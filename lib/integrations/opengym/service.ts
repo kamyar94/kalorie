@@ -9,7 +9,8 @@ import { db as defaultDb, type DbOrTx } from "@/db";
 import { users } from "@/db/schema";
 import { syncOpenGymActivities } from "@/lib/activities/service";
 import { audit } from "@/lib/audit";
-import type { WeightPointDto, WorkoutDto } from "@/lib/contracts/integrations";
+import { syncOpenGymWeights } from "@/lib/body/service";
+import type { WorkoutDto } from "@/lib/contracts/integrations";
 import { isValidTimeZone, localParts } from "@/lib/meals/time";
 
 import { integrationConfig } from "../config";
@@ -27,6 +28,7 @@ import {
   metFor,
   parseState,
   weightForDay,
+  WEIGHT_DAYS,
   windowStart,
   WORKOUT_DAYS,
   workoutKcal,
@@ -134,7 +136,9 @@ const runSync = async (userId: string, dbx: DbOrTx): Promise<SyncResult> => {
       },
       dbx,
     );
-    // The workouts become activities (Move, points); removed ones go there too.
+    // The weigh-ins become weight values (Body) and the workouts activities (Move, points);
+    // removed ones go there too.
+    await syncOpenGymWeights(userId, snapshot.weights, windowStart(WEIGHT_DAYS, now), dbx);
     await syncOpenGymActivities(userId, snapshot.workouts, windowStart(WORKOUT_DAYS, now), dbx);
     return { ok: true, snapshot };
   } catch (error) {
@@ -217,15 +221,4 @@ export const getWorkouts = async (
         exercises: w.exercises,
       };
     });
-};
-
-/** Weigh-ins between two local days (both included), oldest first. */
-export const getWeights = async (
-  userId: string,
-  from: string,
-  to: string,
-  dbx: DbOrTx = defaultDb,
-): Promise<WeightPointDto[]> => {
-  const data = await openGymData(userId, {}, dbx);
-  return (data?.weights ?? []).filter((w) => w.date >= from && w.date <= to);
 };

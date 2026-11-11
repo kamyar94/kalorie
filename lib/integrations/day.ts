@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { users } from "@/db/schema";
+import { weightsByDay } from "@/lib/body/service";
 import type {
   DayPlan,
   LogPlannedResult,
@@ -16,7 +17,7 @@ import type {
 
 import { integrationConfig } from "./config";
 import { getPlannedMeals, localToday, logPlannedMeal as logPlanned } from "./mealie/service";
-import { getWeights, getWorkouts } from "./opengym/service";
+import { getWorkouts, openGymData } from "./opengym/service";
 import { credentialOf, getIntegrationRow } from "./store";
 
 export { getIntegrationStatuses } from "./store";
@@ -48,13 +49,20 @@ export const getDayPlan = async (
   return { planned, workouts, mealieConnected };
 };
 
-/** Weigh-ins between two local days (both included), oldest first. */
+/**
+ * Weigh-ins between two local days (both included), one a day, oldest first: typed on Body,
+ * imported, and openGym's (each openGym sync stores them, lib/body/service.ts).
+ */
 export const getWeightHistory = async (
   userId: string,
   from: string,
   to: string,
   dbx: DbOrTx = defaultDb,
-): Promise<WeightPointDto[]> => getWeights(userId, from, to, dbx).catch(() => []);
+): Promise<WeightPointDto[]> => {
+  // openGym data older than its sync age is read again first, as the screens always did.
+  await openGymData(userId, {}, dbx).catch(() => null);
+  return weightsByDay(userId, from, to, dbx);
+};
 
 /** Logs a planned recipe as a meal (servings of the recipe, nutrients from the recipe). */
 export const logPlannedMeal = (

@@ -667,6 +667,51 @@ export const activities = pgTable(
   ],
 );
 
+// ---- Body (lib/body) ----
+
+// One value of one measure at one time: weight and body composition from a scale, tape
+// measurements, custom parts (code "custom:<name>" with its own label and unit). Values are
+// metric. Like activities, records from elsewhere (openGym weigh-ins, Renpho and Samsung Health
+// imports, later Health Connect) carry their source and the id they have there; a manual value
+// has the day and the code as its id, so logging a measure again that day replaces it.
+export const bodyMeasurements = pgTable(
+  "body_measurements",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userRef(),
+    code: text("code").notNull(),
+    label: text("label"),
+    unit: text("unit").notNull(),
+    value: real("value").notNull(),
+    measuredAt: tz("measured_at").notNull(),
+    tz: text("tz").notNull(),
+    localDate: date("local_date", { mode: "string" }).notNull(),
+    source: text("source", { enum: ACTIVITY_SOURCES }).notNull().default("manual"),
+    sourceApp: text("source_app"),
+    externalId: text("external_id"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("body_measurements_user_code_idx").on(t.userId, t.code, t.measuredAt),
+    uniqueIndex("body_measurements_user_external_idx").on(t.userId, t.source, t.externalId),
+  ],
+);
+
+// The private health profile: never sent anywhere unless use_in_analysis is on (then the
+// allergies and conditions go with meal analyses to the person's own AI provider). Height, birth
+// year and goal stay on users, shared with Settings.
+export const healthProfiles = pgTable("health_profiles", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  conditions: text("conditions").notNull().default(""),
+  allergies: text("allergies").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  useInAnalysis: boolean("use_in_analysis").notNull().default(false),
+  updatedAt: updatedAt(),
+});
+
 // Move's badges, stored the first time they are earned (lib/move/service.ts), so a badge stays
 // when older data is removed later. code is a BadgeCode of lib/contracts/move.ts.
 export const userBadges = pgTable(

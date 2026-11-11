@@ -14,6 +14,7 @@ import { db as defaultDb, type DbOrTx } from "@/db";
 import { mealItems, mealPhotos, meals, users, type MealQuestionRow } from "@/db/schema";
 import { runAiTask } from "@/lib/ai/service";
 import type { AiImage } from "@/lib/ai/types";
+import { healthForAnalysis } from "@/lib/body/health";
 import {
   ANALYZE_MEAL_JOB,
   type AnalysisItem,
@@ -97,7 +98,7 @@ const weekdayOf = (at: Date, tz: string) => {
 export const loadAnalysisInput = async (userId: string, mealId: string, dbx: DbOrTx) => {
   const meal = (await dbx.select().from(meals).where(ownMeal(userId, mealId)).limit(1))[0];
   if (!meal) return null;
-  const [photos, items, user, usual, planned] = await Promise.all([
+  const [photos, items, user, usual, planned, health] = await Promise.all([
     dbx
       .select()
       .from(mealPhotos)
@@ -116,8 +117,9 @@ export const loadAnalysisInput = async (userId: string, mealId: string, dbx: DbO
       .then((rows) => rows[0]),
     getUsualMeals(userId, undefined, dbx),
     getPlannedRecipes(userId, meal.localDate),
+    healthForAnalysis(userId, dbx),
   ]);
-  return { meal, photos, items, user, usual, planned };
+  return { meal, photos, items, user, usual, planned, health };
 };
 
 export type AnalysisInput = NonNullable<Awaited<ReturnType<typeof loadAnalysisInput>>>;
@@ -134,6 +136,7 @@ export const analysisContext = (input: AnalysisInput, keepEdits: boolean): Analy
     slot: meal.slot,
     units: input.user?.units ?? "metric",
     cuisines: input.user?.cuisines ?? [],
+    health: input.health ?? null,
     usual: input.usual.map((u) => ({
       id: u.id,
       name: u.name,
