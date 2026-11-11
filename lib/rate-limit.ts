@@ -7,6 +7,8 @@
 //   upload:<userId>      photo uploads per account (meals, medicine labels) (app/api/meals/route.ts)
 //   meal-photos:<userId> photos added to, removed from or reordered in meals (lib/http/meal-photos.ts)
 //   ai:<userId>          AI requests per account                         (lib/ai/service.ts)
+//   imports:<userId>     batches of records read from export files       (lib/http/imports.ts)
+//   body-photos:<userId> body photo uploads and removals                  (app/api/body-photos)
 import { sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
@@ -111,6 +113,14 @@ export const uploadWindows = (): RateWindow[] => [
 export const aiWindows = (): RateWindow[] => [
   { name: "min", windowMs: 60_000, max: fromEnv("AI_RATE_PER_MINUTE", 10) },
   { name: "day", windowMs: 86_400_000, max: fromEnv("AI_RATE_PER_DAY", 300) },
+];
+
+/**
+ * Import batches per account (each holds up to 2,000 records of one file read on the device):
+ * 120 per hour, enough for years of steps, workouts and weigh-ins at once.
+ */
+export const IMPORT_WINDOWS: RateWindow[] = [
+  { name: "hour", windowMs: 3_600_000, max: fromEnv("IMPORT_RATE_PER_HOUR", 120) },
 ];
 
 /** Saving, replacing and testing AI keys and integration credentials: 20 per 10 minutes. */

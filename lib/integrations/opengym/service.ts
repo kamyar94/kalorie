@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { users } from "@/db/schema";
+import { syncOpenGymActivities } from "@/lib/activities/service";
 import { audit } from "@/lib/audit";
 import type { WeightPointDto, WorkoutDto } from "@/lib/contracts/integrations";
 import { isValidTimeZone, localParts } from "@/lib/meals/time";
@@ -22,7 +23,15 @@ import {
   type IntegrationRow,
 } from "../store";
 import { openGymClient, PAIR_CODE } from "./client";
-import { metFor, parseState, weightForDay, workoutKcal, type OpenGymSnapshot } from "./parse";
+import {
+  metFor,
+  parseState,
+  weightForDay,
+  windowStart,
+  WORKOUT_DAYS,
+  workoutKcal,
+  type OpenGymSnapshot,
+} from "./parse";
 
 /** Data older than this is read again when a screen needs it. */
 export const SYNC_MAX_AGE_MS = 10 * 60_000;
@@ -112,7 +121,8 @@ const runSync = async (userId: string, dbx: DbOrTx): Promise<SyncResult> => {
       await saveCredential(userId, "opengym", token, undefined, dbx);
     }
     const { state, rev } = await client.data(token);
-    const snapshot = parseState(state);
+    const now = new Date();
+    const snapshot = parseState(state, { now });
     await updateIntegration(
       userId,
       "opengym",
@@ -124,6 +134,8 @@ const runSync = async (userId: string, dbx: DbOrTx): Promise<SyncResult> => {
       },
       dbx,
     );
+    // The workouts become activities (Move, points); removed ones go there too.
+    await syncOpenGymActivities(userId, snapshot.workouts, windowStart(WORKOUT_DAYS, now), dbx);
     return { ok: true, snapshot };
   } catch (error) {
     if (!isIntegrationError(error)) throw error;

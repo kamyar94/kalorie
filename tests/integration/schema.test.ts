@@ -1,5 +1,5 @@
 // The migrations build the whole schema: the first one every phase's tables, later ones the
-// medicines (0004).
+// medicines (0004) and the activities (0005).
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { createFood } from "@/tests/helpers/factories";
 
 const TABLES = [
+  "activities",
   "ai_keys",
   "ai_settings",
   "ai_usage",

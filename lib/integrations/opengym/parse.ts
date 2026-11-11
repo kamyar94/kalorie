@@ -37,6 +37,17 @@ export const metFor = (name: string) => MET_RULES.find((r) => r.words.test(name)
 export const workoutKcal = (met: number, kg: number | null, minutes: number | null) =>
   kg && kg > 0 && minutes && minutes > 0 ? Math.round(met * kg * (minutes / 60)) : null;
 
+/** Days of workouts and weigh-ins a sync keeps (and that the activities and weights mirror). */
+export const WORKOUT_DAYS = 120;
+export const WEIGHT_DAYS = 730;
+
+/** The first day a sync made `now` reads, for a window of `days`. */
+export const windowStart = (days: number, now = new Date()) => {
+  const d = new Date(now);
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+};
+
 export type CachedWorkout = {
   id: string;
   date: string;
@@ -78,13 +89,8 @@ export const parseState = (
   const record = (state && typeof state === "object" ? state : {}) as Record<string, unknown>;
   const unit = record.unit === "lb" ? "lb" : "kg";
   const toKg = (value: number) => (unit === "lb" ? value * LB_TO_KG : value);
-  const since = (days: number) => {
-    const d = new Date(now);
-    d.setUTCDate(d.getUTCDate() - days);
-    return d.toISOString().slice(0, 10);
-  };
-  const weightFrom = since(options.weightDays ?? 730);
-  const workoutFrom = since(options.workoutDays ?? 120);
+  const weightFrom = windowStart(options.weightDays ?? WEIGHT_DAYS, now);
+  const workoutFrom = windowStart(options.workoutDays ?? WORKOUT_DAYS, now);
 
   // Weigh-ins removed in openGym are stamped under deleted (a negative stamp is an add-back).
   // Removal stamps per list and entry key (weigh-ins by day, workouts by id).
