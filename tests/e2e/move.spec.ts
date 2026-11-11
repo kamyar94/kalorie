@@ -171,6 +171,12 @@ test("move: level, streak, the week by category and badges; Today's Move card", 
   await expect(card.getByTestId("move-minutes")).toHaveText("45 minStrength, openGym");
   await expect(card.getByTestId("move-steps")).toHaveText("6,240Steps, imported");
   await expect(card.getByTestId("move-points")).toHaveText("+90Points today");
+  // The water goal grows by an estimate for the 45 minutes of activity.
+  const water = page.getByTestId("water-card");
+  await expect(water.getByTestId("water-total")).toHaveText("0 of 2.2 L");
+  await expect(water.getByTestId("water-caption")).toHaveText(
+    "Goal today: 1.8 L, plus an estimated 0.4 L for 45 min of activity. Drinks in your meals count; alcohol does not.",
+  );
   await expectAccessible(page);
 
   // Move: 90 + 50 + 60 = 200 points, level 2, a 3-day streak, badges.

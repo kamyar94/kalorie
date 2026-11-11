@@ -74,7 +74,8 @@ describe("Move", () => {
     await stepsDay(user.id, day(0), 3000, "manual");
     await activity(user.id, day(1), { durationMin: 30, intensity: "vigorous" });
     await stepsDay(user.id, day(2), 10_200, "import");
-    for (const n of [0, 1, 2]) await water(user.id, day(n), 1900);
+    // Enough water for the goal raised by the activity (at most 1.8 + 0.4 L).
+    for (const n of [0, 1, 2]) await water(user.id, day(n), 2300);
 
     const summary = await getMoveSummary(user.id, today);
     // Today 45 + 15 + 30 (6,240 steps); yesterday 60; two days ago 50 (10,200 steps).
@@ -110,6 +111,18 @@ describe("Move", () => {
     const other = await getMoveSummary((await createUser()).id, today);
     expect(other.points.total).toBe(0);
     expect(other.badges.every((b) => b.earnedOn === null)).toBe(true);
+  });
+
+  it("raises the water goal of an active day for the water badge", async () => {
+    const user = await createUser({ timeZone: TZ });
+    for (const n of [0, 1, 2]) await water(user.id, day(n), 1900);
+    // An hour of running two days ago: the goal that day is 1.8 + 0.5 L, so 1.9 L falls short.
+    await activity(user.id, day(2), { durationMin: 60 });
+    const summary = await getMoveSummary(user.id, today);
+    expect(summary.badges.find((b) => b.code === "water_3")!.earnedOn).toBeNull();
+    await water(user.id, day(2), 500);
+    const again = await getMoveSummary(user.id, today);
+    expect(again.badges.find((b) => b.code === "water_3")!.earnedOn).toBe(day(0));
   });
 
   it("fills Today's Move card for a day", async () => {

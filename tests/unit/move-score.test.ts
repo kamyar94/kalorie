@@ -18,6 +18,7 @@ import {
   weekRows,
   type ScoredActivity,
 } from "@/lib/move/score";
+import { activityWaterMl, dayWaterGoalMl } from "@/lib/move/water";
 
 const timed = (
   localDate: string,
@@ -158,5 +159,17 @@ describe("badges", () => {
     expect(earned.get("workouts_10")).toBe("2026-10-19");
     expect(earned.has("streak_3")).toBe(false);
     expect(earned.has("water_3")).toBe(false);
+  });
+});
+
+describe("water for activity", () => {
+  it("adds about 0.5 L an hour of moderate or harder activity, in 0.1 L steps, at most 1.5 L", () => {
+    expect(activityWaterMl(0)).toBe(0);
+    expect(activityWaterMl(5)).toBe(0);
+    expect(activityWaterMl(10)).toBe(100);
+    expect(activityWaterMl(45)).toBe(400);
+    expect(activityWaterMl(60)).toBe(500);
+    expect(activityWaterMl(400)).toBe(1500);
+    expect(dayWaterGoalMl(2000, 45)).toBe(2400);
   });
 });

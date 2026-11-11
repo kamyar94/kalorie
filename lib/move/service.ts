@@ -37,6 +37,7 @@ import {
   type BadgeDay,
   type ScoredActivity,
 } from "./score";
+import { dayWaterGoalMl } from "./water";
 import { weekStart } from "./week";
 
 /** How far back the water goal is checked for its badges. */
@@ -106,9 +107,6 @@ export const waterByDay = async (userId: string, from: string, to: string, dbx: 
   return new Map([...days].map(([date, items]) => [date, totalWaterMl(items)]));
 };
 
-/** The day's water goal: the hydration target (the activity estimate is added on top). */
-const waterGoalFor = (baseMl: number) => baseMl;
-
 /** Points, level, streak, the week by category and the badges; stores newly earned badges. */
 export const getMoveSummary = async (
   userId: string,
@@ -136,7 +134,9 @@ export const getMoveSummary = async (
     .map((date) => ({
       date,
       activities: days.get(date) ?? [],
-      waterGoalMet: base > 0 && (water.get(date) ?? 0) >= waterGoalFor(base),
+      waterGoalMet:
+        base > 0 &&
+        (water.get(date) ?? 0) >= dayWaterGoalMl(base, sweatMinutes(days.get(date) ?? [])),
     }));
   const earned = earnedBadges(history);
   const known = new Map(

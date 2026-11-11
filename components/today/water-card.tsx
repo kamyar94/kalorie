@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/client/api";
+import { formatMinutes } from "@/lib/contracts/activities";
 import { goalLitres, litres } from "@/lib/meals/hydration";
 import { deviceTimeZone } from "@/lib/photos/client";
 import { fromLocalInputValue } from "@/lib/ui/format";
@@ -19,19 +20,27 @@ const QUICK = [
 /**
  * The day's water from drinks against the goal, with two buttons that log a glass or a bottle of
  * water at once (a meal with one item, Water, kind drink, no energy). On an earlier day the water
- * is logged at 12:00 of that day.
+ * is logged at 12:00 of that day. Timed activity raises the day's goal (lib/move/water.ts); the
+ * caption then says how the goal is made up.
  */
 export const WaterCard = ({
   date,
   today,
   totalMl,
-  goalMl,
+  baseMl,
+  activityMl = 0,
+  activityMinutes = 0,
 }: {
   date: string;
   today: string;
   totalMl: number;
-  goalMl: number;
+  /** The hydration target. */
+  baseMl: number;
+  /** The estimate for the day's activity, and the minutes it is for. */
+  activityMl?: number;
+  activityMinutes?: number;
 }) => {
+  const goalMl = baseMl + activityMl;
   const router = useRouter();
   const { show } = useToast();
   const [busy, setBusy] = useState<number | null>(null);
@@ -102,8 +111,10 @@ export const WaterCard = ({
       >
         <div className="bg-water h-full rounded-full" style={{ width: `${percent}%` }} />
       </div>
-      <p className="text-caption text-muted">
-        From the drinks in your meals. Alcohol does not count.
+      <p className="text-caption text-muted" data-testid="water-caption">
+        {activityMl > 0
+          ? `${date === today ? "Goal today" : "Goal that day"}: ${goalLitres(baseMl)} L, plus an estimated ${(activityMl / 1000).toFixed(1)} L for ${formatMinutes(activityMinutes)} of activity. Drinks in your meals count; alcohol does not.`
+          : "From the drinks in your meals. Alcohol does not count."}
       </p>
       <div className="flex gap-2">
         {QUICK.map((option) => (
