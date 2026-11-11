@@ -1,5 +1,11 @@
 // The browser's calls to Kal's JSON routes, typed with the contracts. Screens call these and never
 // build requests themselves, so data access stays in one place. Browser only.
+import type {
+  ActivityDto,
+  ImportedActivity,
+  ImportResult,
+  ManualActivityInput,
+} from "@/lib/contracts/activities";
 import type { FoodResult } from "@/lib/contracts/food-search";
 import type {
   MealieRecipeHit,
@@ -235,4 +241,14 @@ export const api = {
       { method: "POST" },
     ),
   disconnectOpenGym: () => request<{ ok: true }>("/api/integrations/opengym", { method: "DELETE" }),
+  activities: (from: string, to: string) =>
+    request<{ activities: ActivityDto[] }>(`/api/activities?from=${id(from)}&to=${id(to)}`).then(
+      (r) => r.activities,
+    ),
+  createActivity: (input: ManualActivityInput) =>
+    request<ActivityDto>("/api/activities", { method: "POST", body: input }),
+  deleteActivity: (activityId: string) =>
+    request<{ ok: true }>(`/api/activities/${id(activityId)}`, { method: "DELETE" }),
+  importActivities: (records: ImportedActivity[]) =>
+    request<ImportResult>("/api/imports/activities", { method: "POST", body: { records } }),
 };

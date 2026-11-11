@@ -25,6 +25,7 @@ import {
   pushSubscriptions,
   users,
 } from "@/db/schema";
+import { listActivities } from "@/lib/activities/service";
 import { saveProviderKey } from "@/lib/ai/service";
 import { setAnalysisFinishedListener } from "@/lib/analysis/events";
 import { setPlannedRecipesSource } from "@/lib/analysis/planned";
@@ -498,6 +499,27 @@ describe("openGym", () => {
         .filter((r) => r.path === "/api/data")
         .every((r) => r.authorization === `Bearer ${token}`),
     ).toBe(true);
+  });
+
+  it("turns workouts into activities, once, and follows removals in openGym", async () => {
+    const user = await createUser({ weightKg: 90 });
+    expect(await pairOpenGym(user.id, mocks.opengym.newCode())).toEqual({ ok: true });
+    const mine = () => listActivities(user.id);
+    expect((await mine()).map((a) => [a.title, a.category, a.source, a.durationMin])).toEqual([
+      ["Legs", "strength", "opengym", 60],
+      ["Upper body", "strength", "opengym", 45],
+    ]);
+    // The workout's own body weight: 3.5 MET x 79.6 kg x 1 h.
+    expect((await mine())[0]).toMatchObject({ energyKcal: 279, intensity: "moderate" });
+
+    await syncOpenGym(user.id);
+    expect(await mine()).toHaveLength(2);
+
+    const state = mocks.opengym.state as { workouts: { id: string }[] };
+    mocks.opengym.state = { ...state, workouts: state.workouts.filter((w) => w.id !== "w-old") };
+    await syncOpenGym(user.id);
+    expect((await mine()).map((a) => a.title)).toEqual(["Legs"]);
+    expect(await listActivities((await createUser()).id)).toEqual([]);
   });
 
   it("keeps the fresh token /api/me hands out, converts pounds, and notices a sign-out", async () => {

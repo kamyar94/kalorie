@@ -1,13 +1,14 @@
 // "Export my data" and "Delete my data" (Settings). The export holds everything Kal keeps about
 // the person except secrets (no keys, no password hash, no integration tokens) and the photo
 // files themselves. Deleting removes every logged meal, photo file, item, personal food,
-// correction memory, medicine, medicine log and label photo, key, integration, notification
-// subscription and custom target, and resets the profile; the account itself (name, username,
+// correction memory, medicine, medicine log and label photo, activity, key, integration,
+// notification subscription and custom target, and resets the profile; the account itself (name, username,
 // password, role) stays so the person can go on.
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import {
+  activities,
   aiKeys,
   aiSettings,
   aiUsage,
@@ -26,7 +27,9 @@ import {
   users,
   userTargets,
 } from "@/db/schema";
+import { toActivityDto } from "@/lib/activities/service";
 import { audit } from "@/lib/audit";
+import type { ActivityDto } from "@/lib/contracts/activities";
 import type { MealDto } from "@/lib/contracts/meals";
 import type { MedicineDto, MedicineLogDto } from "@/lib/contracts/medicines";
 import { NUTRIENT_CATALOGUE } from "@/lib/contracts/nutrients";
@@ -61,6 +64,8 @@ export type ExportData = {
   /** The person's medicines (archived too) and every medicine taken, oldest first. */
   medicines: MedicineDto[];
   medicineLogs: MedicineLogDto[];
+  /** Workouts, typed activities, imported sessions and steps per day, oldest first. */
+  activities: ActivityDto[];
 };
 
 /** Everything about the person as JSON-ready data. Null for an unknown account. */
@@ -76,33 +81,46 @@ export const exportUserData = async (
     .where(and(eq(meals.userId, userId), isNull(meals.deletedAt)))
     .orderBy(asc(meals.eatenAt));
   const ids = mealRows.map((m) => m.id);
-  const [photoRows, itemRows, foodRows, memoryRows, targetRows, medicineRows, medicineLogRows] =
-    await Promise.all([
-      ids.length ? dbx.select().from(mealPhotos).where(inArray(mealPhotos.mealId, ids)) : [],
-      ids.length
-        ? dbx
-            .select({ item: mealItems, foodName: foods.nameEn })
-            .from(mealItems)
-            .leftJoin(foods, eq(foods.id, mealItems.foodId))
-            .where(eq(mealItems.userId, userId))
-        : [],
-      dbx.select().from(foods).where(eq(foods.ownerId, userId)).orderBy(asc(foods.createdAt)),
-      dbx.select().from(foodMemory).where(eq(foodMemory.userId, userId)),
-      dbx
-        .select()
-        .from(userTargets)
-        .where(and(eq(userTargets.userId, userId), eq(userTargets.custom, true))),
-      dbx
-        .select()
-        .from(medicines)
-        .where(eq(medicines.userId, userId))
-        .orderBy(asc(medicines.createdAt)),
-      dbx
-        .select()
-        .from(medicineLogs)
-        .where(eq(medicineLogs.userId, userId))
-        .orderBy(asc(medicineLogs.takenAt)),
-    ]);
+  const [
+    photoRows,
+    itemRows,
+    foodRows,
+    memoryRows,
+    targetRows,
+    medicineRows,
+    medicineLogRows,
+    activityRows,
+  ] = await Promise.all([
+    ids.length ? dbx.select().from(mealPhotos).where(inArray(mealPhotos.mealId, ids)) : [],
+    ids.length
+      ? dbx
+          .select({ item: mealItems, foodName: foods.nameEn })
+          .from(mealItems)
+          .leftJoin(foods, eq(foods.id, mealItems.foodId))
+          .where(eq(mealItems.userId, userId))
+      : [],
+    dbx.select().from(foods).where(eq(foods.ownerId, userId)).orderBy(asc(foods.createdAt)),
+    dbx.select().from(foodMemory).where(eq(foodMemory.userId, userId)),
+    dbx
+      .select()
+      .from(userTargets)
+      .where(and(eq(userTargets.userId, userId), eq(userTargets.custom, true))),
+    dbx
+      .select()
+      .from(medicines)
+      .where(eq(medicines.userId, userId))
+      .orderBy(asc(medicines.createdAt)),
+    dbx
+      .select()
+      .from(medicineLogs)
+      .where(eq(medicineLogs.userId, userId))
+      .orderBy(asc(medicineLogs.takenAt)),
+    dbx
+      .select()
+      .from(activities)
+      .where(eq(activities.userId, userId))
+      .orderBy(asc(activities.startedAt)),
+  ]);
 
   return {
     format: "cal-export",
@@ -161,6 +179,7 @@ export const exportUserData = async (
     })),
     medicines: medicineRows.map((m) => toMedicineDto(m)),
     medicineLogs: medicineLogRows.map(toLogDto),
+    activities: activityRows.map(toActivityDto),
   };
 };
 
@@ -254,6 +273,7 @@ export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) =>
     await tx.delete(medicineLogs).where(eq(medicineLogs.userId, userId));
     await tx.delete(medicines).where(eq(medicines.userId, userId));
     await tx.delete(medicineScans).where(eq(medicineScans.userId, userId));
+    await tx.delete(activities).where(eq(activities.userId, userId));
     // Parts of their own dishes first: a dish part may be another of their own foods, which
     // dish_components protects (ON DELETE RESTRICT) until the part row is gone.
     const ownFoods = tx.select({ id: foods.id }).from(foods).where(eq(foods.ownerId, userId));

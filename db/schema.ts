@@ -24,6 +24,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { ACTIVITY_CATEGORIES, ACTIVITY_SOURCES, INTENSITIES } from "../lib/contracts/activities";
 import { MEAL_SLOTS, MEAL_SOURCES, MEAL_STATUSES } from "../lib/contracts/meals";
 import {
   MEDICINE_FORMS,
@@ -625,6 +626,44 @@ export const medicineLogs = pgTable(
     index("medicine_logs_user_day_idx").on(t.userId, t.localDate, t.takenAt),
     index("medicine_logs_medicine_idx").on(t.medicineId),
     index("medicine_logs_scan_idx").on(t.scanId),
+  ],
+);
+
+// ---- Activities (lib/activities) ----
+
+// Workouts, typed activities, imported exercise sessions and a day's steps (type "steps", no
+// duration). Records from elsewhere carry their source and the id they have there, so a second
+// import, an openGym sync or (later) Health Connect update them instead of adding copies. Manual
+// records have no external id (NULLs never clash in the unique index).
+export const activities = pgTable(
+  "activities",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userRef(),
+    category: text("category", { enum: ACTIVITY_CATEGORIES }).notNull(),
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    startedAt: tz("started_at").notNull(),
+    tz: text("tz").notNull(),
+    localDate: date("local_date", { mode: "string" }).notNull(),
+    durationMin: real("duration_min"),
+    distanceM: real("distance_m"),
+    steps: integer("steps"),
+    energyKcal: real("energy_kcal"),
+    intensity: text("intensity", { enum: INTENSITIES }),
+    source: text("source", { enum: ACTIVITY_SOURCES }).notNull().default("manual"),
+    // The app an import or Health Connect record came from ("samsung-health").
+    sourceApp: text("source_app"),
+    externalId: text("external_id"),
+    notes: text("notes"),
+    // Extra facts from the source (openGym's exercise names), never needed to show the record.
+    details: jsonb("details").$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    index("activities_user_day_idx").on(t.userId, t.localDate),
+    uniqueIndex("activities_user_external_idx").on(t.userId, t.source, t.externalId),
   ],
 );
 
