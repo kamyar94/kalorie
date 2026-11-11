@@ -247,6 +247,10 @@ export const meals = pgTable(
     error: jsonb("error").$type<MealErrorRow | null>(),
     totals: jsonb("totals").$type<NutrientMap>().notNull().default({}),
     analysedAt: tz("analysed_at"),
+    // A favorite since this time (null: not a favorite); logged again from the favorites at
+    // favorite_used_at. "Log a favorite again" lists the most recently used first.
+    favoriteAt: tz("favorite_at"),
+    favoriteUsedAt: tz("favorite_used_at"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
     deletedAt: tz("deleted_at"),
@@ -257,6 +261,9 @@ export const meals = pgTable(
       .where(sql`${t.deletedAt} is null`),
     index("meals_user_eaten_idx").on(t.userId, t.eatenAt),
     uniqueIndex("meals_user_client_idx").on(t.userId, t.clientId),
+    index("meals_user_favorite_idx")
+      .on(t.userId, t.favoriteAt)
+      .where(sql`${t.favoriteAt} is not null and ${t.deletedAt} is null`),
   ],
 );
 

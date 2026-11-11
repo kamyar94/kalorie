@@ -161,8 +161,9 @@ export const recomputeMealTotals = async (mealId: string, dbx: DbOrTx = defaultD
 /** Meal types that name a time of day; they do not carry over to a new time. */
 const TIME_OF_DAY_TYPES = new Set(["breakfast", "lunch", "dinner", "supper"]);
 
-/** Changes time, slot, title or note. A new time moves the meal to its day; the slot follows
- * the time (and the food) unless one is given now or was chosen before; a slot given locks it. */
+/** Changes time, slot, title, note or the favorite star. A new time moves the meal to its day;
+ * the slot follows the time (and the food) unless one is given now or was chosen before; a slot
+ * given locks it. */
 export const updateMeal = async (
   userId: string,
   mealId: string,
@@ -194,6 +195,11 @@ export const updateMeal = async (
   }
   if (patch.title !== undefined) set.title = patch.title?.trim().slice(0, 120) || null;
   if (patch.note !== undefined) set.note = patch.note?.trim().slice(0, 500) || null;
+  // A favorite keeps its first starring time; unstarring forgets when it was last used.
+  if (patch.favorite !== undefined) {
+    set.favoriteAt = patch.favorite ? (row.favoriteAt ?? new Date()) : null;
+    if (!patch.favorite) set.favoriteUsedAt = null;
+  }
   if (Object.keys(set).length) await dbx.update(meals).set(set).where(ownMeal(userId, mealId));
   // A new time names the meal again (a slot chosen by hand stays).
   if (moved && patch.slot === undefined) await recomputeMealTotals(mealId, dbx);

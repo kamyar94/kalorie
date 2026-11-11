@@ -10,7 +10,8 @@ const ITEMS = [
   { href: "/today", label: "Today", icon: Sun, also: ["/meals"] },
   { href: "/add", label: "Add", icon: CirclePlus, also: [] },
   { href: "/trends", label: "Trends", icon: BarChart3, also: [] },
-  { href: "/settings", label: "Settings", icon: Settings, also: ["/admin"] },
+  // Favorites and Medicines are opened from Settings for now.
+  { href: "/settings", label: "Settings", icon: Settings, also: ["/admin", "/favorites"] },
 ] as const;
 
 /**

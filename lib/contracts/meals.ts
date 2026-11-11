@@ -13,6 +13,8 @@
 //   deleteItem(userId, itemId)                    -> boolean
 //   recomputeMealTotals(mealId)                   -> NutrientMap
 // Creating a photo meal is lib/meals/create.ts (createPhotoMeal), used by POST /api/meals.
+// The photos of an existing meal: lib/meals/photos.ts (addMealPhotos, removeMealPhoto,
+// reorderMealPhotos). Favorites: lib/meals/favorites.ts (listFavorites, logFavorite).
 import type { NutrientMap } from "./nutrients";
 
 export const MEAL_STATUSES = ["queued", "analysing", "needs_input", "ready", "failed"] as const;
@@ -161,6 +163,8 @@ export type MealSummaryDto = {
   slot: MealSlot;
   /** The person chose the slot by hand; Cal does not change it any more. */
   slotLocked: boolean;
+  /** One of the person's favorites ("Log a favorite again"). */
+  favorite: boolean;
   title: string | null;
   note: string | null;
   status: MealStatus;
@@ -192,6 +196,27 @@ export type MealPatch = {
   slot?: MealSlot;
   title?: string | null;
   note?: string | null;
+  /** Star or unstar the meal as a favorite. */
+  favorite?: boolean;
+};
+
+/**
+ * A favorite meal, for "Log a favorite again" (Today) and the Favorites page. Logging it again
+ * copies the meal as it is then (lib/meals/favorites.ts).
+ */
+export type FavoriteDto = {
+  mealId: string;
+  /** The meal's title, else its slot's name. */
+  title: string;
+  /** The emoji of its cover: the first item's, else a plate. */
+  emoji: string;
+  kcal: number | null;
+  slot: MealSlot;
+  /** The foods, for a line under the title. */
+  foods: MealFoodDto[];
+  /** When it was last logged again from the favorites (ISO), else null. */
+  lastUsedAt: string | null;
+  favoriteAt: string;
 };
 
 /** A new item (manual add, search result, Mealie recipe). */
