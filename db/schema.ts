@@ -771,6 +771,47 @@ export const userBadges = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.code] })],
 );
 
+// ---- Linked phones (lib/devices) ----
+
+// Phones linked through the Kal Android app. The phone keeps a long-lived token; only its SHA-256
+// is stored. Unlinking sets revoked_at (the phone's next call gets a 401); the row stays so the
+// export can say when it was linked. `sends` lists what it has sent so far (SEND_KINDS of
+// lib/contracts/devices.ts).
+export const devices = pgTable(
+  "devices",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userRef(),
+    name: text("name").notNull(),
+    platform: text("platform").notNull().default("android"),
+    appVersion: text("app_version"),
+    tokenHash: text("token_hash").notNull(),
+    sends: text("sends")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    createdAt: createdAt(),
+    lastSeenAt: tz("last_seen_at"),
+    lastSyncAt: tz("last_sync_at"),
+    revokedAt: tz("revoked_at"),
+  },
+  (t) => [uniqueIndex("devices_token_idx").on(t.tokenHash), index("devices_user_idx").on(t.userId)],
+);
+
+// One-time codes that link a phone: made by the signed-in page, traded once by the phone for a
+// device token within a few minutes. Only the SHA-256 of the code is stored.
+export const deviceLinkCodes = pgTable(
+  "device_link_codes",
+  {
+    codeHash: text("code_hash").primaryKey(),
+    userId: userRef(),
+    createdAt: createdAt(),
+    expiresAt: tz("expires_at").notNull(),
+    usedAt: tz("used_at"),
+  },
+  (t) => [index("device_link_codes_user_idx").on(t.userId)],
+);
+
 // ---- Integrations and notifications ----
 
 export const integrations = pgTable(

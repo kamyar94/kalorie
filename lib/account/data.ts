@@ -2,9 +2,9 @@
 // the person except secrets (no keys, no password hash, no integration tokens) and the photo
 // files themselves. Deleting removes every logged meal, photo file, item, personal food,
 // correction memory, medicine, medicine log and label photo, activity, badge, body measurement,
-// body photo (and its files), the health profile, key, integration, notification subscription
-// and custom target, and resets the profile; the account itself (name, username, password, role)
-// stays so the person can go on.
+// body photo (and its files), the health profile, linked phone (their tokens stop working) and
+// link code, key, integration, notification subscription and custom target, and resets the
+// profile; the account itself (name, username, password, role) stays so the person can go on.
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
@@ -14,6 +14,8 @@ import {
   bodyMeasurements,
   bodyPhotoSessions,
   aiSettings,
+  deviceLinkCodes,
+  devices,
   aiUsage,
   dishComponents,
   foodMemory,
@@ -83,6 +85,17 @@ export type ExportData = {
   healthProfile: { conditions: string; allergies: string; notes: string; useInAnalysis: boolean };
   /** Body photo sessions by day, each pose with its time (the files themselves are not in it). */
   bodyPhotos: BodySessionDto[];
+  /** Phones linked through the Android app, unlinked ones too (never their tokens). */
+  devices: {
+    name: string;
+    platform: string;
+    appVersion: string | null;
+    linkedAt: string;
+    lastSeenAt: string | null;
+    lastSyncAt: string | null;
+    unlinkedAt: string | null;
+    sends: string[];
+  }[];
 };
 
 /** Everything about the person as JSON-ready data. Null for an unknown account. */
@@ -111,6 +124,7 @@ export const exportUserData = async (
     measurementRows,
     healthRows,
     bodySessions,
+    deviceRows,
   ] = await Promise.all([
     ids.length ? dbx.select().from(mealPhotos).where(inArray(mealPhotos.mealId, ids)) : [],
     ids.length
@@ -153,6 +167,7 @@ export const exportUserData = async (
       .orderBy(asc(bodyMeasurements.measuredAt), asc(bodyMeasurements.code)),
     dbx.select().from(healthProfiles).where(eq(healthProfiles.userId, userId)),
     listBodySessions(userId, dbx),
+    dbx.select().from(devices).where(eq(devices.userId, userId)).orderBy(asc(devices.createdAt)),
   ]);
 
   return {
@@ -222,6 +237,16 @@ export const exportUserData = async (
       useInAnalysis: healthRows[0]?.useInAnalysis ?? false,
     },
     bodyPhotos: [...bodySessions].reverse(),
+    devices: deviceRows.map((d) => ({
+      name: d.name,
+      platform: d.platform,
+      appVersion: d.appVersion,
+      linkedAt: d.createdAt.toISOString(),
+      lastSeenAt: d.lastSeenAt?.toISOString() ?? null,
+      lastSyncAt: d.lastSyncAt?.toISOString() ?? null,
+      unlinkedAt: d.revokedAt?.toISOString() ?? null,
+      sends: d.sends,
+    })),
   };
 };
 
@@ -322,6 +347,9 @@ export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) =>
     await tx.delete(healthProfiles).where(eq(healthProfiles.userId, userId));
     // Sessions take their photos with them (ON DELETE CASCADE).
     await tx.delete(bodyPhotoSessions).where(eq(bodyPhotoSessions.userId, userId));
+    // Linked phones go too: their tokens stop working, the app says "Unlinked. Link again."
+    await tx.delete(devices).where(eq(devices.userId, userId));
+    await tx.delete(deviceLinkCodes).where(eq(deviceLinkCodes.userId, userId));
     // Parts of their own dishes first: a dish part may be another of their own foods, which
     // dish_components protects (ON DELETE RESTRICT) until the part row is gone.
     const ownFoods = tx.select({ id: foods.id }).from(foods).where(eq(foods.ownerId, userId));

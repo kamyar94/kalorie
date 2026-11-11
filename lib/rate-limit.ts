@@ -9,6 +9,9 @@
 //   ai:<userId>          AI requests per account                         (lib/ai/service.ts)
 //   imports:<userId>     batches of records read from export files       (lib/http/imports.ts)
 //   body-photos:<userId> body photo uploads and removals                  (app/api/body-photos)
+//   link-codes:<userId>  one-time codes that link a phone                (app/api/devices/link-codes)
+//   claim-ip:<ip>        phones trading a code for a token, per address   (app/api/devices/claim)
+//   hc-sync:<deviceId>   Health Connect batches per linked phone          (app/api/health-connect)
 import { sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
@@ -125,3 +128,17 @@ export const IMPORT_WINDOWS: RateWindow[] = [
 
 /** Saving, replacing and testing AI keys and integration credentials: 20 per 10 minutes. */
 export const SETTINGS_WINDOWS: RateWindow[] = [{ name: "10m", windowMs: 600_000, max: 20 }];
+
+/** One-time codes for linking a phone, per account: 20 per hour. */
+export const LINK_CODE_WINDOWS: RateWindow[] = [{ name: "hour", windowMs: 3_600_000, max: 20 }];
+
+/** Phones trading a code for a device token, per address: 20 per 15 minutes. */
+export const CLAIM_IP_WINDOWS: RateWindow[] = [{ name: "15m", windowMs: 15 * 60_000, max: 20 }];
+
+/**
+ * Health Connect batches per linked phone: HEALTH_CONNECT_RATE_PER_HOUR (default 120). The app
+ * sends about once an hour; the first sync of a year of records takes a few batches.
+ */
+export const healthConnectWindows = (): RateWindow[] => [
+  { name: "hour", windowMs: 3_600_000, max: fromEnv("HEALTH_CONNECT_RATE_PER_HOUR", 120) },
+];
