@@ -31,5 +31,6 @@ export default defineConfig([
     "drizzle/**",
     "test-results/**",
     "playwright-report/**",
+    "android/**",
   ]),
 ]);

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Kal" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorPrimary">@color/kal_primary</item>
+        <item name="android:colorAccent">@color/kal_primary</item>
+        <item name="android:colorBackground">@color/kal_bg</item>
+        <item name="android:windowBackground">@color/kal_bg</item>
+        <item name="android:textColorPrimary">@color/kal_text</item>
+        <item name="android:textColorSecondary">@color/kal_muted</item>
+        <item name="android:statusBarColor">@color/kal_bg</item>
+        <item name="android:navigationBarColor">@color/kal_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

@@ -9,3 +9,5 @@ playwright-report
 .worktrees
 .build-notes
 docs
+# The Android app (Kotlin, Gradle, XML) has its own conventions.
+android

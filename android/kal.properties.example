@@ -1,0 +1,11 @@
+# Copy to kal.properties (git ignores it), or give the build script another file with
+# --properties. KAL_HOST, KAL_APP_ID, KAL_VERSION_NAME and KAL_VERSION_CODE in the environment win.
+#
+# The host name of your Kal server (no https://, no path) and the app's package name. Set the same
+# package name as ANDROID_APP_ID on the server.
+kal.host=kal.example.com
+kal.appId=app.kal
+# The version people see, and the number Android compares on updates (raise it for each build you
+# hand out).
+kal.versionName=1.0
+kal.versionCode=1
