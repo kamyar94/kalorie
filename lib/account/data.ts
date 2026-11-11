@@ -2,8 +2,9 @@
 // the person except secrets (no keys, no password hash, no integration tokens) and the photo
 // files themselves. Deleting removes every logged meal, photo file, item, personal food,
 // correction memory, medicine, medicine log and label photo, activity, badge, body measurement,
-// the health profile, key, integration, notification subscription and custom target, and resets
-// the profile; the account itself (name, username, password, role) stays so the person can go on.
+// body photo (and its files), the health profile, key, integration, notification subscription
+// and custom target, and resets the profile; the account itself (name, username, password, role)
+// stays so the person can go on.
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
@@ -11,6 +12,7 @@ import {
   activities,
   aiKeys,
   bodyMeasurements,
+  bodyPhotoSessions,
   aiSettings,
   aiUsage,
   dishComponents,
@@ -31,10 +33,12 @@ import {
   userTargets,
 } from "@/db/schema";
 import { toActivityDto } from "@/lib/activities/service";
+import { bodyPhotoFiles, listBodySessions } from "@/lib/body/photos";
 import { toMeasurementDto } from "@/lib/body/service";
 import { audit } from "@/lib/audit";
 import type { ActivityDto } from "@/lib/contracts/activities";
 import type { MeasurementDto } from "@/lib/contracts/body";
+import type { BodySessionDto } from "@/lib/contracts/body-photos";
 import type { MealDto } from "@/lib/contracts/meals";
 import type { MedicineDto, MedicineLogDto } from "@/lib/contracts/medicines";
 import { NUTRIENT_CATALOGUE } from "@/lib/contracts/nutrients";
@@ -77,6 +81,8 @@ export type ExportData = {
   bodyMeasurements: MeasurementDto[];
   /** The private health profile (height, birth year and goal are in account.profile). */
   healthProfile: { conditions: string; allergies: string; notes: string; useInAnalysis: boolean };
+  /** Body photo sessions by day, each pose with its time (the files themselves are not in it). */
+  bodyPhotos: BodySessionDto[];
 };
 
 /** Everything about the person as JSON-ready data. Null for an unknown account. */
@@ -104,6 +110,7 @@ export const exportUserData = async (
     badgeRows,
     measurementRows,
     healthRows,
+    bodySessions,
   ] = await Promise.all([
     ids.length ? dbx.select().from(mealPhotos).where(inArray(mealPhotos.mealId, ids)) : [],
     ids.length
@@ -145,6 +152,7 @@ export const exportUserData = async (
       .where(eq(bodyMeasurements.userId, userId))
       .orderBy(asc(bodyMeasurements.measuredAt), asc(bodyMeasurements.code)),
     dbx.select().from(healthProfiles).where(eq(healthProfiles.userId, userId)),
+    listBodySessions(userId, dbx),
   ]);
 
   return {
@@ -213,6 +221,7 @@ export const exportUserData = async (
       notes: healthRows[0]?.notes ?? "",
       useInAnalysis: healthRows[0]?.useInAnalysis ?? false,
     },
+    bodyPhotos: [...bodySessions].reverse(),
   };
 };
 
@@ -297,6 +306,7 @@ export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) =>
       .from(medicineScans)
       .where(eq(medicineScans.userId, userId))),
   ];
+  const bodyFiles = await bodyPhotoFiles(userId, dbx);
   const removed = await dbx.transaction(async (tx) => {
     // Items first: they may point at the person's own foods.
     await tx.delete(mealItems).where(eq(mealItems.userId, userId));
@@ -310,6 +320,8 @@ export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) =>
     await tx.delete(userBadges).where(eq(userBadges.userId, userId));
     await tx.delete(bodyMeasurements).where(eq(bodyMeasurements.userId, userId));
     await tx.delete(healthProfiles).where(eq(healthProfiles.userId, userId));
+    // Sessions take their photos with them (ON DELETE CASCADE).
+    await tx.delete(bodyPhotoSessions).where(eq(bodyPhotoSessions.userId, userId));
     // Parts of their own dishes first: a dish part may be another of their own foods, which
     // dish_components protects (ON DELETE RESTRICT) until the part row is gone.
     const ownFoods = tx.select({ id: foods.id }).from(foods).where(eq(foods.ownerId, userId));
@@ -340,8 +352,9 @@ export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) =>
     await audit({ userId, action: "data.delete", details: { meals: gone.length } }, tx);
     return gone.length;
   });
-  await removePhotoFiles(photos.flatMap((p) => [p.original, p.analysis, p.thumb])).catch(
-    () => undefined,
-  );
+  await removePhotoFiles([
+    ...photos.flatMap((p) => [p.original, p.analysis, p.thumb]),
+    ...bodyFiles,
+  ]).catch(() => undefined);
   return { meals: removed };
 };

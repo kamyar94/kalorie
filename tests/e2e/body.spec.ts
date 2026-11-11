@@ -1,7 +1,10 @@
 // Body end to end (phone, desktop, phone-dark): logging measurements with where to measure and a
 // part of one's own, the health profile (goal, height, allergies, "use in analysis"), changes since
-// an earlier day judged from the goal, a Renpho export read in the browser, and removing a
-// weigh-in.
+// an earlier day judged from the goal, a Renpho export read in the browser, removing a weigh-in;
+// and body photos with the camera's Body tab (pose outline, self-timer, Skip, gallery) compared
+// with an earlier day.
+import { readFileSync } from "node:fs";
+
 import { expect, test } from "@playwright/test";
 
 import { expectAccessible, installE2eHooks, localDay, pool, signUp, zone } from "./helpers";
@@ -124,4 +127,97 @@ test("body: log measurements, the health profile, changes judged from the goal, 
   await expectAccessible(page);
   await history.getByRole("listitem").nth(1).getByRole("button").click();
   await expect(history.getByRole("listitem")).toHaveCount(3);
+});
+
+test("body photos: the camera's Body tab with a pose outline, self-timer and Skip; two days compared", async ({
+  page,
+  baseURL,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+
+  // An earlier set, sent the way the camera sends it.
+  const fixture = readFileSync("tests/fixtures/meal.jpg");
+  for (const pose of ["front", "back"]) {
+    const response = await page.request.post("/api/body-photos", {
+      headers: { origin: baseURL! },
+      multipart: {
+        photo: { name: `${pose}.jpg`, mimeType: "image/jpeg", buffer: fixture },
+        pose,
+        takenAt: new Date(`${localDay(-30)}T09:00:00`).toISOString(),
+        tz: zone(),
+        source: "gallery",
+      },
+    });
+    expect(response.status()).toBe(201);
+  }
+
+  await page.goto("/body");
+  const photos = page.getByRole("region", { name: "Photos" });
+  await expect(photos.getByTestId("body-photo-compare").getByRole("figure")).toHaveCount(1);
+  await photos.getByRole("button", { name: "Take today's 4 photos" }).click();
+
+  const camera = page.getByRole("dialog", { name: "Camera" });
+  await expect(page.getByTestId("camera")).toHaveAttribute("data-camera-state", "live");
+  await expect(camera.getByRole("tab", { name: "Body" })).toHaveAttribute("aria-selected", "true");
+  await expect(camera.getByTestId("body-pose")).toHaveText("Front · 1 of 4");
+  await expect(camera.getByTestId("pose-guide")).toHaveAttribute("data-pose", "front");
+  await expect(camera).toContainText("Stand about 2 m away");
+  await expect(camera).toContainText(
+    "Body photos stay on your own server, visible only to you, and are never sent to an AI.",
+  );
+
+  // The self-timer goes off, 3 s, 10 s and back; 3 s for the front photo.
+  const timer = camera.getByRole("button", { name: /^Self-timer/ });
+  await expect(timer).toHaveAccessibleName("Self-timer: off. Change it");
+  await timer.click();
+  await expect(timer).toHaveAccessibleName("Self-timer: 3 seconds. Change it");
+  await camera.getByRole("button", { name: "Take the front photo" }).click();
+  await expect(camera.getByTestId("body-countdown")).toBeVisible();
+  await expect(camera.getByTestId("body-pose")).toHaveText("Left · 2 of 4", { timeout: 8000 });
+  await expect(camera.getByTestId("pose-guide")).toHaveAttribute("data-pose", "left");
+  await timer.click();
+  await timer.click();
+  await expect(timer).toHaveAccessibleName("Self-timer: off. Change it");
+
+  // Left at once, Back skipped, Right from the gallery.
+  await camera.getByRole("button", { name: "Take the left photo" }).click();
+  await expect(camera.getByTestId("body-pose")).toHaveText("Back · 3 of 4");
+  await camera.getByRole("button", { name: "Skip the back photo" }).click();
+  await expect(camera.getByTestId("body-pose")).toHaveText("Right · 4 of 4");
+  await expect(camera.getByRole("list", { name: "Poses" })).toContainText("Back, skipped");
+  await camera.getByTestId("gallery-input").setInputFiles("tests/fixtures/meal.jpg");
+
+  // All four done: Body shows today's set next to the earlier one.
+  await expect(camera).toBeHidden();
+  await expect(page).toHaveURL(/\/body$/);
+  await expect(page.getByRole("status").filter({ hasText: "3 body photos saved" })).toContainText(
+    "1 pose skipped.",
+  );
+  const compare = photos.getByTestId("body-photo-compare");
+  await expect(compare.getByRole("figure")).toHaveCount(2);
+  await expect(compare.getByRole("img", { name: /^Front photo, / })).toHaveCount(2);
+  await expectAccessible(page);
+  await photos.getByRole("radio", { name: "Left" }).click();
+  await expect(compare).toContainText("No left photo that day");
+  await expect(compare.getByRole("img", { name: /^Left photo, / })).toHaveCount(1);
+  await photos.getByRole("radio", { name: "Back" }).click();
+  await expect(compare.getByRole("img", { name: /^Back photo, / })).toHaveCount(1);
+
+  const stored = await pool().query(
+    `select s.local_date::text as day, p.pose, p.source, p.width from body_photos p
+       join body_photo_sessions s on s.id = p.session_id where p.user_id = $1
+      order by s.local_date, p.pose`,
+    [userId],
+  );
+  expect(stored.rows.map((r) => [r.day, r.pose, r.source])).toEqual([
+    [localDay(-30), "back", "gallery"],
+    [localDay(-30), "front", "gallery"],
+    [localDay(0), "front", "camera"],
+    [localDay(0), "left", "camera"],
+    [localDay(0), "right", "gallery"],
+  ]);
+
+  // Remove the earlier back photo.
+  await compare.getByRole("button", { name: /^Remove the back photo of / }).click();
+  await expect(compare.getByRole("img", { name: /^Back photo, / })).toHaveCount(0);
 });

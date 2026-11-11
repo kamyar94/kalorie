@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 
+import { BodyPhotos } from "@/components/body/body-photos";
 import { BodyView } from "@/components/body/body-view";
 import { getPreferences } from "@/lib/account/settings";
 import { requireUser } from "@/lib/auth/session";
+import { listBodySessions } from "@/lib/body/photos";
 import { getBodySummary } from "@/lib/body/service";
 import { openGymData } from "@/lib/integrations/opengym/service";
 import { isLocalDate } from "@/lib/meals/time";
@@ -21,9 +23,25 @@ export default async function BodyPage({
   const since = Array.isArray(raw) ? raw[0] : raw;
   // New openGym weigh-ins first (a sync older than 10 minutes is read again).
   await openGymData(user.id).catch(() => null);
-  const [summary, preferences] = await Promise.all([
+  const [summary, preferences, sessions] = await Promise.all([
     getBodySummary(user.id, today, isLocalDate(since) ? since : null),
     getPreferences(user.id),
+    listBodySessions(user.id),
   ]);
-  return <BodyView summary={summary} units={preferences?.units ?? "metric"} today={today} />;
+  const units = preferences?.units ?? "metric";
+  return (
+    <BodyView
+      summary={summary}
+      units={units}
+      today={today}
+      photos={
+        <BodyPhotos
+          sessions={sessions}
+          weights={summary.weightHistory}
+          units={units}
+          today={today}
+        />
+      }
+    />
+  );
 }

@@ -25,6 +25,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { ACTIVITY_CATEGORIES, ACTIVITY_SOURCES, INTENSITIES } from "../lib/contracts/activities";
+import { BODY_POSES } from "../lib/contracts/body-photos";
 import { MEAL_SLOTS, MEAL_SOURCES, MEAL_STATUSES } from "../lib/contracts/meals";
 import {
   MEDICINE_FORMS,
@@ -711,6 +712,51 @@ export const healthProfiles = pgTable("health_profiles", {
   useInAnalysis: boolean("use_in_analysis").notNull().default(false),
   updatedAt: updatedAt(),
 });
+
+// Guided body photos: one session per day, at most one photo per pose. Paths are relative to
+// PHOTO_ROOT (<userId>/body/...); the original is kept at full size (metadata removed) for a later
+// 3D step. Owner-only, never sent to an AI.
+export const bodyPhotoSessions = pgTable(
+  "body_photo_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userRef(),
+    localDate: date("local_date", { mode: "string" }).notNull(),
+    tz: text("tz").notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("body_photo_sessions_user_day_idx").on(t.userId, t.localDate)],
+);
+
+export const bodyPhotos = pgTable(
+  "body_photos",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sessionId: uuid("session_id")
+      .notNull()
+      .references(() => bodyPhotoSessions.id, { onDelete: "cascade" }),
+    userId: userRef(),
+    pose: text("pose", { enum: BODY_POSES }).notNull(),
+    originalPath: text("original_path").notNull(),
+    viewPath: text("view_path").notNull(),
+    thumbPath: text("thumb_path").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    bytes: integer("bytes").notNull(),
+    sha256: text("sha256").notNull(),
+    takenAt: tz("taken_at").notNull(),
+    facing: text("facing", { enum: ["user", "environment"] }),
+    source: text("source", { enum: ["camera", "gallery"] })
+      .notNull()
+      .default("camera"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("body_photos_session_pose_idx").on(t.sessionId, t.pose),
+    index("body_photos_user_idx").on(t.userId),
+  ],
+);
 
 // Move's badges, stored the first time they are earned (lib/move/service.ts), so a badge stays
 // when older data is removed later. code is a BadgeCode of lib/contracts/move.ts.

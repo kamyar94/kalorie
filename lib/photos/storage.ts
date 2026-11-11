@@ -27,6 +27,20 @@ export const photoRelativePath = (
   return `${userId}/${yyyy}/${mm}/${photoId}-${variant}.jpg`;
 };
 
+/** The relative path of a body photo variant: <userId>/body/<yyyy>/<mm>/<id>-<variant>.jpg. */
+export const bodyPhotoRelativePath = (
+  userId: string,
+  photoId: string,
+  variant: "original" | "view" | "thumb",
+  at: Date,
+) => {
+  if (!SAFE_SEGMENT.test(userId) || !SAFE_SEGMENT.test(photoId))
+    throw new Error("Unsafe photo id.");
+  const yyyy = String(at.getUTCFullYear());
+  const mm = String(at.getUTCMonth() + 1).padStart(2, "0");
+  return `${userId}/body/${yyyy}/${mm}/${photoId}-${variant}.jpg`;
+};
+
 /** The absolute path of a stored relative path, or null when it would leave the root. */
 export const resolvePhotoPath = (relative: string) => {
   const root = photoRoot();
