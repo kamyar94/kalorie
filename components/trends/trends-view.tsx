@@ -132,7 +132,7 @@ export const TrendsView = ({ data, today }: { data: TrendsData; today: string })
           className="mt-6"
           icon={<BarChart3 className="size-7" />}
           title="Nothing logged in this period"
-          body="Log meals and Cal shows your energy, protein and other nutrients against your targets here."
+          body="Log meals and Kal shows your energy, protein and other nutrients against your targets here."
         />
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">

@@ -11,7 +11,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     >
       <div className="mb-8 flex items-center gap-3">
         <Logo className="size-11" />
-        <span className="text-title">Cal</span>
+        <span className="text-title">Kal</span>
       </div>
       {children}
     </main>

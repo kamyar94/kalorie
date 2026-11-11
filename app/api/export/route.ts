@@ -1,4 +1,4 @@
-// GET /api/export?format=json|csv -> a download of everything Cal keeps about the person
+// GET /api/export?format=json|csv -> a download of everything Kal keeps about the person
 // (lib/account/data.ts): JSON with meals, items, personal foods, targets and preferences, or CSV
 // with one row per item.
 import type { NextRequest } from "next/server";

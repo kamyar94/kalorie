@@ -140,7 +140,7 @@ export const PlanView = ({
               ))}
             </div>
             <p className="text-caption text-muted">
-              Cal picks recipes that keep each day within your energy target
+              Kal picks recipes that keep each day within your energy target
               {energyTarget ? ` (${formatKcal(energyTarget)} kcal)` : ""} and reach your protein
               target{proteinTarget ? ` (${Math.round(proteinTarget)} g)` : ""}, shared out over the
               meals you choose. Only recipes with nutrition take part.
@@ -234,7 +234,7 @@ export const PlanView = ({
             <Users aria-hidden className="size-5" /> Add to your household&apos;s plan?
           </h2>
           <p className="text-body">
-            Meal plans in Mealie are shared with everyone in your household. Cal adds{" "}
+            Meal plans in Mealie are shared with everyone in your household. Kal adds{" "}
             {entries.length} {entries.length === 1 ? "meal" : "meals"} to it; plans already there
             stay.
           </p>

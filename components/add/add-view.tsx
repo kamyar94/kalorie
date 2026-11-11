@@ -233,7 +233,7 @@ export const AddView = ({
           <Action
             icon={<FileText className="size-5" />}
             label="Photo of a label"
-            hint="Cal reads it"
+            hint="Kal reads it"
             onClick={() => openCamera("label")}
           />
           <Action
@@ -288,7 +288,7 @@ export const AddView = ({
       <BottomSheet
         open={!!unknownCode}
         onOpenChange={(open) => !open && setUnknownCode(null)}
-        title="Cal does not know this product yet"
+        title="Kal does not know this product yet"
         description={unknownCode ? `Barcode ${unknownCode}` : undefined}
       >
         <div className="flex flex-col gap-2 pb-2">

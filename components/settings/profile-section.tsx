@@ -108,7 +108,7 @@ export const ProfileSection = ({
           Profile and targets
         </h2>
         <p className="text-caption text-muted">
-          Cal works out your daily targets from these. Every field is optional.
+          Kal works out your daily targets from these. Every field is optional.
         </p>
       </div>
       <div className="flex flex-col gap-1.5">

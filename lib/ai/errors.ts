@@ -10,7 +10,7 @@ export type AiErrorKind =
   | "auth" // the provider refused the key
   | "rate-limit" // the provider's rate limit
   | "quota" // the account behind the key has no credit or quota left
-  | "local-rate-limit" // Cal's own limit per account
+  | "local-rate-limit" // Kal's own limit per account
   | "bad-request" // the provider refused the request (unknown model, bad schema...)
   | "overloaded" // the provider is busy, try again later
   | "server" // the provider failed

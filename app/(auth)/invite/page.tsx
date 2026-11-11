@@ -13,7 +13,7 @@ export default async function InvitePage({
   const code = (Array.isArray(raw) ? raw[0] : raw)?.slice(0, 40) ?? "";
   return (
     <>
-      <h1 className="text-title">Join Cal</h1>
+      <h1 className="text-title">Join Kal</h1>
       <p className="text-muted mt-1 mb-6">
         Choose how you sign in. Your meals and photos are visible only to you.
       </p>

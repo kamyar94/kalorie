@@ -1,5 +1,5 @@
-// openGym's API as Cal uses it (the api/openapi.yaml of the openGym project, main branch,
-// info.version 1.4.3, read 31 Oct 2026). Cal only reads; it never calls PUT /api/data.
+// openGym's API as Kal uses it (the api/openapi.yaml of the openGym project, main branch,
+// info.version 1.4.3, read 31 Oct 2026). Kal only reads; it never calls PUT /api/data.
 //   POST /api/pair/redeem {code}  no auth; the 8-character code from openGym's "pair the mobile
 //        app" (alphabet ABCDEFGHJKLMNPQRSTUVWXYZ23456789, one use, 5 minutes) -> 200
 //        {token, user: SessionUser}; 400 {"error": "invalid or expired code", "code": "pair-invalid"}

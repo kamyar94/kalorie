@@ -86,7 +86,7 @@ export type DishComponentDto = {
   nutrients: NutrientMap;
 };
 
-/** What Cal learned from one correction (food_memory row). */
+/** What Kal learned from one correction (food_memory row). */
 export type FoodMemoryEntry = {
   id: number;
   /** normalizeFoodText of the name the item had ("ghormeh sabzi", "قورمه سبزی"). */

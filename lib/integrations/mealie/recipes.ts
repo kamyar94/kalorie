@@ -1,9 +1,9 @@
-// A Mealie recipe as a food in Cal (docs/DESIGN.md section 8). Each recipe the person uses becomes
+// A Mealie recipe as a food in Kal (docs/DESIGN.md section 8). Each recipe the person uses becomes
 // their own food row (owner_id, source "mealie", source_id = Mealie's recipe id) so it can be
 // logged, searched and linked by the analysis:
 //   - Mealie has nutrition: kind "recipe", values per serving from Mealie's fields.
-//   - Mealie's nutrition is empty: Cal matches the ingredients to its foods and keeps the result
-//     as a dish (kind "dish", dish_components per serving, source note "Computed by Cal ..."),
+//   - Mealie's nutrition is empty: Kal matches the ingredients to its foods and keeps the result
+//     as a dish (kind "dish", dish_components per serving, source note "Computed by Kal ..."),
 //     shown as "computed". Such dishes are recomputed when their foods change (lib/food).
 //   - Neither: no food row; the recipe cannot be logged with numbers.
 // The serving weight comes from the ingredients when they resolve; otherwise a nominal 300 g is
@@ -82,7 +82,7 @@ const infoFromRow = async (
 };
 
 /**
- * What Cal stored for a recipe, without asking Mealie (the Today screen). A stored dish was
+ * What Kal stored for a recipe, without asking Mealie (the Today screen). A stored dish was
  * computed because Mealie's nutrition was empty when it was imported.
  */
 export const storedRecipeInfo = (
@@ -93,7 +93,7 @@ export const storedRecipeInfo = (
 ) => infoFromRow(userId, summary, row, dbx, undefined, row.kind === "dish");
 
 /**
- * Stores (or refreshes) the recipe as the person's food and returns what Cal knows about it.
+ * Stores (or refreshes) the recipe as the person's food and returns what Kal knows about it.
  * Reuses the stored row while it is fresh and Mealie's version stamp has not changed.
  */
 export const importRecipe = async (
@@ -147,7 +147,7 @@ export const importRecipe = async (
     kind = "dish";
     perServing = computed.perServing;
     servingGrams = computed.servingGrams;
-    note = `Computed by Cal from ${ingredients.matched} of ${ingredients.total} ingredients of the Mealie recipe (${servings} ${servings === 1 ? "serving" : "servings"}).`;
+    note = `Computed by Kal from ${ingredients.matched} of ${ingredients.total} ingredients of the Mealie recipe (${servings} ${servings === 1 ? "serving" : "servings"}).`;
   } else {
     if (existing)
       await dbx

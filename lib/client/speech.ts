@@ -1,5 +1,5 @@
 // Dictation through the browser's own speech recognition (Chrome, Edge, Safari including iOS).
-// Nothing is sent to Cal's server as audio; the browser turns speech into text. Where the API is
+// Nothing is sent to Kal's server as audio; the browser turns speech into text. Where the API is
 // missing, the note button only offers typing. Browser only.
 
 type RecognitionResult = { isFinal: boolean; 0: { transcript: string } };

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Accounts and food data for Cal. Run ON THE SERVER from the deploy folder while the app runs.
+  Accounts and food data for Kal. Run ON THE SERVER from the deploy folder while the app runs.
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\Cal.ps1 invite --admin --note first-admin

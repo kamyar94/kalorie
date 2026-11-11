@@ -68,7 +68,7 @@ describe("Open Food Facts lookup", () => {
     expect(mock.requests).toHaveLength(1);
     const request = mock.requests[0]!;
     expect(request.url).toMatch(new RegExp(`^/api/v2/product/${NUTELLA}\\?fields=code,`));
-    expect(request.headers["user-agent"]).toBe("Cal/0.1 (self-hosted food log; admin@example.org)");
+    expect(request.headers["user-agent"]).toBe("Kal/0.1 (self-hosted food log; admin@example.org)");
 
     // Cached: no second request, and the product is found by search too.
     const again = await lookupBarcode(user.id, NUTELLA, { config });

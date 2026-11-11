@@ -1,9 +1,9 @@
-# Cal: photo-first food log (design, draft 1)
+# Kal: photo-first food log (design, draft 1)
 
-Cal is a self-hosted web app, installable on phones, tablets and desktops, that records what a
+Kal is a self-hosted web app, installable on phones, tablets and desktops, that records what a
 person eats from one to three photos. The server works out the foods, amounts, calories and
 nutrients, files the meal by time, and lets the person review and correct every detail.
-Accounts are invite-only. Cal connects to a Mealie server (recipes and meal plans) and an
+Accounts are invite-only. Kal connects to a Mealie server (recipes and meal plans) and an
 openGym server (body weight and workouts).
 
 This file is the build reference. It is written to be safe in a public repository: no host
@@ -24,7 +24,7 @@ files.
    13.9 percent error when ingredients are described). Every item has a grams control and
    portion buttons that rescale all nutrients immediately, and a short note at capture is
    offered because it helps the most.
-4. **Cal learns from corrections.** A dish the person has corrected is recognised and reused
+4. **Kal learns from corrections.** A dish the person has corrected is recognised and reused
    the next time, which matters for home cooking that no database covers.
 5. **Private by default.** Each person sees only their own data. Photos stay on the server
    except for the analysis call to the AI provider the person chose with their own key.
@@ -182,25 +182,25 @@ server-side request forgery) and per-user credentials stored encrypted like AI k
 - Today shows the household's planned recipes for the day (`GET /api/households/mealplans/today`);
   one tap logs a recipe with a servings stepper.
 - Recipe nutrition per serving comes from Mealie's recipe nutrition fields; when they are
-  empty, Cal computes it from the recipe's ingredients through matching and keeps it as a
+  empty, Kal computes it from the recipe's ingredients through matching and keeps it as a
   dish marked "computed".
 - Mealie recipes appear in search, and planned recipe names go into the photo analysis context
   so a photo of tonight's planned dinner is linked to its recipe.
-- Meal plan suggestions: the person picks days and slots; Cal proposes recipes from Mealie that
+- Meal plan suggestions: the person picks days and slots; Kal proposes recipes from Mealie that
   keep each day within the energy target and above the protein target (deterministic search
   over recipes with nutrition), shows the plan, and writes it to Mealie
   (`POST /api/households/mealplans`) only after the person confirms. Plans in Mealie are shared
   by the household, which the confirm screen says.
-- "Save nutrition to Mealie" on a recipe whose nutrition is empty writes Cal's computed values,
+- "Save nutrition to Mealie" on a recipe whose nutrition is empty writes Kal's computed values,
   only on that button.
 
 **openGym.** openGym signs in with passkeys and pairs other apps with a code.
 - The person creates a pairing code in openGym (Settings, pair the mobile app; 8 characters,
-  valid 5 minutes) and pastes it into Cal. Cal redeems it (`POST /api/pair/redeem`) for a
+  valid 5 minutes) and pastes it into Kal. Kal redeems it (`POST /api/pair/redeem`) for a
   bearer token, keeps it encrypted, and renews it as `/api/me` returns fresh tokens.
-- Cal reads the account state (`GET /api/data`): weigh-ins (latest weight for targets, chart
+- Kal reads the account state (`GET /api/data`): weigh-ins (latest weight for targets, chart
   overlay) and workouts (date, duration, exercises) for an energy-burned estimate from MET
-  values x body weight x duration, labelled as an estimate. Cal never writes to openGym.
+  values x body weight x duration, labelled as an estimate. Kal never writes to openGym.
 
 ## 9. Notifications
 

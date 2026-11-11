@@ -430,7 +430,7 @@ describe("Web Push", () => {
   });
 });
 
-describe("Cal's meal slots as Mealie entry types", () => {
+describe("Kal's meal slots as Mealie entry types", () => {
   it("writes supper as dinner (Mealie has no supper) and the others as they are", () => {
     expect(mealieEntryType("supper")).toBe("dinner");
     for (const slot of ["breakfast", "lunch", "dinner", "snack", "drink", "dessert"] as const)

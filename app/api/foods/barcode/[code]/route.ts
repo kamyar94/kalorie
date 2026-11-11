@@ -1,4 +1,4 @@
-// GET /api/foods/barcode/:code -> FoodResult. Cal's own table first (the person's foods and shared
+// GET /api/foods/barcode/:code -> FoodResult. Kal's own table first (the person's foods and shared
 // ones, UPC-A and EAN-13 spellings alike), then Open Food Facts (lib/food/off.ts, cached).
 // 400 not a barcode, 404 unknown product, 429 too many lookups, 503 Open Food Facts unreachable.
 import type { NextRequest } from "next/server";
@@ -29,6 +29,6 @@ export const GET = async (req: NextRequest, { params }: { params: Promise<{ code
     case "unavailable":
       return errorJson(503, "Open Food Facts cannot be reached right now. Try again later.");
     default:
-      return errorJson(404, "This product is not in Cal or Open Food Facts yet.");
+      return errorJson(404, "This product is not in Kal or Open Food Facts yet.");
   }
 };

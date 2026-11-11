@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Backs up Cal: a database dump, the secret keys that go with it, and the photos. Run ON THE
+  Backs up Kal: a database dump, the secret keys that go with it, and the photos. Run ON THE
   SERVER from the deploy folder while the stack runs.
 
 .DESCRIPTION
@@ -10,7 +10,7 @@
      a restored database cannot read the saved keys without app.env. If a copy already exists
      with different content, the old copy is kept under another name.
   3. Copies the photo folder to backups\photos with robocopy. Only new files are copied and
-     nothing is ever removed from the copy, so photos a person deleted in Cal stay in the
+     nothing is ever removed from the copy, so photos a person deleted in Kal stay in the
      backup (photos are never changed once written).
   4. With -Destination, the same three things are also copied to that folder (another disk or a
      share).
@@ -26,7 +26,7 @@
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File .\Backup.ps1
-  powershell -ExecutionPolicy Bypass -File .\Backup.ps1 -Destination X:\Backups\Cal -Keep 14
+  powershell -ExecutionPolicy Bypass -File .\Backup.ps1 -Destination X:\Backups\Kal -Keep 14
 #>
 [CmdletBinding()]
 param(

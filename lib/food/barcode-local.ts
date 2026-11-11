@@ -1,4 +1,4 @@
-// Barcode lookup in Cal's own food table (foods.barcode): products cached from Open Food Facts
+// Barcode lookup in Kal's own food table (foods.barcode): products cached from Open Food Facts
 // and the person's own packaged foods. The barcode route (app/api/foods/barcode/[code]) looks
 // here first and asks Open Food Facts (lib/food/off.ts) only for codes that are not here yet.
 import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";

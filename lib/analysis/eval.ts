@@ -13,7 +13,7 @@
 //       (time defaults to 12:30); protein, carbs, fat and grams are compared when present.
 //
 // Two numbers per meal: "model" is the sum of the model's own estimates; "database" (with --db
-// and DATABASE_URL pointing at a Cal database with food data) matches the items to the food tables
+// and DATABASE_URL pointing at a Kal database with food data) matches the items to the food tables
 // by trigram score and counts them as the worker would. The key is read from an environment
 // variable and never printed.
 import { readdir, readFile, writeFile } from "node:fs/promises";
@@ -304,7 +304,7 @@ export const formatReport = (
   options: EvalOptions,
 ) => {
   const lines = [
-    `Cal accuracy check: ${options.provider} ${options.model}${options.reasoning ? ` (effort ${options.reasoning})` : ""}`,
+    `Kal accuracy check: ${options.provider} ${options.model}${options.reasoning ? ` (effort ${options.reasoning})` : ""}`,
     "",
     "meal                          true kcal   model kcal   error   database kcal   seconds",
   ];
@@ -345,7 +345,7 @@ export const USAGE = `Usage: corepack pnpm@11.11.0 eval --dir <folder> --provide
 
   --dir <folder>      the weighed meals (see lib/analysis/eval.ts for the format)
   --provider <name>   openai, anthropic or google
-  --model <id>        default: Cal's analysis default for the provider
+  --model <id>        default: Kal's analysis default for the provider
   --effort <level>    none, minimal, low, medium or high (default low)
   --key-env <name>    environment variable with the API key (default CAL_EVAL_API_KEY)
   --db                also count from the food tables of the database at DATABASE_URL

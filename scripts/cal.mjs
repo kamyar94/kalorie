@@ -1,4 +1,4 @@
-// Cal's server tool (adapted from the Lingo project's server tool). Runs inside the app container,
+// Kal's server tool (adapted from the Lingo project's server tool). Runs inside the app container,
 // wrapped by a PowerShell script on the server:
 //
 //   node dist/cal.mjs <command> ...          (in the container)
@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import pg from "pg";
 
-const HELP = `Cal server tool
+const HELP = `Kal server tool
 
   invite [--note NAME] [--admin] [--days N]   single-use sign-up code (default: valid 7 days)
   reset USERNAME [--days N]                   single-use code to choose a new password (default 2 days)
@@ -198,7 +198,7 @@ export const runCommand = async (pool, argv, out = console.log) => {
     case "vapid": {
       const file = options.out;
       if (!file) fail("Give the env file to write: vapid --out FILE.");
-      if (existsSync(file)) fail(`${file} exists already; Cal never overwrites keys.`);
+      if (existsSync(file)) fail(`${file} exists already; Kal never overwrites keys.`);
       const subject = options.subject ?? "mailto:admin@example.org";
       if (!/^(mailto:\S+@\S+|https:\/\/\S+)$/.test(subject))
         fail("The subject is a mailto: address or an https URL.");

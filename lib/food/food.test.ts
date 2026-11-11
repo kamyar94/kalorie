@@ -142,7 +142,7 @@ describe("Open Food Facts mapping", () => {
   it("builds its User-Agent and base URL from server settings only", () => {
     expect(offConfig({})).toEqual({
       baseUrl: "https://world.openfoodfacts.org",
-      userAgent: "Cal/0.1 (self-hosted food log)",
+      userAgent: "Kal/0.1 (self-hosted food log)",
       cacheDays: 30,
     });
     expect(
@@ -153,7 +153,7 @@ describe("Open Food Facts mapping", () => {
       }),
     ).toEqual({
       baseUrl: "http://127.0.0.1:9",
-      userAgent: "Cal/0.1 (self-hosted food log; admin@example.org)",
+      userAgent: "Kal/0.1 (self-hosted food log; admin@example.org)",
       cacheDays: 7,
     });
   });

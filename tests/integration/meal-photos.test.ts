@@ -103,7 +103,7 @@ const jobsFor = async (mealId: string) =>
     )
   ).rows;
 
-/** A ready meal with one item and no photos, written as Cal would leave it. */
+/** A ready meal with one item and no photos, written as Kal would leave it. */
 const readyMeal = async (userId: string, source: "photo" | "text" | "manual" = "text") => {
   const meal = await createMeal(userId, {
     eatenAt: new Date(),

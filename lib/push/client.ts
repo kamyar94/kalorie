@@ -6,7 +6,7 @@
 // Browser only: import from client components.
 import type { PushResult, PushSupport } from "@/lib/contracts/integrations";
 
-/** Whether this browser could receive notifications from Cal. */
+/** Whether this browser could receive notifications from Kal. */
 export const pushSupport = (): PushSupport => {
   if (typeof window === "undefined") return "unsupported";
   const standalone =
@@ -48,7 +48,7 @@ const registration = async () =>
 /** Asks for permission and subscribes this device. */
 export const enablePush = async (): Promise<PushResult> => {
   if (pushSupport() !== "supported")
-    return { ok: false, message: "This browser cannot show notifications from Cal." };
+    return { ok: false, message: "This browser cannot show notifications from Kal." };
   try {
     const keyResponse = await fetch("/api/push/key", { credentials: "same-origin" });
     if (!keyResponse.ok)
@@ -59,7 +59,7 @@ export const enablePush = async (): Promise<PushResult> => {
     if (permission !== "granted")
       return {
         ok: false,
-        message: "Notifications are blocked for Cal. Allow them in the browser's site settings.",
+        message: "Notifications are blocked for Kal. Allow them in the browser's site settings.",
       };
     const ready = await registration();
     if (!ready) return { ok: false, message: "Reload the page and try again." };

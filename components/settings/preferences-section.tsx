@@ -33,7 +33,7 @@ export type PreferencesDto = {
   cuisines: string[];
 };
 
-/** Units, time zone, cuisines and meal windows: how Cal files and shows meals. */
+/** Units, time zone, cuisines and meal windows: how Kal files and shows meals. */
 export const PreferencesSection = ({ initial }: { initial: PreferencesDto }) => {
   const router = useRouter();
   const { show } = useToast();
@@ -141,7 +141,7 @@ export const PreferencesSection = ({ initial }: { initial: PreferencesDto }) => 
         <h3 className="text-label" id={`${id}-cuisines`}>
           Cuisines you usually eat
         </h3>
-        <p className="text-caption text-muted">Helps Cal recognise home cooking in your photos.</p>
+        <p className="text-caption text-muted">Helps Kal recognise home cooking in your photos.</p>
         {cuisines.length > 0 && (
           <ul aria-labelledby={`${id}-cuisines`} className="flex flex-wrap gap-2">
             {cuisines.map((c) => (

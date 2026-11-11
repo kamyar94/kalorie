@@ -32,7 +32,7 @@ export const Questions = ({
     >
       <h2 id="questions-heading" className="text-headline inline-flex items-center gap-2">
         <HelpCircle aria-hidden className="size-5" />
-        {questions.some((q) => !q.answer) ? "Help Cal get this right" : "Your answers"}
+        {questions.some((q) => !q.answer) ? "Help Kal get this right" : "Your answers"}
       </h2>
       <div className="mt-3 flex flex-col gap-4">
         {questions.map((question) => (

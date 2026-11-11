@@ -358,7 +358,7 @@ describe("analysis end to end", () => {
     const memoryId = (await db.select().from(foodMemory).where(eq(foodMemory.userId, userId)))[0]!
       .id;
 
-    // The next photo: the model links the usual meal; Cal scales the person's values.
+    // The next photo: the model links the usual meal; Kal scales the person's values.
     const second = await upload(userId);
     ai.reset();
     ai.queue(

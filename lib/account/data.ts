@@ -1,4 +1,4 @@
-// "Export my data" and "Delete my data" (Settings). The export holds everything Cal keeps about
+// "Export my data" and "Delete my data" (Settings). The export holds everything Kal keeps about
 // the person except secrets (no keys, no password hash, no integration tokens) and the photo
 // files themselves. Deleting removes every logged meal, photo file, item, personal food,
 // correction memory, medicine, medicine log and label photo, key, integration, notification

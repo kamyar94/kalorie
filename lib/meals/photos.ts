@@ -88,7 +88,7 @@ const finish = async (
         result.status === 409
           ? "The meal has no photos left to analyse, so its items stay as they are."
           : result.status === 429
-            ? "The photos changed, but Cal was asked to analyse too often. Try again in a few minutes."
+            ? "The photos changed, but Kal was asked to analyse too often. Try again in a few minutes."
             : result.error;
   }
   const meal = await getMeal(userId, mealId, dbx);

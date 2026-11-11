@@ -336,7 +336,7 @@ export const addItem = async (
     })
     .returning();
   await recomputeMealTotals(mealId, dbx);
-  // Cal learns from what the person adds and corrects (usual meals, lib/analysis/memory.ts).
+  // Kal learns from what the person adds and corrects (usual meals, lib/analysis/memory.ts).
   await rememberItem(userId, row!.id, dbx).catch(() => undefined);
   return toItemDto(row!, food?.nameEn ?? null);
 };

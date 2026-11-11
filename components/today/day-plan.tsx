@@ -20,8 +20,8 @@ const SOURCE_TEXT = (recipe: RecipeInfoDto) =>
   recipe.nutritionSource === "mealie"
     ? "Nutrition per serving from Mealie."
     : recipe.nutritionSource === "computed"
-      ? `Computed by Cal from ${recipe.ingredients.matched} of ${recipe.ingredients.total} ingredients.`
-      : "Cal could not work out this recipe's nutrition.";
+      ? `Computed by Kal from ${recipe.ingredients.matched} of ${recipe.ingredients.total} ingredients.`
+      : "Kal could not work out this recipe's nutrition.";
 
 /** The recipe of a planned meal, its servings, and "Save nutrition to Mealie" when Mealie has none. */
 const PlannedSheet = ({
@@ -130,7 +130,7 @@ const PlannedSheet = ({
         {recipe?.canSaveToMealie && (
           <div className="bg-surface-2 flex flex-col gap-2 rounded-2xl p-3">
             <p className="text-caption">
-              This recipe has no nutrition in Mealie. Cal can write its computed values into the
+              This recipe has no nutrition in Mealie. Kal can write its computed values into the
               recipe, for everyone in your household.
             </p>
             <Button variant="secondary" loading={writing} onClick={() => void saveToMealie()}>

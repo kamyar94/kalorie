@@ -2,7 +2,7 @@ KF Source-Available License
 Version 1.0
 
 Copyright (c) 2026 Kamyar Fatemifar
-Project: Cal (https://github.com/kamyar94/kalorie)
+Project: Kal (https://github.com/kamyar94/kalorie)
 
 The source code of this project is published so that people can read it. That does not make it
 open source. The Open Source Initiative and the Free Software Foundation have not approved this

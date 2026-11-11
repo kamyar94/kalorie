@@ -16,8 +16,8 @@ type Prefs = { analysisReady: boolean; questions: boolean };
 const SUPPORT_TEXT: Record<PushSupport, string> = {
   supported: "",
   "needs-install":
-    "On iPhone and iPad, add Cal to the Home Screen first (Share, Add to Home Screen), then turn notifications on from there.",
-  unsupported: "This browser cannot show notifications from Cal.",
+    "On iPhone and iPad, add Kal to the Home Screen first (Share, Add to Home Screen), then turn notifications on from there.",
+  unsupported: "This browser cannot show notifications from Kal.",
 };
 
 /**
@@ -86,7 +86,7 @@ export const NotificationsSection = ({
         onChange={(value) => void change("analysisReady", value)}
       />
       <Switch
-        label="When Cal has a question about a meal"
+        label="When Kal has a question about a meal"
         checked={prefs.questions}
         disabled={busy || support !== "supported"}
         onChange={(value) => void change("questions", value)}

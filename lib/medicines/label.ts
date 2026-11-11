@@ -64,7 +64,7 @@ export const MEDICINE_LABEL_SCHEMA: JsonSchema = {
   },
 };
 
-export const MEDICINE_LABEL_SYSTEM = `You read the label of a medicine or supplement for Cal, a personal health log. You get one photo of a box, blister, bottle or label and answer with JSON that matches the schema.
+export const MEDICINE_LABEL_SYSTEM = `You read the label of a medicine or supplement for Kal, a personal health log. You get one photo of a box, blister, bottle or label and answer with JSON that matches the schema.
 
 - Transcribe only what is printed: the product name, the strength per unit, the form (tablet, capsule, liquid...) and the active ingredients with their amounts. Keep the spelling of the label, in its own language and script.
 - Never guess. Leave a field empty (or "unknown" for the form) when it is not readable.
@@ -76,9 +76,9 @@ export const MEDICINE_LABEL_PROMPT =
 
 /** Error kinds of a reading: the AI's kinds, and the label's own. */
 const LABEL_MESSAGES: Record<string, string> = {
-  "no-key": "Save an AI key in Settings so Cal can read labels. Type the name for now.",
+  "no-key": "Save an AI key in Settings so Kal can read labels. Type the name for now.",
   "not-medicine":
-    "Cal could not find a medicine on this photo. Type the name, or try another photo.",
+    "Kal could not find a medicine on this photo. Type the name, or try another photo.",
   "no-photo": "The photo could not be read. Type the name, or try another photo.",
 };
 
@@ -89,7 +89,7 @@ export const labelError = (kind: string, error?: unknown) => ({
   kind,
   message:
     LABEL_MESSAGES[kind] ??
-    `${isAiError(error) ? describeAiError(error) : "Cal could not read the label."} Type the name instead.`,
+    `${isAiError(error) ? describeAiError(error) : "Kal could not read the label."} Type the name instead.`,
 });
 
 export const labelErrorNeedsSettings = (kind: string) => SETTINGS_KINDS.has(kind);

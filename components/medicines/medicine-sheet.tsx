@@ -36,7 +36,7 @@ const stepFor = (form: MedicineForm | null) => (form === "liquid" ? 1 : 0.5);
 
 /**
  * The medicine taken (board 7): what the label says (or empty fields to type it), "How many did
- * you take?", when, "Keep it in my medicines for one-tap logging" and the line that Cal does not
+ * you take?", when, "Keep it in my medicines for one-tap logging" and the line that Kal does not
  * check doses. Save logs it. Used over the camera (Medicine mode) and on the Medicines page.
  */
 export const MedicineSheet = ({

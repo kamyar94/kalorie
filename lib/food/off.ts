@@ -8,7 +8,7 @@
 //   OFF_CONTACT    an address or URL for the User-Agent, as Open Food Facts asks of API users
 //   OFF_CACHE_DAYS default 30
 // Requests go through the egress proxy (lib/net/egress.ts). Open Food Facts asks API users to
-// stay under 100 product reads a minute; Cal allows 15 a minute per person and 80 overall.
+// stay under 100 product reads a minute; Kal allows 15 a minute per person and 80 overall.
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
@@ -38,14 +38,14 @@ export const offConfig = (env: Record<string, string | undefined> = process.env)
   const days = Number(env.OFF_CACHE_DAYS);
   return {
     baseUrl: (env.OFF_BASE_URL || "https://world.openfoodfacts.org").replace(/\/+$/, ""),
-    userAgent: `Cal/${APP_VERSION} (self-hosted food log${contact ? `; ${contact}` : ""})`,
+    userAgent: `Kal/${APP_VERSION} (self-hosted food log${contact ? `; ${contact}` : ""})`,
     cacheDays: Number.isFinite(days) && days > 0 ? days : 30,
   };
 };
 
 // ---- Product to food ----
 
-/** The parts of an API v2 product Cal reads. */
+/** The parts of an API v2 product Kal reads. */
 export type OffProduct = {
   code?: string;
   product_name?: string;

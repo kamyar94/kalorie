@@ -1,5 +1,5 @@
 // GET /api/mealie/recipes/:slug -> RecipeInfoDto: the recipe with its nutrition per serving, from
-// Mealie or computed from its ingredients (then kept in Cal as a dish marked "computed"), and its
+// Mealie or computed from its ingredients (then kept in Kal as a dish marked "computed"), and its
 // food row for logging. 404 unknown, 409 Mealie refuses the token, 502/503 unreachable or not set up.
 import type { NextRequest } from "next/server";
 

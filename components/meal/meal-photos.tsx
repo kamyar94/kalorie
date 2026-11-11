@@ -17,7 +17,7 @@ const MAX = UPLOAD_LIMITS.maxPhotos;
 
 export const PHOTOS_SWITCH_HINT = {
   off: "Off: added or removed photos are kept for the record; items and calories stay as they are.",
-  on: "On: after a change Cal analyses the meal again from its photos; items you changed by hand stay.",
+  on: "On: after a change Kal analyses the meal again from its photos; items you changed by hand stay.",
 } as const;
 
 /**
@@ -54,7 +54,7 @@ export const MealPhotos = ({
     else
       show({
         title,
-        body: change.reanalysed ? "Cal is updating the items from the photos." : undefined,
+        body: change.reanalysed ? "Kal is updating the items from the photos." : undefined,
         tone: "success",
       });
   };
@@ -262,7 +262,7 @@ export const MealPhotos = ({
         title={removing ? `Remove photo ${removing.number}?` : "Remove the photo?"}
         description={
           reanalyse
-            ? "The photo is deleted, and Cal analyses the meal again from the photos left."
+            ? "The photo is deleted, and Kal analyses the meal again from the photos left."
             : "The photo is deleted. Items and calories stay as they are."
         }
         footer={

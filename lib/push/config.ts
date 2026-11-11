@@ -6,7 +6,7 @@
 //   PUSH_SERVICE_HOSTS                    extra push service host names (comma separated)
 //   PUSH_ENDPOINT_ORIGINS                 exact origins allowed even over http (tests only)
 //
-// Subscriptions come from browsers, so their endpoint is checked before Cal ever sends to it: https
+// Subscriptions come from browsers, so their endpoint is checked before Kal ever sends to it: https
 // on a known push service (Google FCM for Chrome and Android, Mozilla for Firefox, Apple for
 // Safari and iOS, Microsoft WNS for Edge on Windows). The egress proxy allows the same hosts.
 import { vapidKeysValid, type VapidKeys } from "./webpush";
@@ -36,7 +36,7 @@ export const vapidConfig = (env: Env = process.env): VapidKeys | null => {
 
 export const pushConfigured = (env: Env = process.env) => vapidConfig(env) !== null;
 
-/** Whether Cal may send to this endpoint. */
+/** Whether Kal may send to this endpoint. */
 export const allowedEndpoint = (endpoint: string, env: Env = process.env) => {
   let url: URL;
   try {

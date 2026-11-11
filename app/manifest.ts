@@ -4,7 +4,6 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    // The installed app is called Kal (the in-app text still says Cal for now).
     name: "Kal",
     short_name: "Kal",
     description: "A photo-first food log.",

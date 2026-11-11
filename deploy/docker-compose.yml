@@ -1,4 +1,4 @@
-# Cal, hardened for a home server. Start it with deploy/Start.ps1 (it makes the secret files on
+# Kal, hardened for a home server. Start it with deploy/Start.ps1 (it makes the secret files on
 # the first start, builds the image and checks the tunnel); deploy/README.md explains each step.
 #
 # Nothing here publishes a port. The only way in is a Cloudflare Tunnel: Cloudflare's edge ends

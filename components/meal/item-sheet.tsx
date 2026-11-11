@@ -318,7 +318,7 @@ export const ItemSheet = ({
             />
             {item.gramsLow && item.gramsHigh && !usesMl ? (
               <p className="text-caption text-muted">
-                Cal estimated {Math.round(item.gramsLow)} to {Math.round(item.gramsHigh)} g
+                Kal estimated {Math.round(item.gramsLow)} to {Math.round(item.gramsHigh)} g
                 {item.modelGrams ? ` (about ${Math.round(item.modelGrams)} g)` : ""}.
               </p>
             ) : null}
@@ -386,7 +386,7 @@ export const ItemSheet = ({
             </div>
             {item.confidence !== null && item.confidence < 0.5 && (
               <p className="text-caption text-on-warning-soft bg-warning-soft mt-2 rounded-lg px-2 py-1">
-                Cal was unsure about this item. Check the food and the amount.
+                Kal was unsure about this item. Check the food and the amount.
               </p>
             )}
           </section>

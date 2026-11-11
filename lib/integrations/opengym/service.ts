@@ -1,8 +1,8 @@
 // openGym for one person (docs/DESIGN.md section 8). Pairing: the person makes a pairing code in
-// openGym and pastes it into Cal within 5 minutes; Cal redeems it for a bearer token, stored
+// openGym and pastes it into Kal within 5 minutes; Kal redeems it for a bearer token, stored
 // encrypted (lib/integrations/store.ts). A sync reads GET /api/me (which hands out a fresh token
-// past half of the session's lifetime; Cal keeps it) and GET /api/data, and caches the weigh-ins
-// and recent workouts in the integration's settings. Cal never writes to openGym.
+// past half of the session's lifetime; Kal keeps it) and GET /api/data, and caches the weigh-ins
+// and recent workouts in the integration's settings. Kal never writes to openGym.
 import { eq } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
@@ -27,7 +27,7 @@ import { metFor, parseState, weightForDay, workoutKcal, type OpenGymSnapshot } f
 /** Data older than this is read again when a screen needs it. */
 export const SYNC_MAX_AGE_MS = 10 * 60_000;
 
-const SIGNED_OUT = "openGym signed Cal out. Pair again in Settings.";
+const SIGNED_OUT = "openGym signed Kal out. Pair again in Settings.";
 
 export type PairResult = { ok: true } | { ok: false; status: 400 | 422 | 502 | 503; error: string };
 

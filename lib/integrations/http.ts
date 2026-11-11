@@ -111,7 +111,7 @@ export const callJson = async <T = unknown>(url: string, options: CallOptions): 
       if (response.ok)
         throw new IntegrationError(
           "bad_reply",
-          `${options.service} sent a reply Cal cannot read.`,
+          `${options.service} sent a reply Kal cannot read.`,
           status,
         );
     }
@@ -119,7 +119,7 @@ export const callJson = async <T = unknown>(url: string, options: CallOptions): 
   if (response.ok) return body as T;
   const reason = reasonOf(body);
   if (status === 401 || status === 403)
-    throw new IntegrationError("auth", `${options.service} did not accept Cal's sign-in.`, status);
+    throw new IntegrationError("auth", `${options.service} did not accept Kal's sign-in.`, status);
   if (status === 404)
     throw new IntegrationError(
       "not_found",

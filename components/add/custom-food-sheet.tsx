@@ -25,7 +25,7 @@ const empty = () =>
   Object.fromEntries(VALUES.map((v) => [v.code, ""])) as Record<NutrientCode, string>;
 
 /**
- * A food of the person's own (home recipes, a product Cal does not know), from the numbers on a
+ * A food of the person's own (home recipes, a product Kal does not know), from the numbers on a
  * label or a recipe: per 100 g or per serving.
  */
 export const CustomFoodSheet = ({

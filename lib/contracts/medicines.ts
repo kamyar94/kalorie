@@ -2,7 +2,7 @@
 // taken and when, and a photo of a box or blister read by the person's own AI provider. Plain data
 // (dates as ISO strings), safe to import from client components.
 //
-// Cal records what was taken. It never checks doses or interactions and never gives advice.
+// Kal records what was taken. It never checks doses or interactions and never gives advice.
 //
 // Server functions (lib/medicines/service.ts, lib/medicines/scans.ts), each scoped by user id:
 //   listMedicines(userId)                        -> MedicineDto[]       (archived ones too)
@@ -77,7 +77,7 @@ export const MEDICINE_LIMITS = {
 
 /** The line under every way of logging a medicine. */
 export const MEDICINE_DISCLAIMER =
-  "Cal records what you took. It does not check doses or interactions; ask a pharmacist or doctor about those.";
+  "Kal records what you took. It does not check doses or interactions; ask a pharmacist or doctor about those.";
 
 /** The unit word for an amount of a form: "tablet", "tablets"; null without a form. */
 export const unitFor = (form: MedicineForm | null, amount: number) =>
