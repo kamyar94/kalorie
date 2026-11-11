@@ -138,6 +138,25 @@ and `vapid.env` (the Web Push keys) by `app` and `worker`; `cloudflared.env` by 
   Versions of Node, Postgres, Squid and cloudflared are in `.env`; change one and run Start.ps1.
   Keep Postgres on the same major version (18.x): a new major needs a dump and restore.
 
+## Kal for Android
+
+The Android app (the repository's `android/` folder) is built on a development PC by
+`scripts/android-build.mjs`, never on the server, and never committed. The server only hands it
+out and vouches for it:
+
+1. Copy the build's `kal.apk` and `version.json` into `deploy/android/` (git ignores the folder;
+   `CAL_ANDROID_DIR` in `.env` points elsewhere if you like). The app container mounts it
+   read-only at `/data/android`. To update the app, replace both files; no restart is needed.
+2. In `site.env`, set `ANDROID_APP_ID` to the `kal.appId` the app was built with and
+   `ANDROID_CERT_SHA256` to the certificate fingerprint the build script printed. Run
+   `.\Start.ps1` (or restart the app container) after a change.
+3. Check `https://cal.example.org/.well-known/assetlinks.json`: it must answer with JSON naming
+   the app and the fingerprint, without a sign-in page in front of it. Android checks it when the
+   app is installed; without it the app still works but shows an address bar.
+
+`/android/version.json` is public (the app's update check); `/android/kal.apk` needs a sign-in.
+More, then Kal for Android, shows the version and size, or says the app is not set up yet.
+
 ## Backup and restore
 
 `.\Backup.ps1` writes `backups\cal-db-<date>.dump` (a `pg_dump` taken inside the db container while

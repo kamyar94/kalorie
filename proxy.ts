@@ -8,7 +8,16 @@ import { buildCsp, isSameOrigin, newNonce } from "@/lib/security/csp";
 //     and route still checks the session itself against the database);
 //  3. a fresh CSP nonce for the page render.
 const SESSION_COOKIE = "cal_session";
-const PUBLIC_PAGES = new Set(["/", "/sign-in", "/invite", "/reset", "/offline"]);
+// Public too: the Digital Asset Links file and the Android app's update check (lib/android).
+const PUBLIC_PAGES = new Set([
+  "/",
+  "/sign-in",
+  "/invite",
+  "/reset",
+  "/offline",
+  "/.well-known/assetlinks.json",
+  "/android/version.json",
+]);
 const PUBLIC_API = new Set(["/api/health"]);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 

@@ -60,6 +60,7 @@ x-cal: &cal
     EGRESS_PROXY_URL: http://egress:3128
     PHOTO_ROOT: /data/photos
     FDC_CACHE_DIR: /var/cache/cal-fdc
+    ANDROID_APK_DIR: /data/android
     NEXT_TELEMETRY_DISABLED: "1"
     WORKER_HEARTBEAT_FILE: /tmp/worker-alive
   init: true
@@ -115,6 +116,9 @@ services:
       - ${CAL_PHOTOS_DIR:-./photos}:/data/photos
       # Cache of the FoodData Central downloads (Cal.ps1 import-fdc). Can be deleted safely.
       - fdc-cache:/var/cache/cal-fdc
+      # The Android app to hand out: kal.apk and version.json (scripts/android-build.mjs). Read
+      # only; while it is empty, "Kal for Android" says the app is not set up.
+      - ${CAL_ANDROID_DIR:-./android}:/data/android:ro
     networks:
       - tunnel
       - backend
