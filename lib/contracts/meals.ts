@@ -32,12 +32,14 @@ export type MealStatus = (typeof MEAL_STATUSES)[number];
 export type LocalMealState = "waiting" | "uploading";
 
 /**
- * The meal's name on the timeline. breakfast, lunch and dinner follow the meal windows; snack,
- * supper (a real meal late in the evening), drink (drinks only) and dessert also depend on what
- * and how much was eaten (lib/meals/classify.ts).
+ * The meal's name on the timeline. breakfast, lunch and dinner follow the meal windows; brunch
+ * (the first main meal of a day without breakfast, late in the morning), snack, supper (a real
+ * meal late in the evening), drink (drinks only) and dessert also depend on what and how much
+ * was eaten, and brunch on the day's earlier meals (lib/meals/classify.ts).
  */
 export const MEAL_SLOTS = [
   "breakfast",
+  "brunch",
   "lunch",
   "dinner",
   "snack",
@@ -49,6 +51,7 @@ export type MealSlot = (typeof MEAL_SLOTS)[number];
 
 export const MEAL_SLOT_LABELS: Record<MealSlot, string> = {
   breakfast: "Breakfast",
+  brunch: "Brunch",
   lunch: "Lunch",
   dinner: "Dinner",
   snack: "Snack",

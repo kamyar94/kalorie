@@ -61,7 +61,9 @@ available, including iOS Safari), or tap to type. Examples: "ate half", "fried i
 sent with it). Gallery photos use the EXIF capture time when present (read on the device before
 re-encoding). The meal slot (breakfast, lunch, dinner, snack) is set from the local time using
 the person's meal windows (defaults 04:00-10:30, 11:00-15:00, 17:00-21:30, other times snack;
-editable).
+editable). The day's first main meal without a breakfast before it, eaten from 30 minutes before
+the breakfast window ends to 90 minutes after the lunch window starts (10:00-12:30 by default),
+is a brunch, as is a meal whose note or title says so (lib/meals/classify.ts).
 
 **Upload.** Photos are resized on the device (long edge 2048 px, JPEG quality 0.85) through a
 canvas, which also turns iPhone HEIC into JPEG and drops all metadata (no GPS leaves the

@@ -103,7 +103,7 @@ export const DetailsSheet = ({
             value={slot}
             onValueChange={setSlot}
             options={MEAL_SLOTS.map((s) => ({ value: s, label: MEAL_SLOT_LABELS[s] }))}
-            className="grid-flow-row grid-cols-3"
+            className="grid-flow-row grid-cols-3 sm:grid-cols-4"
           />
           <p className="text-caption text-muted">
             {meal.slotLocked

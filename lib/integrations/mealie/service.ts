@@ -158,8 +158,12 @@ export const disconnectMealie = async (userId: string, dbx: DbOrTx = defaultDb) 
 export const slotOfEntry = (entryType: string): MealSlot | null =>
   (MEAL_SLOTS as readonly string[]).includes(entryType) ? (entryType as MealSlot) : null;
 
-/** Kal's slot as a Mealie entry type: Mealie has no supper, so it is dinner there. */
-export const mealieEntryType = (slot: MealSlot) => (slot === "supper" ? "dinner" : slot);
+/**
+ * Kal's slot as a Mealie entry type: Mealie has no supper, so it is dinner there, and no brunch,
+ * which replaces lunch (and breakfast), so it is lunch there.
+ */
+export const mealieEntryType = (slot: MealSlot) =>
+  slot === "supper" ? "dinner" : slot === "brunch" ? "lunch" : slot;
 
 export const PLAN_CLIENT_PREFIX = "mealie-plan:";
 

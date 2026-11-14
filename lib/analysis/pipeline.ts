@@ -8,7 +8,7 @@
 // dropped.
 import crypto from "node:crypto";
 
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { mealItems, mealPhotos, meals, users, type MealQuestionRow } from "@/db/schema";
@@ -98,7 +98,7 @@ const weekdayOf = (at: Date, tz: string) => {
 export const loadAnalysisInput = async (userId: string, mealId: string, dbx: DbOrTx) => {
   const meal = (await dbx.select().from(meals).where(ownMeal(userId, mealId)).limit(1))[0];
   if (!meal) return null;
-  const [photos, items, user, usual, planned, health] = await Promise.all([
+  const [photos, items, user, usual, planned, health, earlier] = await Promise.all([
     dbx
       .select()
       .from(mealPhotos)
@@ -118,8 +118,26 @@ export const loadAnalysisInput = async (userId: string, mealId: string, dbx: DbO
     getUsualMeals(userId, undefined, dbx),
     getPlannedRecipes(userId, meal.localDate),
     healthForAnalysis(userId, dbx),
+    // The day's meals before this one (a failed one names nothing): was there a breakfast?
+    dbx
+      .select({ slot: meals.slot, eatenAt: meals.eatenAt, tz: meals.tz })
+      .from(meals)
+      .where(
+        and(
+          eq(meals.userId, userId),
+          eq(meals.localDate, meal.localDate),
+          isNull(meals.deletedAt),
+          ne(meals.id, mealId),
+          ne(meals.status, "failed"),
+          or(
+            lt(meals.eatenAt, meal.eatenAt),
+            and(eq(meals.eatenAt, meal.eatenAt), lt(meals.createdAt, meal.createdAt)),
+          ),
+        ),
+      )
+      .orderBy(asc(meals.eatenAt), asc(meals.createdAt)),
   ]);
-  return { meal, photos, items, user, usual, planned, health };
+  return { meal, photos, items, user, usual, planned, health, earlier };
 };
 
 export type AnalysisInput = NonNullable<Awaited<ReturnType<typeof loadAnalysisInput>>>;
@@ -134,6 +152,7 @@ export const analysisContext = (input: AnalysisInput, keepEdits: boolean): Analy
     localTime: local.time,
     weekday: weekdayOf(meal.eatenAt, meal.tz),
     slot: meal.slot,
+    earlier: input.earlier.map((m) => ({ slot: m.slot, time: localParts(m.eatenAt, m.tz).time })),
     units: input.user?.units ?? "metric",
     cuisines: input.user?.cuisines ?? [],
     health: input.health ?? null,

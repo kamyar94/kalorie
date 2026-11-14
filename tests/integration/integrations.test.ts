@@ -399,7 +399,7 @@ describe("Mealie", () => {
       await suggestMealPlan(user.id, { days: ["2001-01-01"], slots: ["dinner"] }, today),
     ).toMatchObject({ ok: false, status: 400 });
     expect(
-      await confirmMealPlan(user.id, [{ date: days[0], slot: "brunch", recipeId: "x" }], today),
+      await confirmMealPlan(user.id, [{ date: days[0], slot: "elevenses", recipeId: "x" }], today),
     ).toMatchObject({ ok: false, status: 400 });
 
     const entries = plan.days.flatMap((d) => d.entries);

@@ -142,7 +142,7 @@ describe("trends", () => {
   const meal = (
     date: string,
     time: string,
-    slot: "breakfast" | "lunch" | "dinner" | "snack",
+    slot: "breakfast" | "brunch" | "lunch" | "dinner" | "snack",
     energy: number,
     protein = 20,
   ) => ({
@@ -197,6 +197,23 @@ describe("trends", () => {
     expect(data.topFoods[0]).toMatchObject({ name: "Rice", times: 2, energy: 500 });
     // Two logged days are not enough to call a pattern.
     expect(data.nutrients.every((n) => n.verdict === "ok")).toBe(true);
+    expect(data.bySlot.find((s) => s.slot === "brunch")).toMatchObject({ energy: 0, meals: 0 });
+  });
+
+  it("counts brunches as their own meal, listed after breakfast", () => {
+    const data = computeTrends({
+      range: "day",
+      end: "2026-10-31",
+      meals: [
+        meal("2026-10-31", "11:30", "brunch", 900),
+        meal("2026-10-31", "19:30", "dinner", 600),
+      ],
+      items: [],
+      targets: {},
+    });
+    expect(data.bySlot.map((s) => s.slot).slice(0, 3)).toEqual(["breakfast", "brunch", "lunch"]);
+    expect(data.bySlot.find((s) => s.slot === "brunch")).toMatchObject({ energy: 900, meals: 1 });
+    expect(data.bySlot.find((s) => s.slot === "brunch")!.share).toBeCloseTo(0.6);
   });
 
   it("flags nutrients that are usually low or high", () => {
@@ -247,7 +264,8 @@ describe("request parsing", () => {
       slot: "dinner",
       title: "Lunch",
     });
-    expect(parseMealPatch({ slot: "brunch", eatenAt: "soon" })).toEqual({});
+    expect(parseMealPatch({ slot: "brunch" })).toEqual({ slot: "brunch" });
+    expect(parseMealPatch({ slot: "elevenses", eatenAt: "soon" })).toEqual({});
     expect(parseMealPatch({ favorite: true })).toEqual({ favorite: true });
     expect(parseMealPatch({ favorite: false })).toEqual({ favorite: false });
     expect(parseMealPatch({ favorite: "yes" })).toEqual({});

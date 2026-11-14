@@ -16,6 +16,7 @@ import { photoRelativePath, removePhotoFiles, writePhotoFile } from "@/lib/photo
 import { enqueueJob } from "@/lib/queue/queue";
 
 import { toSummaryDto } from "./dto";
+import { reclassifyDay } from "./service";
 import { localParts, slotFor, type MealWindows } from "./time";
 
 export type NewPhotoMeal = {
@@ -148,7 +149,9 @@ export const createPhotoMeal = async (
         ? await tx.insert(mealPhotos).values(photoRows).returning()
         : [];
       await enqueueMealAnalysis({ mealId, userId: input.userId, reason: "upload" }, tx);
-      return toSummaryDto(meal, inserted, []);
+      // Its words may call it a brunch, and a new meal can change the names of the day's others.
+      const slots = await reclassifyDay(input.userId, meal.localDate, tx, meal.eatenAt);
+      return toSummaryDto({ ...meal, slot: slots.get(meal.id) ?? meal.slot }, inserted, []);
     });
 
     if (!result) {

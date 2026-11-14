@@ -31,7 +31,7 @@ import { BarChart, ChartTable, LineChart, type BarDatum } from "./charts";
 
 const RANGE_LABELS: Record<TrendRange, string> = { day: "Day", week: "Week", month: "Month" };
 
-/** Always listed; supper, drink and dessert only once the period has one. */
+/** Always listed; brunch, supper, drink and dessert only once the period has one. */
 const MAIN_SLOTS = new Set<MealSlot>(["breakfast", "lunch", "dinner", "snack"]);
 
 const hrefFor = (range: TrendRange, end: string, today: string) =>

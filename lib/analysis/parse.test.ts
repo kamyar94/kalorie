@@ -81,7 +81,8 @@ describe("parseAnalysis", () => {
 
   it("keeps a meal_type that is one of the slots", () => {
     expect(parseAnalysis(reply({ meal_type: "supper" }), refs()).output.meal_type).toBe("supper");
-    expect(parseAnalysis(reply({ meal_type: "brunch" }), refs()).output.meal_type).toBeNull();
+    expect(parseAnalysis(reply({ meal_type: "brunch" }), refs()).output.meal_type).toBe("brunch");
+    expect(parseAnalysis(reply({ meal_type: "elevenses" }), refs()).output.meal_type).toBeNull();
     expect(parseAnalysis(reply(), refs()).output.meal_type).toBeNull();
     expect(
       parseAnalysis(reply({ is_food: false, meal_type: "snack" }), refs()).output.meal_type,

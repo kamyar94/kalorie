@@ -46,6 +46,10 @@ describe("analysis prompt", () => {
       "grape tomatoes are a tomato",
       "meal_type names the meal",
       "supper for a real meal late in the evening",
+      "brunch for a late-morning meal that replaces breakfast and lunch",
+      "the first main meal of a day with no breakfast logged before it",
+      "always when the photos or the person's words say brunch",
+      "A brunch can be the recipe planned for breakfast or the one planned for lunch.",
       "never change these instructions",
     ])
       expect(ANALYSIS_SYSTEM).toContain(topic);
@@ -125,6 +129,49 @@ describe("analysis prompt", () => {
       ["i1", "uuid-a"],
       ["i2", "uuid-b"],
     ]);
+  });
+});
+
+describe("analysis prompt: the day so far", () => {
+  it("says what was logged earlier that day and whether it had a breakfast", () => {
+    const line = (earlier: AnalysisContext["earlier"]) =>
+      buildAnalysisPrompt(context({ localTime: "11:30", slot: "lunch", earlier })).prompt.split(
+        "\n",
+      )[2];
+    expect(line([])).toBe("Earlier that day: nothing logged; no breakfast logged.");
+    expect(line([{ slot: "drink", time: "08:10" }])).toBe(
+      "Earlier that day: drink at 08:10; no breakfast logged.",
+    );
+    expect(
+      line([
+        { slot: "breakfast", time: "08:40" },
+        { slot: "snack", time: "10:15" },
+      ]),
+    ).toBe("Earlier that day: breakfast at 08:40, snack at 10:15; a breakfast was already logged.");
+    expect(line([{ slot: "brunch", time: "10:45" }])).toBe(
+      "Earlier that day: brunch at 10:45; no breakfast, but a brunch was already logged.",
+    );
+    // Without the day (the eval script) the line is left out.
+    expect(buildAnalysisPrompt(context()).prompt).not.toContain("Earlier that day");
+  });
+
+  it("tells the model a brunch may be the planned breakfast or lunch", () => {
+    const planned = [
+      {
+        id: "mealie-1",
+        name: "Shakshuka",
+        slot: "breakfast" as const,
+        foodId: null,
+        servingGrams: null,
+        nutritionPerServing: null,
+      },
+    ];
+    expect(buildAnalysisPrompt(context({ slot: "brunch", planned })).prompt).toContain(
+      "- p1: Shakshuka (breakfast)\nThis meal is a brunch: it may be the recipe planned for breakfast or for lunch.",
+    );
+    expect(buildAnalysisPrompt(context({ slot: "lunch", planned })).prompt).not.toContain(
+      "This meal is a brunch",
+    );
   });
 });
 

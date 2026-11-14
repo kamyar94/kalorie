@@ -13,7 +13,7 @@ import type {
   MealPatch,
   MealSummaryDto,
 } from "@/lib/contracts/meals";
-import { MEAL_SLOTS } from "@/lib/contracts/meals";
+import { MEAL_SLOTS, type MealSlot } from "@/lib/contracts/meals";
 import {
   amountGrams,
   multiplyNutrients,
@@ -25,7 +25,7 @@ import { rememberItem } from "@/lib/analysis/memory";
 import { emojiFor } from "@/lib/food/emoji";
 import { getFood } from "@/lib/food/search";
 
-import { classifyMeal } from "./classify";
+import { classifyDay, type DayMeal } from "./classify";
 import { toItemDto, toMealDto, toSummaryDto } from "./dto";
 import { isLocalDate, isValidTimeZone, localParts, slotFor, type MealWindows } from "./time";
 
@@ -108,62 +108,138 @@ const mealWindowsOf = async (userId: string, dbx: DbOrTx) =>
   (await dbx.select({ w: users.mealWindows }).from(users).where(eq(users.id, userId)).limit(1))[0]
     ?.w as MealWindows | undefined;
 
+type DayRow = {
+  id: string;
+  eatenAt: Date;
+  tz: string;
+  slot: MealSlot;
+  slotLocked: boolean;
+  status: string;
+  modelType: string | null;
+  title: string | null;
+  note: string | null;
+  questions: { answer?: string | null }[] | null;
+  corrections: { text: string }[] | null;
+};
+
 /**
- * Sums the items into meals.totals and names the meal again (its slot, lib/meals/classify.ts)
- * unless the person chose the slot by hand. Runs after every analysis and item change. Returns
- * the totals.
+ * Names the meals of one of the person's local days again (lib/meals/classify.ts classifyDay),
+ * oldest first, and saves the slots that changed; slots chosen by hand stay. A brunch is the
+ * day's first main meal, so a breakfast added, moved or removed changes the meals after it.
+ * With `from`, the time of the change, only the meals eaten then or later are named again; the
+ * earlier ones keep their slots (and count as they are), so a change never renames a meal it
+ * cannot affect. Returns the slot of every meal of the day by id.
  */
-export const recomputeMealTotals = async (mealId: string, dbx: DbOrTx = defaultDb) => {
-  const items = await dbx
+export const reclassifyDay = async (
+  userId: string,
+  localDate: string,
+  dbx: DbOrTx = defaultDb,
+  from?: Date | null,
+): Promise<Map<string, MealSlot>> => {
+  const slots = new Map<string, MealSlot>();
+  if (!isUuid(userId) || !isLocalDate(localDate)) return slots;
+  const rows: DayRow[] = await dbx
     .select({
-      name: mealItems.name,
-      kind: mealItems.kind,
-      nutrients: mealItems.nutrients,
-      foodName: foods.nameEn,
+      id: meals.id,
+      eatenAt: meals.eatenAt,
+      tz: meals.tz,
+      slot: meals.slot,
+      slotLocked: meals.slotLocked,
+      status: meals.status,
+      modelType: sql<string | null>`${meals.analysis}->>'meal_type'`,
+      title: meals.title,
+      note: meals.note,
+      questions: meals.questions,
+      corrections: meals.corrections,
     })
-    .from(mealItems)
-    .leftJoin(foods, eq(foods.id, mealItems.foodId))
-    .where(eq(mealItems.mealId, mealId));
-  const totals = sumNutrients(items.map((i) => i.nutrients ?? {}));
-  const meal = (
-    await dbx
+    .from(meals)
+    .where(and(eq(meals.userId, userId), eq(meals.localDate, localDate), isNull(meals.deletedAt)))
+    .orderBy(asc(meals.eatenAt), asc(meals.createdAt), asc(meals.id));
+  if (!rows.length) return slots;
+  const [items, windows] = await Promise.all([
+    dbx
       .select({
-        userId: meals.userId,
-        eatenAt: meals.eatenAt,
-        tz: meals.tz,
-        slot: meals.slot,
-        slotLocked: meals.slotLocked,
-        analysis: meals.analysis,
+        mealId: mealItems.mealId,
+        name: mealItems.name,
+        kind: mealItems.kind,
+        nutrients: mealItems.nutrients,
+        foodName: foods.nameEn,
       })
-      .from(meals)
-      .where(eq(meals.id, mealId))
-      .limit(1)
-  )[0];
-  const set: Partial<typeof meals.$inferInsert> = { totals };
-  if (meal && !meal.slotLocked) {
-    const slot = classifyMeal({
-      items: items.map((i) => ({
+      .from(mealItems)
+      .leftJoin(foods, eq(foods.id, mealItems.foodId))
+      .where(
+        and(
+          inArray(
+            mealItems.mealId,
+            rows.map((r) => r.id),
+          ),
+          eq(mealItems.userId, userId),
+        ),
+      ),
+    mealWindowsOf(userId, dbx),
+  ]);
+  const day: DayMeal[] = rows.map((row) => {
+    const own = items
+      .filter((i) => i.mealId === row.id)
+      .map((i) => ({
         name: i.name,
         foodName: i.foodName,
         kind: i.kind,
         energy: i.nutrients?.energy,
-      })),
-      modelType: (meal.analysis as { meal_type?: unknown } | null)?.meal_type as string | null,
-      minutes: localParts(meal.eatenAt, meal.tz).minutes,
-      windows: await mealWindowsOf(meal.userId, dbx),
-    });
-    if (slot !== meal.slot) set.slot = slot;
+      }));
+    return {
+      slot: row.slot,
+      // Chosen by hand, or eaten before the change: it stays as it is.
+      locked: row.slotLocked || (!!from && row.eatenAt.getTime() < from.getTime()),
+      // A failed analysis without items (not food, no key yet) says nothing about the day.
+      counts: own.length > 0 || row.status !== "failed",
+      items: own,
+      modelType: row.modelType,
+      minutes: localParts(row.eatenAt, row.tz).minutes,
+      words: [
+        row.title,
+        row.note,
+        ...(row.questions ?? []).map((q) => q.answer),
+        ...(row.corrections ?? []).map((c) => c.text),
+      ],
+    };
+  });
+  const named = classifyDay(day, windows);
+  for (const [index, row] of rows.entries()) {
+    const slot = named[index]!;
+    slots.set(row.id, slot);
+    if (slot !== row.slot) await dbx.update(meals).set({ slot }).where(eq(meals.id, row.id));
   }
-  await dbx.update(meals).set(set).where(eq(meals.id, mealId));
+  return slots;
+};
+
+/**
+ * Sums the items into meals.totals, then names the meal and the later meals of its day again
+ * (reclassifyDay; a slot the person chose by hand stays). Runs after every analysis and item
+ * change. Returns the totals.
+ */
+export const recomputeMealTotals = async (mealId: string, dbx: DbOrTx = defaultDb) => {
+  const items = await dbx
+    .select({ nutrients: mealItems.nutrients })
+    .from(mealItems)
+    .where(eq(mealItems.mealId, mealId));
+  const totals = sumNutrients(items.map((i) => i.nutrients ?? {}));
+  const [meal] = await dbx
+    .update(meals)
+    .set({ totals })
+    .where(eq(meals.id, mealId))
+    .returning({ userId: meals.userId, localDate: meals.localDate, eatenAt: meals.eatenAt });
+  if (meal) await reclassifyDay(meal.userId, meal.localDate, dbx, meal.eatenAt);
   return totals;
 };
 
 /** Meal types that name a time of day; they do not carry over to a new time. */
-const TIME_OF_DAY_TYPES = new Set(["breakfast", "lunch", "dinner", "supper"]);
+const TIME_OF_DAY_TYPES = new Set(["breakfast", "brunch", "lunch", "dinner", "supper"]);
 
 /** Changes time, slot, title, note or the favorite star. A new time moves the meal to its day;
  * the slot follows the time (and the food) unless one is given now or was chosen before; a slot
- * given locks it. */
+ * given locks it. The meal and the meals after its old and new time are named again
+ * (reclassifyDay): a brunch is the day's first main meal, and a title or note can say brunch. */
 export const updateMeal = async (
   userId: string,
   mealId: string,
@@ -201,19 +277,31 @@ export const updateMeal = async (
     if (!patch.favorite) set.favoriteUsedAt = null;
   }
   if (Object.keys(set).length) await dbx.update(meals).set(set).where(ownMeal(userId, mealId));
-  // A new time names the meal again (a slot chosen by hand stays).
-  if (moved && patch.slot === undefined) await recomputeMealTotals(mealId, dbx);
+  // A new time names the meal again (a slot chosen by hand stays), and the later meals of the
+  // day it left and of the day it joined; so do a slot picked by hand and new words.
+  if (moved || patch.slot !== undefined || "title" in set || "note" in set) {
+    const at = set.eatenAt ?? row.eatenAt;
+    const day = set.localDate ?? row.localDate;
+    if (day !== row.localDate) {
+      await reclassifyDay(userId, row.localDate, dbx, row.eatenAt);
+      await reclassifyDay(userId, day, dbx, at);
+    } else await reclassifyDay(userId, day, dbx, at < row.eatenAt ? at : row.eatenAt);
+  }
   return getMeal(userId, mealId, dbx);
 };
 
-/** Soft delete; photos stay until the data clean-up removes them. */
+/**
+ * Soft delete; photos stay until the data clean-up removes them. The day's later meals are named
+ * again (a removed breakfast can make the next meal a brunch).
+ */
 export const deleteMeal = async (userId: string, mealId: string, dbx: DbOrTx = defaultDb) => {
   if (!isUuid(userId) || !isUuid(mealId)) return false;
   const done = await dbx
     .update(meals)
     .set({ deletedAt: new Date() })
     .where(ownMeal(userId, mealId))
-    .returning({ id: meals.id });
+    .returning({ id: meals.id, localDate: meals.localDate, eatenAt: meals.eatenAt });
+  if (done[0]) await reclassifyDay(userId, done[0].localDate, dbx, done[0].eatenAt);
   return done.length > 0;
 };
 

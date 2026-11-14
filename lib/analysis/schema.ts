@@ -137,7 +137,8 @@ export const ANALYSIS_SCHEMA: JsonSchema = object({
   meal_type: {
     type: "string",
     enum: [...MEAL_SLOTS],
-    description: "Which meal this is, from the food, the amount and the local time.",
+    description:
+      "Which meal this is, from the food, the amount, the local time and the meals logged earlier that day.",
   },
   questions: {
     type: "array",

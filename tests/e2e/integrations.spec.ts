@@ -200,6 +200,54 @@ test("a meal in words is analysed by the mock provider without a photo", async (
   await expectAccessible(page);
 });
 
+test("brunch: a meal in words that says brunch is a Brunch on Today and in the meal's picker", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  await saveGoogleKey(page);
+  await page.goto("/today");
+  await page.getByRole("button", { name: "Open the camera" }).click();
+  const camera = page.getByRole("dialog", { name: "Camera" });
+  await camera.getByRole("button", { name: /^Type/ }).click();
+  await camera
+    .getByRole("textbox", { name: "What did you eat?" })
+    .fill("Brunch: eggs, toast and salad");
+  await camera.getByRole("button", { name: "Send the meal (text only)" }).click();
+  const card = page.locator('article[data-state="ready"]');
+  await expect(card).toHaveCount(1, { timeout: 30_000 });
+  // Whatever the time of day: the person's words name it.
+  await expect(card.locator("p").first()).toHaveText(/^\d\d:\d\d · Brunch$/);
+  const row = await pool.query("select slot, slot_locked from meals where user_id = $1", [userId]);
+  expect(row.rows).toEqual([{ slot: "brunch", slot_locked: false }]);
+
+  await card.locator(`a[href^="/meals/"]`).click();
+  const header = (slot: string) =>
+    page.getByText(new RegExp(`^Today · \\d\\d:\\d\\d · ${slot} · typed meal$`));
+  await expect(header("Brunch")).toBeVisible();
+  await page.getByRole("button", { name: "Edit" }).click();
+  const sheet = page.getByRole("dialog", { name: "Meal details" });
+  const names = sheet.getByRole("radiogroup", { name: "Meal" });
+  await expect(names.getByRole("radio", { name: "Brunch" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expectAccessible(page);
+  // Picked by hand it stays, and Brunch can be picked back.
+  await names.getByRole("radio", { name: "Lunch" }).click();
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(sheet).toBeHidden();
+  await expect(header("Lunch")).toBeVisible();
+  await page.getByRole("button", { name: "Edit" }).click();
+  await names.getByRole("radio", { name: "Brunch" }).click();
+  await sheet.getByRole("button", { name: "Save" }).click();
+  await expect(sheet).toBeHidden();
+  await expect(header("Brunch")).toBeVisible();
+  const picked = await pool.query("select slot, slot_locked from meals where user_id = $1", [
+    userId,
+  ]);
+  expect(picked.rows).toEqual([{ slot: "brunch", slot_locked: true }]);
+});
+
 test("a medicine label from the gallery is read by the mock provider", async ({ page }, info) => {
   const userId = await signUp(page, info.project.name);
   await saveGoogleKey(page);

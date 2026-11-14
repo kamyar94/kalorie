@@ -513,7 +513,17 @@ test("meal names: water alone is a Drink, and a name picked by hand stays", asyn
   await page.getByRole("button", { name: "Edit" }).click();
   const sheet = page.getByRole("dialog", { name: "Meal details" });
   const names = sheet.getByRole("radiogroup", { name: "Meal" });
-  await expect(names.getByRole("radio")).toHaveCount(7);
+  await expect(names.getByRole("radio")).toHaveText([
+    "Breakfast",
+    "Brunch",
+    "Lunch",
+    "Dinner",
+    "Snack",
+    "Supper",
+    "Drink",
+    "Dessert",
+  ]);
+  await expect(names.getByRole("radio", { name: "Brunch" })).toBeVisible();
   await expect(names.getByRole("radio", { name: "Drink" })).toHaveAttribute("aria-checked", "true");
   await expect(sheet).toContainText(
     "Kal names the meal from its food and time until you pick one.",
