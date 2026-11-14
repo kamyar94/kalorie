@@ -622,6 +622,62 @@ test("offline: the meal waits on the device and uploads when back online", async
   expect((await pool.query("select 1 from meals where user_id = $1", [userId])).rowCount).toBe(1);
 });
 
+test("an uploaded meal shows once: its server card takes the place of the one on the device", async ({
+  page,
+}, info) => {
+  await signUp(page, info.project.name);
+  await page.evaluate(() => {
+    // Every moment Today shows more than one card for this one meal.
+    const w = window as unknown as { doubled: string[] };
+    w.doubled = [];
+    new MutationObserver(() => {
+      const cards = [...document.querySelectorAll("article[data-meal-id]")];
+      if (cards.length > 1) w.doubled.push(cards.map((c) => c.getAttribute("data-state")).join());
+    }).observe(document.body, { subtree: true, childList: true, attributes: true });
+    // Slow storage on the device: the uploader removes the sent meal from the queue, and the
+    // queue is read again only 2 s later (a busy transaction made right after the delete goes
+    // before every later one on the store). Today must not wait for that read.
+    const remove = IDBObjectStore.prototype.delete;
+    IDBObjectStore.prototype.delete = function (this: IDBObjectStore, key: IDBValidKey) {
+      const request = remove.call(this, key);
+      const busy = this.transaction.db.transaction(this.name, "readwrite").objectStore(this.name);
+      const until = Date.now() + 2000;
+      const keepBusy = () => {
+        if (Date.now() < until) busy.count().onsuccess = keepBusy;
+      };
+      keepBusy();
+      return request;
+    };
+  });
+  const camera = await openCamera(page);
+  await camera.getByRole("button", { name: "Take photo" }).click();
+  await expect(photosInStrip(page)).toHaveCount(1);
+  await camera.getByRole("button", { name: "Send meal with 1 photo" }).click();
+
+  await expect(page.locator(SERVER_CARD)).toHaveCount(1);
+  // Past the slow read: the device's queue is empty.
+  const queued = () =>
+    page.evaluate(
+      () =>
+        new Promise<number>((resolve, reject) => {
+          const open = indexedDB.open("cal-capture");
+          open.onerror = () => reject(open.error);
+          open.onsuccess = () => {
+            const count = open.result.transaction("meals").objectStore("meals").count();
+            count.onsuccess = () => {
+              resolve(count.result);
+              open.result.close();
+            };
+          };
+        }),
+    );
+  await expect.poll(queued).toBe(0);
+  await expect(page.locator("article[data-meal-id]")).toHaveCount(1);
+  expect(await page.evaluate(() => (window as unknown as { doubled: string[] }).doubled)).toEqual(
+    [],
+  );
+});
+
 test("edit an item: grams, a portion and undo; the totals follow", async ({ page }, info) => {
   const userId = await signUp(page, info.project.name);
   const rice = await food({ name: "Rice, white, cooked", energy: 130, portions: [["1 cup", 158]] });

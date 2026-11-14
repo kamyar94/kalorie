@@ -119,6 +119,9 @@ export const CaptureProvider = ({
       const sent = await flushQueue(userId, {
         onUploading: (clientId) => setUploading((s) => new Set(s).add(clientId)),
         onUploaded: (clientId, response) => {
+          // The meal has left the device's storage: its card on the device goes in the same render
+          // that shows the server's card (the queue is read again only after the whole flush).
+          setQueue((q) => q.filter((m) => m.clientId !== clientId));
           setUploaded((m) => new Map(m).set(clientId, response.meal));
           // The refreshed server list has it by then (and a deleted meal must not come back).
           window.setTimeout(
@@ -157,12 +160,11 @@ export const CaptureProvider = ({
           if (l.length) void flush();
         });
     };
-    // The service worker tells open pages when it sent meals in the background.
+    // The service worker tells open pages when it sent meals in the background. Read the queue
+    // before the server's list, so no meal shows on both.
     const onMessage = (event: MessageEvent) => {
-      if ((event.data as { type?: string } | null)?.type === "cal-queue-changed") {
-        void reload();
-        router.refresh();
-      }
+      if ((event.data as { type?: string } | null)?.type === "cal-queue-changed")
+        void reload().finally(() => router.refresh());
     };
     window.addEventListener("online", onOnline);
     document.addEventListener("visibilitychange", onVisible);
