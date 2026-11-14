@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import { formatDose, MEDICINE_FORMS, medicineTitle, unitFor } from "@/lib/contracts/medicines";
 
 import { MEDICINE_LABEL_SCHEMA } from "./label";
-import { parseMedicineLog, parseMedicinePatch, parseMedicineReading } from "./parse";
+import {
+  parseMedicineLog,
+  parseMedicineLogPatch,
+  parseMedicinePatch,
+  parseMedicineReading,
+} from "./parse";
 
 const now = Date.now();
 const iso = (msAgo: number) => new Date(now - msAgo).toISOString();
@@ -82,6 +87,31 @@ describe("medicine input", () => {
     expect(
       parseMedicineLog({ name: "X", takenAt: iso(0), scanId: "not-an-id" }),
     ).not.toHaveProperty("scanId");
+  });
+
+  it("changes a log's time and amount, within the same limits", () => {
+    const at = iso(3_600_000);
+    expect(parseMedicineLogPatch({ takenAt: at, tz: "Europe/Berlin", name: "X" }, now)).toEqual({
+      takenAt: at,
+      tz: "Europe/Berlin",
+    });
+    expect(parseMedicineLogPatch({ amount: 1.555 }, now)).toEqual({ amount: 1.56 });
+    // A few minutes ahead is clock skew; an hour ahead is the future.
+    expect(parseMedicineLogPatch({ takenAt: iso(-5 * 60_000) }, now)).toHaveProperty("takenAt");
+    expect(parseMedicineLogPatch({ takenAt: iso(-3_600_000) }, now)).toEqual({
+      error: "Pick a time in the past year.",
+    });
+    expect(parseMedicineLogPatch({ takenAt: iso(400 * 86_400_000) }, now)).toHaveProperty("error");
+    expect(parseMedicineLogPatch({ takenAt: "yesterday" }, now)).toHaveProperty("error");
+    expect(parseMedicineLogPatch({ amount: 0 }, now)).toEqual({
+      error: "Give an amount from 0.01 to 100.",
+    });
+    expect(parseMedicineLogPatch({ amount: -1 }, now)).toHaveProperty("error");
+    expect(parseMedicineLogPatch({ amount: 101 }, now)).toHaveProperty("error");
+    expect(parseMedicineLogPatch({ amount: "2" }, now)).toHaveProperty("error");
+    expect(parseMedicineLogPatch({ tz: "UTC" }, now)).toEqual({
+      error: "Send a new time or a new amount.",
+    });
   });
 });
 

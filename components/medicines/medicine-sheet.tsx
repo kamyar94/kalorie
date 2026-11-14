@@ -11,6 +11,7 @@ import { SelectField } from "@/components/ui/select-field";
 import { Stepper } from "@/components/ui/stepper";
 import { api } from "@/lib/client/api";
 import {
+  doseStep,
   formatDose,
   MEDICINE_DISCLAIMER,
   MEDICINE_FORM_LABELS,
@@ -31,9 +32,6 @@ const FORM_OPTIONS = [
   { value: "", label: "Not sure" },
   ...MEDICINE_FORMS.map((form) => ({ value: form, label: MEDICINE_FORM_LABELS[form] })),
 ];
-
-/** Liquids are counted in whole millilitres; tablets and the rest in halves. */
-const stepFor = (form: MedicineForm | null) => (form === "liquid" ? 1 : 0.5);
 
 /**
  * The medicine taken (board 7): what the label says (or empty fields to type it), "How many did
@@ -222,7 +220,7 @@ export const MedicineSheet = ({
                   onChange={(event) => {
                     const next = (event.target.value || null) as MedicineForm | null;
                     setForm(next);
-                    setAmount((current) => Math.max(current, stepFor(next)));
+                    setAmount((current) => Math.max(current, doseStep(next)));
                   }}
                 />
               </div>
@@ -245,9 +243,9 @@ export const MedicineSheet = ({
               label="How many did you take?"
               value={amount}
               onChange={setAmount}
-              min={stepFor(form)}
+              min={doseStep(form)}
               max={MEDICINE_LIMITS.maxAmount}
-              step={stepFor(form)}
+              step={doseStep(form)}
               format={(value) => (unit ? formatDose(value, unit) : String(value))}
               className="shrink-0"
             />

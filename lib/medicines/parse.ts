@@ -5,6 +5,7 @@ import {
   MEDICINE_LIMITS,
   type MedicineForm,
   type MedicineIngredient,
+  type MedicineLogPatch,
   type MedicinePatch,
   type MedicineReading,
   type NewMedicineLog,
@@ -63,6 +64,26 @@ export const parseMedicinePatch = (body: Record<string, unknown>): MedicinePatch
   return patch;
 };
 
+/** A time taken can lie this far ahead of the server's clock (a phone's clock runs a bit fast). */
+export const TAKEN_AT_SLACK_MS = 10 * 60_000;
+
+const TIME_ERROR = "Pick a time in the past year.";
+
+/** The time a medicine was taken, as ISO: in the past year and not in the future; else null. */
+const takenAtOf = (value: unknown, now: number) => {
+  const takenAt = typeof value === "string" ? new Date(value) : null;
+  if (
+    !takenAt ||
+    Number.isNaN(takenAt.getTime()) ||
+    takenAt.getTime() > now + TAKEN_AT_SLACK_MS ||
+    takenAt.getTime() < now - 366 * 86_400_000
+  )
+    return null;
+  return takenAt.toISOString();
+};
+
+const amountError = () => `Give an amount from 0.01 to ${MEDICINE_LIMITS.maxAmount}.`;
+
 /**
  * A medicine taken. Needs a time (in the past year, not in the future) and either a medicine of
  * the list or a name. Returns an error sentence for the person otherwise.
@@ -71,16 +92,10 @@ export const parseMedicineLog = (
   body: Record<string, unknown>,
   now = Date.now(),
 ): NewMedicineLog | { error: string } => {
-  const takenAt = typeof body.takenAt === "string" ? new Date(body.takenAt) : null;
-  if (
-    !takenAt ||
-    Number.isNaN(takenAt.getTime()) ||
-    takenAt.getTime() > now + 10 * 60_000 ||
-    takenAt.getTime() < now - 366 * 86_400_000
-  )
-    return { error: "Pick a time in the past year." };
+  const takenAt = takenAtOf(body.takenAt, now);
+  if (!takenAt) return { error: TIME_ERROR };
   const log: NewMedicineLog = {
-    takenAt: takenAt.toISOString(),
+    takenAt,
     tz: typeof body.tz === "string" ? body.tz.slice(0, 64) : "",
   };
   if (typeof body.medicineId === "string" && UUID.test(body.medicineId))
@@ -94,8 +109,7 @@ export const parseMedicineLog = (
   if (form !== undefined) log.form = form;
   if (body.amount !== undefined) {
     const amount = cleanAmount(body.amount);
-    if (amount === undefined)
-      return { error: `Give an amount from 0.01 to ${MEDICINE_LIMITS.maxAmount}.` };
+    if (amount === undefined) return { error: amountError() };
     log.amount = amount;
   }
   const unit = optionalLine(body.unit, MEDICINE_LIMITS.unitChars);
@@ -104,6 +118,32 @@ export const parseMedicineLog = (
   if (typeof body.scanId === "string" && UUID.test(body.scanId)) log.scanId = body.scanId;
   if (typeof body.keep === "boolean") log.keep = body.keep;
   return log;
+};
+
+/**
+ * Changes to a log: a new time taken (same rule as a new log: the past year, not the future) with
+ * its time zone, and a new amount (more than 0, in the log's unit). A field that is sent but not
+ * valid is an error, and so is a body that changes nothing.
+ */
+export const parseMedicineLogPatch = (
+  body: Record<string, unknown>,
+  now = Date.now(),
+): MedicineLogPatch | { error: string } => {
+  const patch: MedicineLogPatch = {};
+  if (body.takenAt !== undefined) {
+    const takenAt = takenAtOf(body.takenAt, now);
+    if (!takenAt) return { error: TIME_ERROR };
+    patch.takenAt = takenAt;
+  }
+  if (typeof body.tz === "string") patch.tz = body.tz.slice(0, 64);
+  if (body.amount !== undefined) {
+    const amount = cleanAmount(body.amount);
+    if (amount === undefined) return { error: amountError() };
+    patch.amount = amount;
+  }
+  if (patch.takenAt === undefined && patch.amount === undefined)
+    return { error: "Send a new time or a new amount." };
+  return patch;
 };
 
 /**

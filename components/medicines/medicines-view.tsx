@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Pencil, Pill, Plus, Trash2 } from "lucide-react";
+import { Camera, ChevronRight, Pencil, Pill, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -22,13 +22,19 @@ import { deviceTimeZone } from "@/lib/photos/client";
 import { dayTitle } from "@/lib/ui/format";
 
 import { MedicineEditSheet } from "./medicine-edit-sheet";
+import { loggedNowToast, MedicineLogSheet, relogInput } from "./medicine-log-sheet";
+
+/** A log's row in the history (focus comes back to it when its sheet closes). */
+const historyRowId = (logId: string) => `medicine-history-${logId}`;
 
 const ingredientsLine = (medicine: MedicineDto) =>
   medicine.ingredients.map((i) => (i.strength ? `${i.name} ${i.strength}` : i.name)).join(", ");
 
 /**
  * The Medicines page: the person's list (log one now, edit, archive), a label photo or a new
- * medicine by hand, and what was taken, by day.
+ * medicine by hand, and what was taken, by day. A log in the history opens its sheet (board 28):
+ * the time and the amount can change there, or it can be removed; so can the one just logged,
+ * from the toast (Change time).
  */
 export const MedicinesView = ({
   medicines: initialMedicines,
@@ -45,6 +51,12 @@ export const MedicinesView = ({
   const [medicines, setMedicines] = useState(initialMedicines);
   const [editing, setEditing] = useState<{ medicine: MedicineDto | null } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [editingLog, setEditingLog] = useState<MedicineLogDto | null>(null);
+  const [logSheetOpen, setLogSheetOpen] = useState(false);
+  const editLog = (log: MedicineLogDto) => {
+    setEditingLog(log);
+    setLogSheetOpen(true);
+  };
 
   const [shown, setShown] = useState(initialMedicines);
   if (initialMedicines !== shown) {
@@ -55,15 +67,6 @@ export const MedicinesView = ({
   const fail = (title: string, error: unknown) =>
     show({ title, body: error instanceof Error ? error.message : undefined, tone: "error" });
 
-  const undoLog = (log: MedicineLogDto) => ({
-    label: "Undo",
-    onClick: () =>
-      void api
-        .deleteMedicineLog(log.id)
-        .then(() => router.refresh())
-        .catch((error) => fail("Not undone", error)),
-  });
-
   const logNow = async (medicine: MedicineDto) => {
     setBusy(`log:${medicine.id}`);
     try {
@@ -72,12 +75,16 @@ export const MedicinesView = ({
         takenAt: new Date().toISOString(),
         tz: deviceTimeZone(),
       });
-      show({
-        title: `${medicineTitle(log)} logged`,
-        body: `${formatDose(log.amount, log.unit)} at ${log.localTime}`,
-        tone: "success",
-        action: undoLog(log),
-      });
+      show(
+        loggedNowToast(log, {
+          changeTime: () => editLog(log),
+          undo: () =>
+            void api
+              .deleteMedicineLog(log.id)
+              .then(() => router.refresh())
+              .catch((error) => fail("Not undone", error)),
+        }),
+      );
       router.refresh();
     } catch (error) {
       fail("Not logged", error);
@@ -97,16 +104,7 @@ export const MedicinesView = ({
           label: "Undo",
           onClick: () =>
             void api
-              .logMedicine({
-                ...(log.medicineId ? { medicineId: log.medicineId } : {}),
-                name: log.name,
-                strength: log.strength,
-                form: log.form,
-                amount: log.amount,
-                unit: log.unit,
-                takenAt: log.takenAt,
-                tz: log.tz,
-              })
+              .logMedicine(relogInput(log))
               .then(() => router.refresh())
               .catch((error) => fail("Not undone", error)),
         },
@@ -233,27 +231,37 @@ export const MedicinesView = ({
                   </h3>
                   <ul className="mt-1 flex flex-col">
                     {day.logs.map((log) => (
-                      <li key={log.id} className="flex min-h-12 items-center gap-3">
-                        {log.photo ? (
-                          // eslint-disable-next-line @next/next/no-img-element -- authenticated same-origin photo
-                          <img
-                            src={log.photo.thumb}
-                            alt=""
-                            className="bg-surface-2 size-10 shrink-0 rounded-lg object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <span
-                            aria-hidden
-                            className="bg-surface-2 grid size-10 shrink-0 place-items-center rounded-lg"
-                          >
-                            <Pill className="text-muted size-4" />
+                      <li key={log.id} className="flex min-h-12 items-center gap-1">
+                        <button
+                          type="button"
+                          id={historyRowId(log.id)}
+                          aria-haspopup="dialog"
+                          onClick={() => editLog(log)}
+                          className="hover:bg-surface-2 -ml-1.5 flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-xl py-1 pl-1.5 text-left"
+                          data-testid="medicine-history-log"
+                        >
+                          {log.photo ? (
+                            // eslint-disable-next-line @next/next/no-img-element -- authenticated same-origin photo
+                            <img
+                              src={log.photo.thumb}
+                              alt=""
+                              className="bg-surface-2 size-10 shrink-0 rounded-lg object-cover"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <span
+                              aria-hidden
+                              className="bg-surface-2 grid size-10 shrink-0 place-items-center rounded-lg"
+                            >
+                              <Pill className="text-muted size-4" />
+                            </span>
+                          )}
+                          <span className="tabular text-label shrink-0">{log.localTime}</span>
+                          <span className="text-body min-w-0 flex-1 wrap-break-word" dir="auto">
+                            {medicineTitle(log)} · {formatDose(log.amount, log.unit)}
                           </span>
-                        )}
-                        <span className="tabular text-label shrink-0">{log.localTime}</span>
-                        <span className="text-body min-w-0 flex-1 wrap-break-word" dir="auto">
-                          {medicineTitle(log)} · {formatDose(log.amount, log.unit)}
-                        </span>
+                          <ChevronRight aria-hidden className="text-muted size-4.5 shrink-0" />
+                        </button>
                         <button
                           type="button"
                           aria-label={`Remove ${medicineTitle(log)} at ${log.localTime}`}
@@ -277,6 +285,18 @@ export const MedicinesView = ({
         </Card>
       </div>
 
+      <MedicineLogSheet
+        log={editingLog}
+        open={logSheetOpen}
+        onOpenChange={setLogSheetOpen}
+        onCloseAutoFocus={(event) => {
+          // Opened from a toast that is gone now: back to the log in the history when it is there.
+          const row = editingLog && document.getElementById(historyRowId(editingLog.id));
+          if (!row) return;
+          event.preventDefault();
+          row.focus();
+        }}
+      />
       <MedicineEditSheet
         open={editing !== null}
         onOpenChange={(open) => !open && setEditing(null)}

@@ -14,6 +14,7 @@ import {
   type MedicineHistoryDay,
   type MedicineInput,
   type MedicineLogDto,
+  type MedicineLogPatch,
   type MedicinePatch,
   type NewMedicineLog,
 } from "@/lib/contracts/medicines";
@@ -250,6 +251,37 @@ export const logMedicine = async (
       medicine: medicine ? toMedicineDto(medicine, takenAt) : null,
     };
   });
+};
+
+/**
+ * Changes when a log was taken and how many. The time is read in the given time zone (else the
+ * log's own); a time on another day moves the log to that day. The amount stays in the log's
+ * unit. Null when the log is not the person's or the time zone is not valid.
+ */
+export const updateMedicineLog = async (
+  userId: string,
+  logId: string,
+  patch: MedicineLogPatch,
+  dbx: DbOrTx = defaultDb,
+): Promise<MedicineLogDto | null> => {
+  if (!isUuid(userId) || !isUuid(logId)) return null;
+  const own = and(eq(medicineLogs.id, logId), eq(medicineLogs.userId, userId));
+  const row = (await dbx.select().from(medicineLogs).where(own).limit(1))[0];
+  if (!row) return null;
+  const takenAt = patch.takenAt ? new Date(patch.takenAt) : row.takenAt;
+  const tz = patch.tz ?? row.tz;
+  if (Number.isNaN(takenAt.getTime()) || !isValidTimeZone(tz)) return null;
+  const [updated] = await dbx
+    .update(medicineLogs)
+    .set({
+      takenAt,
+      tz,
+      localDate: localParts(takenAt, tz).date,
+      ...(patch.amount !== undefined ? { amount: patch.amount } : {}),
+    })
+    .where(own)
+    .returning();
+  return updated ? toLogDto(updated) : null;
 };
 
 /**

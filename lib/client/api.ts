@@ -38,6 +38,8 @@ import type {
   MedicineDayDto,
   MedicineDto,
   MedicineInput,
+  MedicineLogDto,
+  MedicineLogPatch,
   MedicinePatch,
   MedicineScanDto,
   NewMedicineLog,
@@ -190,6 +192,8 @@ export const api = {
   medicineDay: (date: string) => request<MedicineDayDto>(`/api/medicine-logs?date=${id(date)}`),
   logMedicine: (input: NewMedicineLog) =>
     request<LoggedMedicine>("/api/medicine-logs", { method: "POST", body: input }),
+  updateMedicineLog: (logId: string, patch: MedicineLogPatch) =>
+    request<MedicineLogDto>(`/api/medicine-logs/${id(logId)}`, { method: "PATCH", body: patch }),
   deleteMedicineLog: (logId: string) =>
     request<{ ok: true }>(`/api/medicine-logs/${id(logId)}`, { method: "DELETE" }),
   /** Sends a photo of a medicine's label; the reading follows (medicineScan). */

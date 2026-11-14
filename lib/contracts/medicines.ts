@@ -9,6 +9,7 @@
 //   createMedicine(userId, MedicineInput)        -> MedicineDto
 //   updateMedicine(userId, id, MedicinePatch)    -> MedicineDto | null
 //   logMedicine(userId, NewMedicineLog)          -> { log, medicine } | null
+//   updateMedicineLog(userId, logId, MedicineLogPatch) -> MedicineLogDto | null
 //   deleteMedicineLog(userId, logId)             -> boolean
 //   medicineDay(userId, localDate)               -> MedicineDayDto      (Today's card)
 //   medicineHistory(userId, days)                -> MedicineHistoryDay[]
@@ -17,7 +18,7 @@
 //   mealMedicineScan(userId, mealId)             -> the label read from a meal's photos
 //   logMealAsMedicine(userId, mealId, NewMedicineLog) -> the log; the meal is removed
 // HTTP: GET/POST /api/medicines, PATCH /api/medicines/:id, GET/POST /api/medicine-logs,
-// DELETE /api/medicine-logs/:id, POST /api/medicine-scans, GET /api/medicine-scans/:id,
+// PATCH/DELETE /api/medicine-logs/:id, POST /api/medicine-scans, GET /api/medicine-scans/:id,
 // GET /api/medicine-scans/:id/:size (thumb | original), POST /api/meals/:id/medicine-scan,
 // POST /api/meals/:id/medicine ("Log as a medicine", lib/medicines/from-meal.ts).
 
@@ -85,6 +86,9 @@ export const MEDICINE_DISCLAIMER =
 /** The unit word for an amount of a form: "tablet", "tablets"; null without a form. */
 export const unitFor = (form: MedicineForm | null, amount: number) =>
   form ? MEDICINE_UNITS[form][amount === 1 ? 0 : 1] : null;
+
+/** The step of the "How many" stepper: liquids in whole millilitres, the rest in halves. */
+export const doseStep = (form: MedicineForm | null) => (form === "liquid" ? 1 : 0.5);
 
 /** "2 tablets", "1 capsule", "0.5 tablet", "5 ml"; just the number without a unit. */
 export const formatDose = (amount: number, unit: string | null) => {
@@ -176,6 +180,12 @@ export type NewMedicineLog = {
 };
 
 export type LoggedMedicine = { log: MedicineLogDto; medicine: MedicineDto | null };
+
+/**
+ * Changes to a log: when it was taken (with the time zone the time is meant in; a time on another
+ * day moves the log to that day) and how many, in the log's own unit.
+ */
+export type MedicineLogPatch = { takenAt?: string; tz?: string; amount?: number };
 
 // ---- Reading a label (the "read-medicine-label" job) ----
 
