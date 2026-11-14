@@ -10,6 +10,7 @@ import { MedicinesCard } from "@/components/today/medicines-card";
 import { MoveCard } from "@/components/today/move-card";
 import { Timeline } from "@/components/today/timeline";
 import { WaterCard } from "@/components/today/water-card";
+import { WaterDayProvider } from "@/components/today/water-day";
 import { Card } from "@/components/ui/card";
 import { NutrientBar } from "@/components/ui/nutrient-bar";
 import { NutrientRing } from "@/components/ui/nutrient-ring";
@@ -19,6 +20,7 @@ import { getDayPlan } from "@/lib/integrations/day";
 import { listFavorites } from "@/lib/meals/favorites";
 import { listMealsForDay } from "@/lib/meals/service";
 import { isLocalDate, shiftLocalDate } from "@/lib/meals/time";
+import { listWaterEntries } from "@/lib/meals/water-service";
 import { medicineDay } from "@/lib/medicines/service";
 import { getMoveDay } from "@/lib/move/service";
 import { activityWaterMl } from "@/lib/move/water";
@@ -43,17 +45,17 @@ export default async function TodayPage({
   // The future has nothing to log yet.
   const date = isLocalDate(requested) && requested <= today ? requested : today;
 
-  const [meals, { targets, hydration }, plan, favorites, medicines] = await Promise.all([
+  const [meals, { targets, hydration }, plan, favorites, medicines, water] = await Promise.all([
     listMealsForDay(user.id, date),
     getTargets(user.id),
     getDayPlan(user.id, date, { today }),
     listFavorites(user.id, 6),
     medicineDay(user.id, date),
+    listWaterEntries(user.id, date),
   ]);
   // After the day plan: it reads openGym again when its data is old, which updates the activities.
   const move = await getMoveDay(user.id, date);
   const totals = sumNutrients(meals.map((m) => m.totals));
-  const waterMl = meals.reduce((sum, meal) => sum + meal.waterMl, 0);
   const pending = meals.some((m) => m.status === "queued" || m.status === "analysing");
   const burned = plan.workouts.reduce((sum, w) => sum + (w.kcalEstimate ?? 0), 0);
   const energyTarget = targets.energy?.target ?? null;
@@ -85,93 +87,93 @@ export default async function TodayPage({
         )}
       </header>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] md:items-start md:gap-6">
-        <div className="flex flex-col gap-4 md:sticky md:top-6">
-          <Card
-            as="section"
-            aria-label="Day summary"
-            className="flex flex-col items-center gap-5 p-5"
-          >
-            <NutrientRing
-              value={totals.energy ?? 0}
-              target={energyTarget}
-              label="Calories"
-              unit="kcal"
-              color="energy"
-            />
-            {left !== null && (
-              <p className="text-caption text-muted -mt-2" data-testid="energy-left">
-                {left >= 0 ? (
-                  <>
-                    <span className="tabular text-label text-text">{formatKcal(left)}</span> kcal
-                    left
-                  </>
-                ) : (
-                  <>
-                    <span className="tabular text-label text-danger">{formatKcal(-left)}</span> kcal
-                    over
-                  </>
-                )}
-                {burned > 0 && " (with the workout estimate)"}
-              </p>
-            )}
-            <div className="grid w-full grid-cols-3 gap-3">
-              <NutrientBar
-                stacked
-                label="Protein"
-                value={totals.protein ?? 0}
-                target={targets.protein?.target ?? null}
-                unit="g"
-                color="protein"
-                kind="min"
-              />
-              <NutrientBar
-                stacked
-                label="Carbs"
-                value={totals.carbs ?? 0}
-                target={targets.carbs?.target ?? null}
-                unit="g"
-                color="carbs"
-              />
-              <NutrientBar
-                stacked
-                label="Fat"
-                value={totals.fat ?? 0}
-                target={targets.fat?.target ?? null}
-                unit="g"
-                color="fat"
-              />
-            </div>
-          </Card>
-          <WaterCard
-            date={date}
-            today={today}
-            totalMl={waterMl}
-            baseMl={hydration.goalMl}
-            activityMl={activityWaterMl(move.sweatMinutes)}
-            activityMinutes={move.sweatMinutes}
-          />
-          <MoveCard day={move} isToday={date === today} />
-          <MedicinesCard day={medicines} date={date} today={today} />
-          <FavoriteChips favorites={favorites} date={date} today={today} />
-          <DayPlanSection plan={plan} />
-        </div>
-
-        <section aria-labelledby="meals-heading">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 id="meals-heading" className="text-headline">
-              Meals
-            </h2>
-            <Link
-              href={date === today ? "/add" : `/add?date=${date}`}
-              className="text-label text-primary hover:bg-primary-soft inline-flex min-h-11 items-center gap-1.5 rounded-full px-3"
+      {/* The day's water: the Water card's entries and its sheet, also opened from the timeline. */}
+      <WaterDayProvider entries={water} date={date} today={today}>
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] md:items-start md:gap-6">
+          <div className="flex flex-col gap-4 md:sticky md:top-6">
+            <Card
+              as="section"
+              aria-label="Day summary"
+              className="flex flex-col items-center gap-5 p-5"
             >
-              <Plus aria-hidden className="size-4" /> Add without a photo
-            </Link>
+              <NutrientRing
+                value={totals.energy ?? 0}
+                target={energyTarget}
+                label="Calories"
+                unit="kcal"
+                color="energy"
+              />
+              {left !== null && (
+                <p className="text-caption text-muted -mt-2" data-testid="energy-left">
+                  {left >= 0 ? (
+                    <>
+                      <span className="tabular text-label text-text">{formatKcal(left)}</span> kcal
+                      left
+                    </>
+                  ) : (
+                    <>
+                      <span className="tabular text-label text-danger">{formatKcal(-left)}</span>{" "}
+                      kcal over
+                    </>
+                  )}
+                  {burned > 0 && " (with the workout estimate)"}
+                </p>
+              )}
+              <div className="grid w-full grid-cols-3 gap-3">
+                <NutrientBar
+                  stacked
+                  label="Protein"
+                  value={totals.protein ?? 0}
+                  target={targets.protein?.target ?? null}
+                  unit="g"
+                  color="protein"
+                  kind="min"
+                />
+                <NutrientBar
+                  stacked
+                  label="Carbs"
+                  value={totals.carbs ?? 0}
+                  target={targets.carbs?.target ?? null}
+                  unit="g"
+                  color="carbs"
+                />
+                <NutrientBar
+                  stacked
+                  label="Fat"
+                  value={totals.fat ?? 0}
+                  target={targets.fat?.target ?? null}
+                  unit="g"
+                  color="fat"
+                />
+              </div>
+            </Card>
+            <WaterCard
+              baseMl={hydration.goalMl}
+              activityMl={activityWaterMl(move.sweatMinutes)}
+              activityMinutes={move.sweatMinutes}
+            />
+            <MoveCard day={move} isToday={date === today} />
+            <MedicinesCard day={medicines} date={date} today={today} />
+            <FavoriteChips favorites={favorites} date={date} today={today} />
+            <DayPlanSection plan={plan} />
           </div>
-          <Timeline date={date} today={today} meals={meals} />
-        </section>
-      </div>
+
+          <section aria-labelledby="meals-heading">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 id="meals-heading" className="text-headline">
+                Meals
+              </h2>
+              <Link
+                href={date === today ? "/add" : `/add?date=${date}`}
+                className="text-label text-primary hover:bg-primary-soft inline-flex min-h-11 items-center gap-1.5 rounded-full px-3"
+              >
+                <Plus aria-hidden className="size-4" /> Add without a photo
+              </Link>
+            </div>
+            <Timeline date={date} today={today} meals={meals} />
+          </section>
+        </div>
+      </WaterDayProvider>
 
       <AutoRefresh active={pending} />
     </DaySwipe>

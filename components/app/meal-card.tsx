@@ -44,12 +44,18 @@ export type MealCardProps = {
   previewUrl?: string;
   /** Makes the whole card open this page. */
   href?: string;
+  /** Makes the whole card a button instead (water added on its own opens the water sheet). */
+  onOpen?: () => void;
   /** One line under the state, for example why it failed. */
   detail?: string;
   /** Buttons under the card text (retry, settings link); they stay clickable above the link. */
   actions?: ReactNode;
   className?: string;
 };
+
+// The title's link (or button) covers the whole card; its focus ring goes round the card.
+const wholeCard =
+  "after:absolute after:inset-0 after:rounded-[var(--radius-card)] focus-visible:outline-none focus-visible:after:outline-3 focus-visible:after:outline-[var(--focus)]";
 
 /** "🍳 Egg · 🍞 Toast · 🍵 Tea": the meal's foods with their emojis, short names. */
 export const foodsLine = (foods: MealSummaryDto["foods"]) =>
@@ -64,6 +70,7 @@ export const MealCard = ({
   localState,
   previewUrl,
   href,
+  onOpen,
   detail,
   actions,
   className,
@@ -86,7 +93,7 @@ export const MealCard = ({
       aria-label={spoken}
       className={cn(
         "relative flex items-center gap-3 p-2.5 pr-4",
-        href && "hover:bg-surface-2/50 transition-colors",
+        (href || onOpen) && "hover:bg-surface-2/50 transition-colors",
         state === "failed" && "border-danger/40",
         className,
       )}
@@ -128,11 +135,17 @@ export const MealCard = ({
           <span className="tabular">{meal.localTime}</span> · {MEAL_SLOT_LABELS[meal.slot]}
         </p>
         <h3 dir="auto" className="text-headline truncate">
-          {href ? (
-            <Link
-              href={href}
-              className="after:absolute after:inset-0 after:rounded-[var(--radius-card)] focus-visible:outline-none focus-visible:after:outline-3 focus-visible:after:outline-[var(--focus)]"
+          {onOpen ? (
+            <button
+              type="button"
+              aria-haspopup="dialog"
+              onClick={onOpen}
+              className={cn(wholeCard, "max-w-full truncate text-left")}
             >
+              {title}
+            </button>
+          ) : href ? (
+            <Link href={href} className={wholeCard}>
               {title}
             </Link>
           ) : (

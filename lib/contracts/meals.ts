@@ -14,7 +14,8 @@
 //   recomputeMealTotals(mealId)                   -> NutrientMap
 // Creating a photo meal is lib/meals/create.ts (createPhotoMeal), used by POST /api/meals.
 // The photos of an existing meal: lib/meals/photos.ts (addMealPhotos, removeMealPhoto,
-// reorderMealPhotos). Favorites: lib/meals/favorites.ts (listFavorites, logFavorite).
+// reorderMealPhotos). Favorites: lib/meals/favorites.ts (listFavorites, logFavorite). The day's
+// water entries and water added on its own: lib/contracts/water.ts.
 import type { NotFoodKind } from "./analysis";
 import type { NutrientMap } from "./nutrients";
 

@@ -11,7 +11,8 @@ export type BottomSheetProps = {
   onOpenChange?: (open: boolean) => void;
   /** Element that opens the sheet (rendered as the trigger, keeps its own look). */
   trigger?: ReactNode;
-  title: string;
+  /** The sheet's name (text; an emoji in it can be hidden from screen readers with aria-hidden). */
+  title: ReactNode;
   /** Hidden visually when false, still read by screen readers. */
   showTitle?: boolean;
   description?: string;

@@ -45,6 +45,7 @@ import type {
   NewMedicineLog,
 } from "@/lib/contracts/medicines";
 import type { NutrientMap } from "@/lib/contracts/nutrients";
+import type { WaterEntryDto, WaterPatch } from "@/lib/contracts/water";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -212,6 +213,9 @@ export const api = {
     request<LoggedMedicine>(`/api/meals/${id(mealId)}/medicine`, { method: "POST", body: input }),
   createManualMeal: (input: NewManualMealInput) =>
     request<MealDto>("/api/manual-meals", { method: "POST", body: input }),
+  /** Water added on its own (the Water card): a new amount or time. */
+  updateWater: (mealId: string, patch: WaterPatch) =>
+    request<WaterEntryDto>(`/api/water/${id(mealId)}`, { method: "PATCH", body: patch }),
   searchFoods: (query: string, signal?: AbortSignal) =>
     request<{ foods: FoodResult[] }>(`/api/foods?q=${id(query)}&limit=25`, { signal }).then(
       (r) => r.foods,

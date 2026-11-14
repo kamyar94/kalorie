@@ -15,6 +15,8 @@ import { api } from "@/lib/client/api";
 import { ANALYSED_SOURCES, type MealSummaryDto } from "@/lib/contracts/meals";
 import { localParts, slotFor } from "@/lib/meals/time";
 
+import { useWaterDay } from "./water-day";
+
 const actionClass =
   "text-label bg-surface-2 hover:bg-surface-3 inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5";
 
@@ -44,7 +46,8 @@ type Entry =
 
 /**
  * The day's meals as a timeline of cards, oldest first: meals the server has, and meals still on
- * this device (waiting to upload or uploading).
+ * this device (waiting to upload or uploading). A card of water added on its own opens the water
+ * sheet (board 29) instead of the meal page.
  */
 export const Timeline = ({
   date,
@@ -56,6 +59,7 @@ export const Timeline = ({
   meals: MealSummaryDto[];
 }) => {
   const capture = useCapture();
+  const water = useWaterDay();
   const router = useRouter();
   const { show } = useToast();
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -188,12 +192,14 @@ export const Timeline = ({
             </li>
           );
         const { meal } = entry;
+        const waterOnly = water?.entries.find((e) => e.mealId === meal.id && e.standalone);
         return (
           <li key={meal.id} className="relative pl-6">
             {rail}
             <MealCard
               meal={meal}
               href={`/meals/${meal.id}`}
+              onOpen={waterOnly ? () => water?.openSheet(waterOnly) : undefined}
               detail={
                 meal.status === "failed"
                   ? (meal.error?.message ?? "The analysis did not finish.")
