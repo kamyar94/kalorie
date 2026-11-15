@@ -29,6 +29,7 @@
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",
+    "screenshots": "playwright test -c playwright.screenshots.config.ts",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run test"
   },
   "dependencies": {
