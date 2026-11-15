@@ -167,7 +167,14 @@ targets stay fixed until reset. Weight comes from the profile or from openGym wh
   ZXing build otherwise), label photo, recent and frequent foods, Mealie recipes.
 - **Trends:** day, week and month views: energy and macros per day against targets, average by
   meal slot, time-of-day pattern, nutrients consistently below or above target, top foods,
-  weight from openGym overlaid.
+  weight from openGym overlaid. Above them, "Your year": a GitHub-style calendar of one
+  calendar year (weeks as columns, Monday to Sunday as rows) for a nutrient picked from a menu
+  grouped like the catalogue (water from drinks under Other). Each day is coloured by its
+  amount as a percent of the current target (no target history is kept): under 50, 50 to 85,
+  85 to 110 (on target), 110 to 125, 125 to 150, over 150; grey without meals, outlined for
+  days to come; a nutrient without a target is shaded against the year's highest day. A square
+  opens the day's summary (words follow the kind of target: a minimum, a limit, a range).
+  `?year=` and `?metric=` keep its state in the address (lib/trends/year.ts).
 - **Settings:** profile and targets, AI (keys per provider, provider and model per task, test
   button, usage), meal windows, units (metric default, imperial), cuisines, notifications,
   integrations (Mealie, openGym), export (CSV and JSON), delete my data.

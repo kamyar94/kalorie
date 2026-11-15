@@ -25,17 +25,16 @@ import {
   type TrendRange,
   type TrendsData,
 } from "@/lib/trends/compute";
+import { trendsHref, type YearData } from "@/lib/trends/year";
 import { dayTitle, formatKcal, shortDate, weekdayLetter } from "@/lib/ui/format";
 
 import { BarChart, ChartTable, LineChart, type BarDatum } from "./charts";
+import { YearCard } from "./year-card";
 
 const RANGE_LABELS: Record<TrendRange, string> = { day: "Day", week: "Week", month: "Month" };
 
 /** Always listed; brunch, supper, drink and dessert only once the period has one. */
 const MAIN_SLOTS = new Set<MealSlot>(["breakfast", "lunch", "dinner", "snack"]);
-
-const hrefFor = (range: TrendRange, end: string, today: string) =>
-  `/trends?range=${range}${end === today ? "" : `&end=${end}`}`;
 
 const Section = ({
   title,
@@ -52,9 +51,20 @@ const Section = ({
   </Card>
 );
 
-/** Trends (docs/DESIGN.md section 7): day, week and month views. */
-export const TrendsView = ({ data, today }: { data: TrendsData; today: string }) => {
+/** Trends (docs/DESIGN.md section 7): the year card, then day, week and month views. */
+export const TrendsView = ({
+  data,
+  year,
+  today,
+}: {
+  data: TrendsData;
+  year: YearData;
+  today: string;
+}) => {
   const router = useRouter();
+  // The period (range, end) and the year card (year, metric) share the address.
+  const hrefFor = (range: TrendRange, end: string) =>
+    trendsHref({ range, end, year: year.year, metric: year.metric }, today);
   const days = RANGE_DAYS[data.range];
   const prevEnd = shiftLocalDate(data.end, -days);
   const nextEnd = data.end < today ? shiftLocalDate(data.end, days) : null;
@@ -90,12 +100,28 @@ export const TrendsView = ({ data, today }: { data: TrendsData; today: string })
 
   return (
     <>
-      <header className="flex flex-col gap-3">
-        <h1 className="text-title">Trends</h1>
+      <h1 className="text-title">Trends</h1>
+      <div className="mt-3">
+        <YearCard
+          data={year}
+          hrefFor={(patch) =>
+            trendsHref(
+              {
+                range: data.range,
+                end: data.end,
+                year: patch.year ?? year.year,
+                metric: patch.metric ?? year.metric,
+              },
+              today,
+            )
+          }
+        />
+      </div>
+      <header className="mt-4 flex flex-col gap-3">
         <SegmentedControl
           label="Period"
           value={data.range}
-          onValueChange={(range) => router.push(hrefFor(range, data.end, today))}
+          onValueChange={(range) => router.push(hrefFor(range, data.end), { scroll: false })}
           options={(["day", "week", "month"] as const).map((r) => ({
             value: r,
             label: RANGE_LABELS[r],
@@ -104,7 +130,8 @@ export const TrendsView = ({ data, today }: { data: TrendsData; today: string })
         />
         <div className="flex items-center gap-1">
           <Link
-            href={hrefFor(data.range, prevEnd, today)}
+            href={hrefFor(data.range, prevEnd)}
+            scroll={false}
             aria-label="Earlier period"
             className="hover:bg-surface-2 -ml-2 grid size-11 place-items-center rounded-full"
           >
@@ -115,7 +142,8 @@ export const TrendsView = ({ data, today }: { data: TrendsData; today: string })
           </p>
           {nextEnd ? (
             <Link
-              href={hrefFor(data.range, nextEnd > today ? today : nextEnd, today)}
+              href={hrefFor(data.range, nextEnd > today ? today : nextEnd)}
+              scroll={false}
               aria-label="Later period"
               className="hover:bg-surface-2 grid size-11 place-items-center rounded-full"
             >

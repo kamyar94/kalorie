@@ -33,6 +33,20 @@
   --fat: #9c36b5;
   --fiber: #2b8a3e;
   --water: #0b7285;
+  /* Trends "Your year": a day's amount against its target, and the scale without a target
+     (lighter is less). Every square reaches 3:1 against the card. */
+  --year-none: #8a8d88;
+  --year-far-under: #1d4f9a;
+  --year-under: #3a7fd5;
+  --year-on-target: #2a9259;
+  --year-over: #a88300;
+  --year-well-over: #d4580f;
+  --year-far-over: #c42b2b;
+  --year-scale-0: #9a7ed4;
+  --year-scale-1: #8061c7;
+  --year-scale-2: #6844b1;
+  --year-scale-3: #502c92;
+  --year-scale-4: #381b6e;
   --shadow-color: 30 30 20;
   color-scheme: light;
 }
@@ -65,6 +79,18 @@
     --fat: #da77f2;
     --fiber: #69db7c;
     --water: #3bc9db;
+    --year-none: #666c68;
+    --year-far-under: #3d6fc2;
+    --year-under: #6aa6ee;
+    --year-on-target: #3fb37a;
+    --year-over: #e3c443;
+    --year-well-over: #ee8a37;
+    --year-far-over: #e95a4f;
+    --year-scale-0: #e0d4fb;
+    --year-scale-1: #c3adf2;
+    --year-scale-2: #a58de2;
+    --year-scale-3: #8a6dcc;
+    --year-scale-4: #6e58a8;
     --shadow-color: 0 0 0;
     color-scheme: dark;
   }
@@ -97,6 +123,18 @@
   --fat: #da77f2;
   --fiber: #69db7c;
   --water: #3bc9db;
+  --year-none: #666c68;
+  --year-far-under: #3d6fc2;
+  --year-under: #6aa6ee;
+  --year-on-target: #3fb37a;
+  --year-over: #e3c443;
+  --year-well-over: #ee8a37;
+  --year-far-over: #e95a4f;
+  --year-scale-0: #e0d4fb;
+  --year-scale-1: #c3adf2;
+  --year-scale-2: #a58de2;
+  --year-scale-3: #8a6dcc;
+  --year-scale-4: #6e58a8;
   --shadow-color: 0 0 0;
   color-scheme: dark;
 }
@@ -128,6 +166,18 @@
   --color-fat: var(--fat);
   --color-fiber: var(--fiber);
   --color-water: var(--water);
+  --color-year-none: var(--year-none);
+  --color-year-far-under: var(--year-far-under);
+  --color-year-under: var(--year-under);
+  --color-year-on-target: var(--year-on-target);
+  --color-year-over: var(--year-over);
+  --color-year-well-over: var(--year-well-over);
+  --color-year-far-over: var(--year-far-over);
+  --color-year-scale-0: var(--year-scale-0);
+  --color-year-scale-1: var(--year-scale-1);
+  --color-year-scale-2: var(--year-scale-2);
+  --color-year-scale-3: var(--year-scale-3);
+  --color-year-scale-4: var(--year-scale-4);
 }
 
 @theme {

@@ -1,7 +1,7 @@
 // Move's summary and Today's Move card (CONTRACT: lib/contracts/move.ts), computed from the
 // person's activities with the rules in score.ts. Earned badges are stored once (user_badges), so
 // a badge stays earned when older data is later removed. Scoped by user id; values never logged.
-import { and, between, eq, isNull } from "drizzle-orm";
+import { and, between, eq, isNull, type SQL } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { activities, foods, mealItems, meals, userBadges } from "@/db/schema";
@@ -60,7 +60,7 @@ const scored = (row: Row): ScoredActivity & Row => ({
   stepsOnly: row.type === STEPS_TYPE || (!row.durationMin && !!row.steps),
 });
 
-const loadActivities = async (userId: string, dbx: DbOrTx, day?: string) =>
+const loadActivities = async (userId: string, dbx: DbOrTx, where?: SQL) =>
   (
     await dbx
       .select({
@@ -75,8 +75,16 @@ const loadActivities = async (userId: string, dbx: DbOrTx, day?: string) =>
         title: activities.title,
       })
       .from(activities)
-      .where(and(eq(activities.userId, userId), day ? eq(activities.localDate, day) : undefined))
+      .where(and(eq(activities.userId, userId), where))
   ).map(scored);
+
+/** The person's activities between two local days (both included), as the rules score them. */
+export const activitiesBetween = async (
+  userId: string,
+  from: string,
+  to: string,
+  dbx: DbOrTx = defaultDb,
+) => (isUuid(userId) ? loadActivities(userId, dbx, between(activities.localDate, from, to)) : []);
 
 /** Water from drinks per local day between two days (both included). */
 export const waterByDay = async (userId: string, from: string, to: string, dbx: DbOrTx) => {
@@ -173,7 +181,9 @@ export const getMoveDay = async (
   localDate: string,
   dbx: DbOrTx = defaultDb,
 ): Promise<MoveDayDto> => {
-  const rows = isUuid(userId) ? await loadActivities(userId, dbx, localDate) : [];
+  const rows = isUuid(userId)
+    ? await loadActivities(userId, dbx, eq(activities.localDate, localDate))
+    : [];
   const longest = rows
     .filter((r) => !r.stepsOnly && r.durationMin)
     .sort((a, b) => (b.durationMin ?? 0) - (a.durationMin ?? 0))[0];

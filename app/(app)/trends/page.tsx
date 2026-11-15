@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth/session";
 import { isLocalDate } from "@/lib/meals/time";
 import { TREND_RANGES, type TrendRange } from "@/lib/trends/compute";
 import { getTrends } from "@/lib/trends/service";
+import { getYear } from "@/lib/trends/year-service";
 import { viewerToday } from "@/lib/ui/viewer-time";
 
 export const metadata: Metadata = { title: "Trends" };
@@ -14,7 +15,12 @@ const first = (value: string | string[] | undefined) => (Array.isArray(value) ? 
 export default async function TrendsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ range?: string | string[]; end?: string | string[] }>;
+  searchParams: Promise<{
+    range?: string | string[];
+    end?: string | string[];
+    year?: string | string[];
+    metric?: string | string[];
+  }>;
 }) {
   const user = await requireUser();
   const params = await searchParams;
@@ -25,6 +31,9 @@ export default async function TrendsPage({
     : "week";
   const endParam = first(params.end);
   const end = isLocalDate(endParam) && endParam <= today ? endParam : today;
-  const data = await getTrends(user.id, range, end);
-  return <TrendsView data={data} today={today} />;
+  const [data, year] = await Promise.all([
+    getTrends(user.id, range, end),
+    getYear(user.id, { year: first(params.year), metric: first(params.metric), today }),
+  ]);
+  return <TrendsView data={data} year={year} today={today} />;
 }

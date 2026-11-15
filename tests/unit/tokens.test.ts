@@ -71,6 +71,24 @@ const GRAPHIC_PAIRS: [string, string][] = [
 // The water bar fills a surface-2 track.
 GRAPHIC_PAIRS.push(["water", "surface-2"]);
 
+// Trends "Your year": every square, the scale without a target too, on the card.
+GRAPHIC_PAIRS.push(
+  ...[
+    "none",
+    "far-under",
+    "under",
+    "on-target",
+    "over",
+    "well-over",
+    "far-over",
+    "scale-0",
+    "scale-1",
+    "scale-2",
+    "scale-3",
+    "scale-4",
+  ].map((c): [string, string] => [`year-${c}`, "surface"]),
+);
+
 describe.each(Object.entries(themes))("%s theme", (_name, tokens) => {
   it.each(TEXT_PAIRS)("%s on %s reaches 4.5:1", (fg, bg) => {
     expect(contrast(tokens[fg]!, tokens[bg]!)).toBeGreaterThanOrEqual(4.5);

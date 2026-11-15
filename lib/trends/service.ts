@@ -1,6 +1,6 @@
 // Loads a period of the person's meals and items for the Trends screen (lib/trends/compute.ts
 // does the arithmetic).
-import { and, eq, gte, isNull, lte } from "drizzle-orm";
+import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { foods, mealItems, meals } from "@/db/schema";
@@ -9,6 +9,17 @@ import { isUuid } from "@/lib/meals/service";
 import { getTargets } from "@/lib/targets/service";
 
 import { computeTrends, rangeDates, type TrendRange, type TrendsData } from "./compute";
+
+/**
+ * The meals a period counts: not deleted, and not an analysis that failed with nothing in it (a
+ * photo that was not food, or no AI key yet). A failed analysis again of a meal that kept its
+ * items still counts, as on Today.
+ */
+export const countedMeal = () =>
+  and(
+    isNull(meals.deletedAt),
+    sql`not (${meals.status} = 'failed' and ${meals.totals} = '{}'::jsonb)`,
+  );
 
 export const getTrends = async (
   userId: string,
@@ -21,7 +32,7 @@ export const getTrends = async (
   const inPeriod = isUuid(userId)
     ? and(
         eq(meals.userId, userId),
-        isNull(meals.deletedAt),
+        countedMeal(),
         gte(meals.localDate, start),
         lte(meals.localDate, end),
       )
