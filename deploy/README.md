@@ -123,9 +123,13 @@ and `vapid.env` (the Web Push keys) by `app` and `worker`; `cloudflared.env` by 
   accounts, foods and waiting jobs, that no port is published, the age of the newest backup and the
   last tunnel log lines.
 - `.\Cal.ps1` runs the server tool in the app container: `invite [--admin] [--note NAME] [--days N]`,
-  `reset USERNAME`, `users`, `unlock USERNAME`, `admin USERNAME on|off`, `disable USERNAME`,
-  `enable USERNAME`, `invites`, `import-fdc`, `seed-dishes`. Run it without arguments for the list.
-  (It wraps `node dist/cal.mjs`, the bundled `scripts/cal.mjs`.)
+  `reset USERNAME [--days N]`, `users`, `unlock USERNAME`, `admin USERNAME on|off`,
+  `disable USERNAME`, `enable USERNAME`, `invites`, `import-fdc [--only SETS] [--prune]`,
+  `seed-dishes`, and `vapid --out FILE` (a new Web Push key pair; Start.ps1 makes the first one).
+  Run it without arguments for the list. (It wraps `node dist/cal.mjs`, the bundled
+  `scripts/cal.mjs`.)
+- **Limits and timeouts.** `.env` holds the sign-in lock, the AI, upload and import limits, the
+  timeouts and the worker's concurrency, each with a comment; change one and run Start.ps1.
 - **Update.** Take a backup, pull the new code, run `.\Start.ps1` (it rebuilds, restarts, and the
   app applies new migrations when it starts):
 
@@ -196,11 +200,12 @@ or key would lock the app out of it.
   The third command, a direct request, has no route at all.
 
 - **The whole thing.** `deploy\test\Test-Stack.ps1` builds the image, starts everything as a
-  separate compose project called `caltest`, runs a browser test and about seventy checks (no
-  published ports, non-root, read-only, zero capabilities, no direct route out, the proxy
-  allowlist, secrets absent from the image, `docker inspect` and the logs, another person's photo
-  refused), and removes everything again. It is for a development PC, not the server. Run it with
-  `-FdcCache <folder with the cached FoodData Central zips>`.
+  separate compose project called `caltest`, runs a browser test (`tests/stack`) and nearly a
+  hundred checks (no published ports, non-root, read-only, zero capabilities, no direct route
+  out, the proxy allowlist, secrets absent from the image, `docker inspect` and the logs, another
+  person's photo refused), and removes everything again. It is for a development PC, not the
+  server. Run it with `-FdcCache <folder with the cached FoodData Central zips>`; `-KeepRunning`
+  leaves the stack up to look at, and `-TearDownOnly` removes one that was left.
 
 ## If something goes wrong
 
