@@ -76,6 +76,34 @@
     <string name="status_error_permission">Not sent: Health Connect did not allow reading. Check the access below.</string>
     <string name="status_today_none">Nothing yet</string>
 
+    <!-- Board 35: Health Connect has nothing to share yet. -->
+    <string name="empty_title">Health Connect has nothing to share yet</string>
+    <string name="empty_body">Kal can read Health Connect, but no app has written steps, workouts, heart rate, sleep or weigh-ins there in the last 30 days.</string>
+    <string name="empty_apps_label">Apps that write to Health Connect</string>
+    <string name="empty_app_state">%1$s: %2$s</string>
+    <string name="empty_not_installed">not installed</string>
+    <string name="empty_not_sharing">not sharing</string>
+    <string name="empty_sharing">sharing</string>
+    <string name="empty_open_samsung">Open Samsung Health</string>
+    <string name="empty_open_permissions">Open Health Connect permissions</string>
+    <string name="empty_steps_title">Step by step</string>
+    <string name="empty_steps">1. Samsung Health: ⋮, Settings, Data management, Health Connect: sharing on, all types ticked.\n2. Renpho Health: Me, Apps, Health Connect, all permissions on.\n3. Samsung Health battery: Unrestricted.\n4. Come back here and tap Send now.</string>
+    <string name="state_collapsed">Collapsed</string>
+    <string name="state_expanded">Expanded</string>
+
+    <!-- Board 35: what Health Connect holds, counted on the phone. -->
+    <string name="inventory_title">In Health Connect, last 30 days</string>
+    <string name="inventory_steps">Days with steps</string>
+    <string name="inventory_workouts">Workouts</string>
+    <string name="inventory_resting">Days with resting heart rate</string>
+    <string name="inventory_sleep">Nights of sleep</string>
+    <string name="inventory_weigh_ins">Weigh-ins</string>
+    <string name="inventory_no_access">No access</string>
+    <string name="inventory_from">From %1$s</string>
+    <string name="inventory_row">%1$s: %2$s</string>
+    <string name="inventory_note">Counted on this phone, nothing is sent for this list.</string>
+    <string name="inventory_note_empty">Counted on this phone, nothing is sent for this list. When records appear, the warning above goes away and each row names the app that wrote them.</string>
+
     <!-- Update notification. -->
     <string name="update_channel">App updates</string>
     <string name="update_title">A newer Kal is ready</string>

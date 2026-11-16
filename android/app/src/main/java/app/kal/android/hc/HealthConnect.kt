@@ -117,7 +117,11 @@ object HealthConnect {
         }
     }
 
-    /** Health Connect's own settings, where access can be changed. */
+    /**
+     * Health Connect's own settings, where access can be changed ("App permissions" lists what
+     * each app may write and read). The library's action is the one for this Android version:
+     * Health Connect is part of Android 14 and newer, an app before.
+     */
     fun openSettings(context: Context) {
         try {
             context.startActivity(Intent(HealthConnectClient.ACTION_HEALTH_CONNECT_SETTINGS))

@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** The status screen's sentences (board 15). */
+/** The status screen's sentences (boards 15 and 35). */
 class WordsTest {
     private val zone = ZoneId.of("Europe/Berlin")
     private val now = Instant.parse("2026-11-10T10:00:00Z")
@@ -17,6 +17,14 @@ class WordsTest {
         assertEquals("12,000 steps · 2 workouts · 3 weigh-ins", Words.today(12_000, 2, 3))
         assertEquals("1 workout", Words.today(0, 1, 0))
         assertNull(Words.today(0, 0, 0))
+    }
+
+    @Test
+    fun appsInASentence() {
+        assertEquals("", Words.apps(emptyList()))
+        assertEquals("Samsung Health", Words.apps(listOf("Samsung Health")))
+        assertEquals("Samsung Health and Renpho Health", Words.apps(listOf("Samsung Health", "Renpho Health")))
+        assertEquals("Samsung Health, Google Fit and Renpho", Words.apps(listOf("Samsung Health", "Google Fit", "Renpho")))
     }
 
     @Test

@@ -6,6 +6,6 @@
 kal.host=kal.example.com
 kal.appId=app.kal
 # The version people see, and the number Android compares on updates (raise it for each build you
-# hand out).
-kal.versionName=1.0
-kal.versionCode=1
+# hand out). Without these lines the build uses the release in app/build.gradle.kts.
+kal.versionName=1.1
+kal.versionCode=2

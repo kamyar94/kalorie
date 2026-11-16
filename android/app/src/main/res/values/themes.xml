@@ -85,6 +85,21 @@
         <item name="android:textSize">15sp</item>
     </style>
 
+    <!-- Board 35's warning card: a filled and an outlined button in the warning colours. -->
+    <style name="Kal.Button.Warning">
+        <item name="android:background">@drawable/bg_button_warning</item>
+        <item name="android:textColor">@color/kal_warning_soft</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
+    <style name="Kal.Button.WarningOutline">
+        <item name="android:background">@drawable/bg_button_warning_outline</item>
+        <item name="android:textColor">@color/kal_on_warning_soft</item>
+        <item name="android:minHeight">48dp</item>
+        <item name="android:textSize">15sp</item>
+    </style>
+
     <style name="Kal.Button.Link">
         <item name="android:background">@drawable/bg_button_text</item>
         <item name="android:textColor">@color/kal_primary</item>

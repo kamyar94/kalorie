@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Board 15: linked or not, what was sent, Send now, access, how Kal uses the data, Unlink. -->
+<!-- Boards 15 and 35: linked or not, what was sent, Send now, the warning when Health Connect has
+     nothing, what it holds for the last 30 days, access, how Kal uses the data, Unlink. -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
@@ -176,6 +177,111 @@
             android:layout_marginTop="8dp"
             android:text="@string/status_update_button"
             android:visibility="gone" />
+
+        <!-- Board 35: shown when every kind Kal may read is empty in Health Connect. -->
+        <LinearLayout
+            android:id="@+id/empty_card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_warning_card"
+            android:orientation="vertical"
+            android:padding="14dp"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/Kal.Heading"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:accessibilityHeading="true"
+                android:text="@string/empty_title"
+                android:textColor="@color/kal_on_warning_soft"
+                android:textSize="17sp" />
+
+            <TextView
+                style="@style/Kal.Body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:text="@string/empty_body"
+                android:textSize="14sp" />
+
+            <LinearLayout
+                android:id="@+id/empty_apps"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:contentDescription="@string/empty_apps_label"
+                android:orientation="vertical" />
+
+            <Button
+                android:id="@+id/open_samsung"
+                style="@style/Kal.Button.Warning"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/empty_open_samsung" />
+
+            <Button
+                android:id="@+id/open_permissions"
+                style="@style/Kal.Button.WarningOutline"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="@string/empty_open_permissions" />
+
+            <Button
+                android:id="@+id/steps_toggle"
+                style="@style/Kal.Button.Link"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:minHeight="48dp"
+                android:text="@string/empty_steps_title"
+                android:textColor="@color/kal_on_warning_soft" />
+
+            <TextView
+                android:id="@+id/steps_list"
+                style="@style/Kal.Body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingMultiplier="1.3"
+                android:text="@string/empty_steps"
+                android:textSize="14sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Board 35: what Health Connect holds for the last 30 days, counted on the phone. -->
+        <LinearLayout
+            android:id="@+id/inventory"
+            style="@style/Kal.Card"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/Kal.Heading"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:accessibilityHeading="true"
+                android:text="@string/inventory_title" />
+
+            <LinearLayout
+                android:id="@+id/inventory_rows"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical" />
+
+            <TextView
+                android:id="@+id/inventory_note"
+                style="@style/Kal.Caption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textSize="12sp" />
+        </LinearLayout>
 
         <!-- Access -->
         <LinearLayout

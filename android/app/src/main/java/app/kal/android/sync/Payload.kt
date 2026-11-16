@@ -7,7 +7,9 @@ import java.time.temporal.ChronoUnit
 /**
  * Builds the JSON batches for POST /api/health-connect/sync (lib/contracts/health-connect.ts on
  * the server). Records are split into batches of at most [maxRecords]; deletions travel in the
- * first batches. Every batch carries the phone's time zone and the app's version.
+ * first batches. Every batch carries the phone's time zone and the app's version, and on a read
+ * of the whole window how many days it covered. A sync always sends at least one batch, so the
+ * server's update log shows each one, also when Health Connect had nothing.
  */
 object Payload {
     const val MAX_RECORDS = 1000
@@ -67,11 +69,12 @@ object Payload {
             "sourceApp" to s.sourceApp,
         )
 
-    /** The batches to send, in order; empty when there is nothing to send. */
+    /** The batches to send, in order; one with no records when there is nothing to send. */
     fun batches(
         collected: Collected,
         zone: ZoneId,
         appVersion: String,
+        firstReadDays: Int? = null,
         maxRecords: Int = MAX_RECORDS,
         maxDeleted: Int = MAX_DELETED,
     ): List<String> {
@@ -83,10 +86,11 @@ object Payload {
                 collected.sleep.map { "sleep" to sleep(it) }
         val recordChunks = records.chunked(maxRecords)
         val deletedChunks = collected.deleted.distinct().chunked(maxDeleted)
-        val count = maxOf(recordChunks.size, deletedChunks.size, if (collected.height != null) 1 else 0)
+        val count = maxOf(recordChunks.size, deletedChunks.size, 1)
         return (0 until count).map { index ->
             val chunk = recordChunks.getOrElse(index) { emptyList() }
             val batch = linkedMapOf<String, Any?>("tz" to zone.id, "appVersion" to appVersion)
+            firstReadDays?.let { batch["firstReadDays"] = it }
             for (kind in listOf("steps", "workouts", "body", "restingHeartRate", "sleep")) {
                 val items = chunk.filter { it.first == kind }.map { it.second }
                 if (items.isNotEmpty()) batch[kind] = items

@@ -15,5 +15,6 @@
     <color name="kal_danger">#ff7a6e</color>
     <color name="kal_warning_soft">#33270f</color>
     <color name="kal_on_warning_soft">#ffd88a</color>
+    <color name="kal_warning_border">#846e40</color>
     <color name="kal_ripple">#33ffffff</color>
 </resources>

@@ -15,6 +15,8 @@
     <color name="kal_danger">#b42318</color>
     <color name="kal_warning_soft">#fff4dc</color>
     <color name="kal_on_warning_soft">#7a4a00</color>
+    <!-- The warning text colour at 40 % on the warning background (the web's on-warning-soft/40). -->
+    <color name="kal_warning_border">#cab084</color>
     <color name="kal_ripple">#22000000</color>
 
     <!-- Fixed colours for the Trusted Web Activity's bars and splash (light and dark page). -->

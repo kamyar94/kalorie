@@ -4,7 +4,8 @@
   (androidbrowserhelper; a Custom Tab where no browser can host one), DelegationService shows
   Kal's web push messages as this app's notifications. The native part reads Health Connect:
   LinkActivity links the phone (board 14), HealthStatusActivity shows what it sends (board 15) and
-  is also what Health Connect opens for "How Kal uses this data". ${kalHost} is a build property.
+  what Health Connect holds (board 35), and is also what Health Connect opens for "How Kal uses
+  this data". ${kalHost} is a build property.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -39,6 +40,17 @@
     <queries>
         <!-- Health Connect on Android 9 to 13 (built into Android 14 and newer). -->
         <package android:name="com.google.android.apps.healthdata" />
+        <!-- The apps the status screen names when Health Connect has nothing to share (board 35):
+             Samsung Health, and Renpho's apps by their known packages. -->
+        <package android:name="com.sec.android.app.shealth" />
+        <package android:name="com.renpho.health" />
+        <package android:name="com.qingniu.renpho" />
+        <!-- Launchable apps: Renpho's package differs by region, so it is also found by its label,
+             and the apps that wrote records are named by their labels. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
         <!-- Browsers that can host the Trusted Web Activity. -->
         <intent>
             <action android:name="android.support.customtabs.action.CustomTabsService" />

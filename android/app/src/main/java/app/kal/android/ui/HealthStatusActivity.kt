@@ -6,14 +6,23 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
+import androidx.core.view.ViewCompat
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
 import app.kal.android.Kal
 import app.kal.android.R
+import app.kal.android.hc.AppState
+import app.kal.android.hc.HealthApps
 import app.kal.android.hc.HealthConnect
+import app.kal.android.hc.InstalledApp
+import app.kal.android.hc.Inventory
+import app.kal.android.hc.InventoryKind
+import app.kal.android.hc.InventoryReader
+import app.kal.android.hc.KindCount
 import app.kal.android.net.KalApi
 import app.kal.android.store.SyncState
 import app.kal.android.store.TokenStore
@@ -30,12 +39,34 @@ import kotlinx.coroutines.withContext
 /**
  * Board 15: whether the phone is linked, when it last sent and what today holds, when it sends
  * next, "Send now", which access Health Connect gives, how Kal uses the data, and "Unlink this
- * phone". Health Connect also opens this screen for "How Kal uses this data". While it is open
- * Kal sends (on opening, then on "Send now"), which is all it can do without background access.
+ * phone". Board 35: what Health Connect holds for the last 30 days and which apps wrote it
+ * (counted on the phone, never sent), and "Health Connect has nothing to share yet" when every
+ * kind Kal may read is empty, with Samsung Health and Renpho Health, buttons to open Samsung
+ * Health and Health Connect's permissions, and the steps. Health Connect also opens this screen
+ * for "How Kal uses this data". While it is open Kal sends (on opening, then on "Send now"),
+ * which is all it can do without background access.
  */
 class HealthStatusActivity : ComponentActivity() {
+    private companion object {
+        val KIND_LABELS = mapOf(
+            InventoryKind.STEP_DAYS to R.string.inventory_steps,
+            InventoryKind.WORKOUTS to R.string.inventory_workouts,
+            InventoryKind.RESTING_DAYS to R.string.inventory_resting,
+            InventoryKind.SLEEP_NIGHTS to R.string.inventory_sleep,
+            InventoryKind.WEIGH_INS to R.string.inventory_weigh_ins,
+        )
+        val KIND_EMOJI = mapOf(
+            InventoryKind.STEP_DAYS to "👟",
+            InventoryKind.WORKOUTS to "🏋️",
+            InventoryKind.RESTING_DAYS to "❤️",
+            InventoryKind.SLEEP_NIGHTS to "😴",
+            InventoryKind.WEIGH_INS to "⚖️",
+        )
+    }
+
     private var permissions: ActivityResultLauncher<Set<String>>? = null
     private var sending = false
+    private var stepsOpen = false
 
     private val status by lazy { findViewById<TextView>(R.id.status) }
     private val dot by lazy { findViewById<ImageView>(R.id.dot) }
@@ -65,6 +96,15 @@ class HealthStatusActivity : ComponentActivity() {
         sendNow.setOnClickListener { refresh(send = true, force = true) }
         findViewById<Button>(R.id.change_access).setOnClickListener { changeAccess() }
         findViewById<Button>(R.id.unlink).setOnClickListener { confirmUnlink() }
+        findViewById<Button>(R.id.open_samsung).setOnClickListener {
+            HealthApps.open(this, Inventory.SAMSUNG_HEALTH)
+        }
+        findViewById<Button>(R.id.open_permissions).setOnClickListener { HealthConnect.openSettings(this) }
+        findViewById<Button>(R.id.steps_toggle).setOnClickListener {
+            stepsOpen = !stepsOpen
+            showSteps()
+        }
+        showSteps()
     }
 
     override fun onResume() {
@@ -119,6 +159,7 @@ class HealthStatusActivity : ComponentActivity() {
                     emptySet()
                 }
             show(state, linked, ready, granted)
+            showInventory(if (ready) readInventory(granted) else null)
             val due = System.currentTimeMillis() - state.lastAttemptAt > 2 * 60 * 1000L
             if (send && linked && ready && !sending && (force || due)) {
                 sending = true
@@ -188,6 +229,104 @@ class HealthStatusActivity : ComponentActivity() {
         update.text = newer?.let { getString(R.string.status_update, it) }
         update.visibility = if (newer != null) View.VISIBLE else View.GONE
         findViewById<View>(R.id.update_button).visibility = if (newer != null) View.VISIBLE else View.GONE
+    }
+
+    /** What Health Connect holds and who wrote it, with the apps the warning names. */
+    private class InventoryView(
+        val counts: List<KindCount>,
+        val labels: Map<String, String>,
+        val samsung: InstalledApp?,
+        val renpho: InstalledApp?,
+    )
+
+    /** Counts the last 30 days in Health Connect; null when Kal may read nothing or it failed. */
+    private suspend fun readInventory(granted: Set<String>): InventoryView? {
+        if (granted.none { it in HealthConnect.READ_PERMISSIONS }) return null
+        val context = this
+        return withContext(Dispatchers.IO) {
+            try {
+                val counts = InventoryReader(HealthConnect.client(context), ZoneId.systemDefault(), granted).read()
+                InventoryView(
+                    counts = counts,
+                    labels = counts.flatMap { it.origins }.distinct().associateWith { HealthApps.label(context, it) },
+                    samsung = HealthApps.samsungHealth(context),
+                    renpho = HealthApps.renpho(context),
+                )
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
+    /** Fills "In Health Connect, last 30 days" and, when it is all empty, the warning. */
+    private fun showInventory(view: InventoryView?) {
+        val card = findViewById<View>(R.id.inventory)
+        val warning = findViewById<View>(R.id.empty_card)
+        if (view == null) {
+            card.visibility = View.GONE
+            warning.visibility = View.GONE
+            return
+        }
+        val empty = Inventory.isEmpty(view.counts)
+        val rows = findViewById<LinearLayout>(R.id.inventory_rows)
+        rows.removeAllViews()
+        for (count in view.counts) {
+            val row = layoutInflater.inflate(R.layout.item_count, rows, false)
+            val label = getString(KIND_LABELS.getValue(count.kind))
+            row.findViewById<TextView>(R.id.label).text = "${KIND_EMOJI.getValue(count.kind)} $label"
+            val number = count.count?.toString() ?: getString(R.string.inventory_no_access)
+            row.findViewById<TextView>(R.id.count).text = number
+            val names = Words.apps(count.origins.map { view.labels[it] ?: it })
+            val from = if (names.isEmpty()) null else getString(R.string.inventory_from, names)
+            val apps = row.findViewById<TextView>(R.id.apps)
+            apps.text = from
+            apps.visibility = if (from == null) View.GONE else View.VISIBLE
+            row.contentDescription =
+                listOfNotNull(getString(R.string.inventory_row, label, number), from).joinToString(". ")
+            rows.addView(row)
+        }
+        findViewById<TextView>(R.id.inventory_note).setText(
+            if (empty) R.string.inventory_note_empty else R.string.inventory_note,
+        )
+        card.visibility = View.VISIBLE
+
+        warning.visibility = if (empty) View.VISIBLE else View.GONE
+        if (!empty) return
+        val list = findViewById<LinearLayout>(R.id.empty_apps)
+        list.removeAllViews()
+        for (app in Inventory.appRows(view.counts, view.samsung, view.renpho)) {
+            val row = layoutInflater.inflate(R.layout.item_app_row, list, false)
+            val state = getString(
+                when (app.state) {
+                    AppState.NOT_INSTALLED -> R.string.empty_not_installed
+                    AppState.NOT_SHARING -> R.string.empty_not_sharing
+                    AppState.SHARING -> R.string.empty_sharing
+                },
+            )
+            row.findViewById<TextView>(R.id.mark).text = if (app.state == AppState.SHARING) "✅" else "✖️"
+            row.findViewById<TextView>(R.id.name).text = app.name
+            row.findViewById<TextView>(R.id.state).text = state
+            row.contentDescription = getString(R.string.empty_app_state, app.name, state)
+            list.addView(row)
+        }
+        val openable = view.samsung != null && HealthApps.canOpen(this, Inventory.SAMSUNG_HEALTH)
+        findViewById<View>(R.id.open_samsung).visibility = if (openable) View.VISIBLE else View.GONE
+    }
+
+    /** "Step by step" opens and closes the list of steps. */
+    private fun showSteps() {
+        val toggle = findViewById<Button>(R.id.steps_toggle)
+        findViewById<View>(R.id.steps_list).visibility = if (stepsOpen) View.VISIBLE else View.GONE
+        toggle.setCompoundDrawablesRelativeWithIntrinsicBounds(
+            0,
+            0,
+            if (stepsOpen) R.drawable.ic_expand_less else R.drawable.ic_expand_more,
+            0,
+        )
+        ViewCompat.setStateDescription(
+            toggle,
+            getString(if (stepsOpen) R.string.state_expanded else R.string.state_collapsed),
+        )
     }
 
     /** Asks Health Connect for what is missing; with everything allowed, opens its settings. */

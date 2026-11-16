@@ -6,7 +6,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** The status screen's sentences (board 15), as plain functions. */
+/** The status screen's sentences (boards 15 and 35), as plain functions. */
 object Words {
     private val clock = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
     private val day = DateTimeFormatter.ofPattern("EEE d MMM", Locale.US)
@@ -33,6 +33,14 @@ object Words {
             else -> "${date.format(day)} $time"
         }
     }
+
+    /** "Samsung Health", "Samsung Health and Renpho Health", "A, B and C". */
+    fun apps(names: List<String>): String =
+        when (names.size) {
+            0 -> ""
+            1 -> names[0]
+            else -> names.dropLast(1).joinToString(", ") + " and " + names.last()
+        }
 
     /** "11:40" for a time today, else as [moment]. */
     fun clockOrMoment(at: Instant, zone: ZoneId, now: Instant = Instant.now()): String =

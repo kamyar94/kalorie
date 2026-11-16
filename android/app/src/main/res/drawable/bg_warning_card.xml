@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Board 35's warning card: Kal's warning tokens, with a border in the warning text colour. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/kal_warning_soft" />
+    <stroke android:width="1dp" android:color="@color/kal_warning_border" />
+    <corners android:radius="20dp" />
+</shape>

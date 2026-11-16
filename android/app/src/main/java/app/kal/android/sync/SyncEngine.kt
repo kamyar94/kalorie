@@ -35,8 +35,10 @@ enum class SyncOutcome { SENT, NOT_LINKED, UNLINKED, NO_ACCESS, HEALTH_CONNECT_M
 
 /**
  * One sync: reads what changed in Health Connect since the last one (the first sync reads the
- * last 30 days, or a year with the history permission) and sends it to the Kal server in batches.
- * The changes token is kept only after every batch arrived, so nothing is lost when sending fails.
+ * last 30 days, or a year with the history permission) and sends it to the Kal server in batches,
+ * at least one, so the server's update log notes every sync (a first read says how many days it
+ * covered). The changes token is kept only after every batch arrived, so nothing is lost when
+ * sending fails.
  *
  * Steps and resting heart rate are sent as day totals: for the days a change touched, today and
  * yesterday (late watch uploads), and the last 30 days after any deletion (a deletion does not say
@@ -78,6 +80,7 @@ object SyncEngine {
         val today = now.atZone(zone).toLocalDate()
 
         val read: Pair<Collected, String>
+        val firstReadDays: Int?
         val todayLine: String?
         try {
             val granted = client.permissionController.getGrantedPermissions()
@@ -87,8 +90,9 @@ object SyncEngine {
             val signature = types.joinToString(",") { it.simpleName ?: "" } + "|" + (HealthConnect.HISTORY in granted)
             val known = state.changesToken.takeIf { state.tokenTypes == signature }
             val days = if (HealthConnect.HISTORY in granted) 365L else 30L
-            read = (known?.let { changesSince(reader, it, now, today) })
-                ?: firstRead(reader, types, now, today, days)
+            val changes = known?.let { changesSince(reader, it, now, today) }
+            read = changes ?: firstRead(reader, types, now, today, days)
+            firstReadDays = if (changes == null) days.toInt() else null
             state.tokenTypes = signature
             todayLine = Words.today(
                 steps = read.first.steps.firstOrNull { it.date == today }?.count ?: 0,
@@ -101,7 +105,7 @@ object SyncEngine {
             return SyncOutcome.READ_FAILED
         }
 
-        for (batch in Payload.batches(read.first, zone, Kal.appVersion)) {
+        for (batch in Payload.batches(read.first, zone, Kal.appVersion, firstReadDays)) {
             when (val answer = KalApi.sync(token, batch)) {
                 is KalApi.Answer.Ok -> Unit
                 KalApi.Answer.Unlinked -> {

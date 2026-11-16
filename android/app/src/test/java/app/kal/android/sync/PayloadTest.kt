@@ -113,9 +113,24 @@ class PayloadTest {
     }
 
     @Test
-    fun nothingToSendIsNoBatch() {
-        assertEquals(emptyList<String>(), Payload.batches(Collected(), zone, "1.0 (1)"))
+    fun nothingToSendIsStillOneBatchSoTheServerLogsTheSync() {
+        assertEquals(
+            listOf("""{"tz":"Europe/Berlin","appVersion":"1.1 (2)"}"""),
+            Payload.batches(Collected(), zone, "1.1 (2)"),
+        )
         assertTrue(Collected().isEmpty)
+    }
+
+    @Test
+    fun aReadOfTheWholeWindowSaysHowManyDaysOnEveryBatch() {
+        assertEquals(
+            listOf("""{"tz":"Europe/Berlin","appVersion":"1.1 (2)","firstReadDays":30}"""),
+            Payload.batches(Collected(), zone, "1.1 (2)", firstReadDays = 30),
+        )
+        val steps = (0 until 3).map { StepsDay(LocalDate.of(2026, 11, 1).plusDays(it.toLong()), 100L, null) }
+        val batches = Payload.batches(Collected(steps = steps), zone, "1.1 (2)", firstReadDays = 365, maxRecords = 2)
+        assertEquals(2, batches.size)
+        assertTrue(batches.all { it.startsWith("""{"tz":"Europe/Berlin","appVersion":"1.1 (2)","firstReadDays":365,"steps":[""") })
     }
 
     @Test
