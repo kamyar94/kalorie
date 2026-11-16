@@ -18,12 +18,23 @@ and sends the records to the person's own Kal server.
   Health Connect gives and "Unlink this phone". Health Connect opens it for "How Kal uses this
   data" (the rationale intent, and the Android 14 `VIEW_PERMISSION_USAGE` alias). A launcher
   shortcut "Health Connect" opens it too.
+- The same screen counts what Health Connect holds for the last 30 days (`hc/InventoryReader`,
+  `hc/Inventory`): days with steps above 0, workouts, days with resting heart rate, nights of
+  sleep and weigh-ins, each with the apps that wrote them (named by their launcher labels). The
+  list stays on the phone. When every kind Kal may read is empty it shows "Health Connect has
+  nothing to share yet": Samsung Health and Renpho Health (installed or not, not sharing), "Open
+  Samsung Health" (only when installed), "Open Health Connect permissions" (Health Connect's
+  settings, by the action for the Android version) and the steps. The manifest's `<queries>`
+  name Samsung Health and Renpho's known packages and launchable apps (`hc/HealthApps`; Renpho's
+  package differs by region, so an app labelled "Renpho" counts too).
 - `sync/SyncEngine` reads with Health Connect's changes token (the first sync reads 30 days, or
   a year with the history permission), sends steps and resting heart rate as day totals from the
   aggregate API, workouts with their energy, distance and heart rate, body values (weight, body
   fat, lean, bone and water mass, BMR, height) and sleep, in batches to
   `POST /api/health-connect/sync` (at most 2 MB each; the server takes 120 batches an hour per
-  phone). WorkManager runs it about every hour when background reading is allowed, and when the
+  phone). Every sync sends at least one batch, and a read of the whole window carries
+  `firstReadDays`, so the server's update log (shown on Kal for Android) has a line for each
+  sync, also when Health Connect had nothing. WorkManager runs it about every hour when background reading is allowed, and when the
   app opens. On the server, workouts become Move activities, body values Body measurements
   (height fills an empty profile height), and heart rate and sleep are kept for later charts;
   a record sent again updates the one before, and a deletion in Health Connect removes it.
@@ -38,7 +49,8 @@ client library needs Android 8 and Health Connect itself Android 9 (`tools:overr
 the manifest).
 
 On the server, More, then Kal for Android shows the version and size, downloads the APK
-(`/android/kal.apk`, signed in), and lists the linked phones with Unlink.
+(`/android/kal.apk`, signed in), and lists the linked phones with Unlink, their recent updates
+and a warning while nothing has arrived.
 `/android/version.json` (the update check) and `/.well-known/assetlinks.json` (from
 `ANDROID_APP_ID` and `ANDROID_CERT_SHA256`) are public.
 
@@ -47,7 +59,8 @@ On the server, More, then Kal for Android shows the version and size, downloads 
 The server's host name and the application id are build properties and never in git. Copy
 `kal.properties.example` to `kal.properties` (git ignores it) and set `kal.host` and `kal.appId`
 (the same id goes into `ANDROID_APP_ID` on the server), and `kal.versionName` and
-`kal.versionCode` (raise the code for every build you hand out). `KAL_HOST`, `KAL_APP_ID`,
+`kal.versionCode` (raise the code for every build you hand out; without them the build uses the
+release in `app/build.gradle.kts`, now 1.1 and 2). `KAL_HOST`, `KAL_APP_ID`,
 `KAL_VERSION_NAME` and `KAL_VERSION_CODE` in the environment win over the file, and
 `--properties <file>` reads another file.
 

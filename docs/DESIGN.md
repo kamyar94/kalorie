@@ -262,7 +262,8 @@ the day's openGym workouts.
   its state in the address (lib/trends/year.ts).
 - **Plan meals:** meal plan suggestions from Mealie recipes (section 8).
 - **Kal for Android:** the app's version and size, the download, linking Health Connect from
-  inside the app, and the linked phones with Unlink (section 14).
+  inside the app, and the linked phones with Unlink, each with its recent updates and a warning
+  while nothing has arrived (section 14).
 - **Settings:** profile and targets (water goal included), units (metric default, imperial),
   time zone, cuisines, meal windows, notifications, AI (keys per provider, provider and model
   per task, test button, usage), integrations (Mealie, openGym), appearance (light, dark or the
@@ -338,7 +339,8 @@ Android.
   intensity, source and external id); user_badges; body_measurements (code, unit, value,
   time, source and external id); health_profiles; body_photo_sessions and body_photos;
   heart_rates and sleep_sessions (from Health Connect).
-- Devices: devices (linked phones, hashed token, what each has sent) and device_link_codes.
+- Devices: devices (linked phones, hashed token, what each has sent), device_link_codes and
+  health_connect_updates (each phone's update log: counts only, kept 30 days).
 - Other: integrations (user, kind, encrypted credential, settings, last sync, status);
   push_subscriptions; jobs.
 
@@ -377,8 +379,8 @@ androidbrowserhelper (Trusted Web Activity), the Health Connect client and WorkM
   file parsers, the year calendar (bins, grid, keyboard), design token contrast.
 - Integration with Postgres: job queue (concurrency, retries), per-user isolation for every
   route, invite and lockout flows, importers on small fixture files, medicines and labels,
-  favorites, meal photos, water, Move, Body, devices and Health Connect batches, the year,
-  export.
+  favorites, meal photos, water, Move, Body, devices, Health Connect batches and the update
+  log, the year, export.
 - AI: the mock provider server replays recorded replies for all three providers, including
   errors, refusals, malformed JSON and timeouts.
 - End to end (Playwright on Microsoft Edge in three projects: phone, desktop and phone in the
@@ -417,6 +419,21 @@ Health, a Galaxy watch and Renpho keep their records.
   day totals, workouts (Move activities, which also raise the water goal), weight and body
   composition (Body), resting heart rate and sleep (kept for later charts). Every record keeps
   its Health Connect id, so sending it again updates it and a deletion on the phone removes it.
+  Every sync sends at least one batch, and a read of the whole window (the first, or again after
+  access changed) says how many days it covered.
+- **Update log.** The server notes each accepted batch (`health_connect_updates`): when, the
+  app's version, how many records of each kind it held, what was stored, and whether there was
+  nothing to store; counts only (the one number kept is the phone's step total for that day).
+  Kept 30 days, removed when the phone is unlinked, in the export and in Delete my data. The
+  page lists each phone's ten latest updates in words ("6,812 steps today · 1 workout · 1
+  weigh-in", "Nothing new", "First read, 30 days: Health Connect was empty") and warns
+  "Nothing has arrived yet", with how to make Samsung Health and Renpho share, while a phone has
+  sent updates and no Health Connect record of the person is stored.
+- **On the phone.** The app's Health Connect screen counts what Health Connect holds for the
+  last 30 days (days with steps, workouts, days with resting heart rate, nights of sleep,
+  weigh-ins) with the apps that wrote them; this list is never sent. When every kind it may read
+  is empty it says "Health Connect has nothing to share yet", whether Samsung Health and Renpho
+  Health are installed, opens Samsung Health or Health Connect's settings, and lists the steps.
 
 ## 15. Not in this version
 
