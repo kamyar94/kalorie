@@ -2,12 +2,16 @@
 // server has no app ("not set up") and once it has one (version, size, the download), inside the
 // app (the start URL's marker, "Connect Health Connect" making a one-time code and the intent URL,
 // a newer version, an older Android without Health Connect, a second tab staying a browser tab),
-// and unlinking a phone. The server runs with the placeholder app id app.kal.
+// a linked phone's updates (the "Nothing has arrived yet" warning with "How to fix it" while
+// nothing is stored, Recent updates, the warning gone once records arrived) and unlinking a
+// phone. The server runs with the placeholder app id app.kal.
 import crypto from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
+
+import { localParts } from "../../lib/meals/time";
 
 import { expectAccessible, installE2eHooks, pool, signUp } from "./helpers";
 
@@ -181,7 +185,12 @@ test("unlinking a phone", async ({ page }, info) => {
   await expect(phones).toHaveCount(1);
   await expect(page.getByText("1 linked")).toBeVisible();
   await expect(phones.first()).toContainText("Samsung SM-S928B");
-  await expect(phones.first()).toContainText(/Last sent \d{2}:\d{2} · steps, workouts, heart rate/);
+  await expect(page.getByTestId("android-phone-line")).toHaveText(/^Linked today \d{2}:\d{2}$/);
+  // Records are stored, so no warning; the phone sent before the update log existed.
+  await expect(page.getByTestId("android-nothing-arrived")).toHaveCount(0);
+  await expect(page.getByTestId("android-updates-none")).toHaveText(
+    /^Last sent Today \d{2}:\d{2}\. From the next update on, each one is listed here\.$/,
+  );
   await expect(page.getByTestId("android-kept")).toHaveText(
     "Kept so far: 2 days of resting heart rate, 1 night of sleep.",
   );
@@ -198,4 +207,97 @@ test("unlinking a phone", async ({ page }, info) => {
   expect(row.rows[0].revoked_at).not.toBeNull();
   await page.reload();
   await expect(page.getByText("No phone is linked yet.")).toBeVisible();
+});
+
+test("a linked phone's updates: nothing has arrived, then records arrived", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  // A phone linked with a device token, sending through the real sync route.
+  const token = `kal_${crypto.randomBytes(32).toString("base64url")}`;
+  await pool().query(
+    `insert into devices (user_id, name, token_hash, app_version) values ($1, 'Pixel 7', $2, '1.0 (1)')`,
+    [userId, crypto.createHash("sha256").update(token).digest("hex")],
+  );
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const today = localParts(new Date(), tz).date;
+  const sync = async (batch: Record<string, unknown>) => {
+    const response = await page.request.post("/api/health-connect/sync", {
+      headers: { authorization: `Bearer ${token}` },
+      data: { tz, appVersion: "1.1 (2)", ...batch },
+    });
+    expect(response.status()).toBe(200);
+  };
+
+  await openAndroidPage(page);
+  await expect(page.getByTestId("android-phone-line")).toHaveText(
+    /^Linked today \d{2}:\d{2} · app 1\.0$/,
+  );
+  await expect(page.getByTestId("android-updates-none")).toHaveText("Nothing sent yet.");
+  await expect(page.getByTestId("android-nothing-arrived")).toHaveCount(0);
+
+  // App 1.1's first read of an empty Health Connect, then a later read with zero days.
+  await sync({ firstReadDays: 30 });
+  await sync({
+    steps: [{ date: today, count: 0 }],
+    restingHeartRate: [{ date: today, bpm: null }],
+  });
+  await page.reload();
+  await expect(page.getByTestId("android-phone-line")).toHaveText(
+    /^Linked today \d{2}:\d{2} · app 1\.1$/,
+  );
+  const warning = page.getByTestId("android-nothing-arrived");
+  await expect(warning.getByRole("heading", { name: "Nothing has arrived yet" })).toBeVisible();
+  await expect(warning).toContainText(
+    "The phone sent 2 updates, but Health Connect had no steps, workouts, heart rate, sleep or weigh-ins to share.",
+  );
+  // "How to fix it" is open from the start.
+  await expect(warning.locator("details")).toHaveAttribute("open", "");
+  await expect(warning.getByRole("listitem")).toHaveCount(5);
+  await expect(warning.getByRole("listitem").first()).toContainText(
+    "Samsung Health: ⋮, Settings, Data management, Health Connect.",
+  );
+  await expect(warning.getByRole("listitem").last()).toHaveText(
+    "Open Kal's Health Connect screen and tap Send now.",
+  );
+  const updates = page.getByTestId("android-update");
+  await expect(updates).toHaveCount(2);
+  await expect(updates.nth(0)).toHaveText(/^Today \d{2}:\d{2}Nothing new$/);
+  await expect(updates.nth(1)).toHaveText(
+    /^Today \d{2}:\d{2}First read, 30 days: Health Connect was empty$/,
+  );
+  await expect(
+    page.getByText("Kept for 30 days. The warning above disappears once records arrive."),
+  ).toBeVisible();
+  await expectAccessible(page);
+
+  // Folding "How to fix it" keeps the warning.
+  await warning.getByText("How to fix it").click();
+  await expect(warning.getByRole("listitem").first()).toBeHidden();
+
+  // Samsung Health shares now: steps, a workout and a weigh-in arrive.
+  const at = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
+  await sync({
+    steps: [{ date: today, count: 6812, sourceApp: "com.sec.android.app.shealth" }],
+    workouts: [
+      {
+        id: crypto.randomUUID(),
+        category: "cardio",
+        type: "run",
+        title: "Run",
+        start: at(0.75),
+        end: at(0.25),
+        sourceApp: "com.sec.android.app.shealth",
+      },
+    ],
+    body: [{ id: crypto.randomUUID(), code: "weight", value: 71.3, at: at(0.5) }],
+  });
+  await page.reload();
+  await expect(page.getByTestId("android-nothing-arrived")).toHaveCount(0);
+  await expect(updates).toHaveCount(3);
+  await expect(updates.nth(0)).toHaveText(
+    /^Today \d{2}:\d{2}👟 6,812 steps today · 🏋️ 1 workout · ⚖️ 1 weigh-in$/,
+  );
+  await expect(page.getByText("Kept for 30 days.", { exact: true })).toBeVisible();
+  await expectAccessible(page);
 });

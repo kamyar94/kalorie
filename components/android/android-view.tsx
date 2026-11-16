@@ -17,11 +17,24 @@ import {
   type AndroidRelease,
   type AppContext,
 } from "@/lib/contracts/android";
-import { sendsLine, type DeviceDto } from "@/lib/contracts/devices";
+import type { DeviceDto } from "@/lib/contracts/devices";
 import type { HealthConnectKeptDto } from "@/lib/contracts/health-connect";
 
-/** A linked phone with the time it last sent, worded on the server in the viewer's zone. */
-export type PhoneRow = DeviceDto & { lastSent: string | null };
+import { NothingArrived, RecentUpdates, type PhoneUpdate } from "./phone-updates";
+
+/**
+ * A linked phone as the page shows it, worded on the server in the viewer's zone: "Linked today
+ * 12:12", the app's version ("1.1"), when it last sent, whether to warn that nothing has arrived,
+ * how many updates it sent in the kept window and the latest ones.
+ */
+export type PhoneRow = DeviceDto & {
+  linked: string;
+  version: string | null;
+  lastSent: string | null;
+  warning: boolean;
+  updateCount: number;
+  updates: PhoneUpdate[];
+};
 
 const STEPS = [
   "Open the downloaded file. Android asks once whether Chrome may install apps: allow it.",
@@ -45,9 +58,10 @@ const keptLine = (kept: HealthConnectKeptDto) => {
 };
 
 /**
- * "Kal for Android" (board 13): the app to download with its version and size, how to install
- * it, the linked phones (Unlink), "Connect Health Connect" inside the app ("Open in the Kal app"
- * in a browser on Android), and what the app sends.
+ * "Kal for Android" (boards 13 and 34): the app to download with its version and size, how to
+ * install it, the linked phones (Unlink) with their recent updates and a warning while nothing
+ * has arrived, "Connect Health Connect" inside the app ("Open in the Kal app" in a browser on
+ * Android), and what the app sends.
  */
 export const AndroidView = ({
   release,
@@ -281,17 +295,16 @@ export const AndroidView = ({
               {phones.map((phone) => (
                 <li
                   key={phone.id}
-                  className="border-border flex flex-col gap-2 rounded-2xl border p-3"
+                  className="border-border flex flex-col gap-3 rounded-2xl border p-3"
                   data-testid="android-phone"
                 >
                   <div className="flex items-center gap-3">
                     <Smartphone aria-hidden className="text-muted size-7 shrink-0" />
                     <div className="min-w-0 flex-1">
                       <p className="text-body font-semibold wrap-break-word">{phone.name}</p>
-                      <p className="text-caption text-muted">
-                        {phone.lastSent
-                          ? `Last sent ${phone.lastSent}${phone.sends.length ? ` · ${sendsLine(phone.sends)}` : ""}`
-                          : "Linked, nothing sent yet"}
+                      <p className="text-caption text-muted" data-testid="android-phone-line">
+                        {phone.linked}
+                        {phone.version ? ` · app ${phone.version}` : ""}
                       </p>
                     </div>
                     {confirming !== phone.id && (
@@ -322,6 +335,12 @@ export const AndroidView = ({
                       </Button>
                     </div>
                   )}
+                  {phone.warning && <NothingArrived updates={phone.updateCount} />}
+                  <RecentUpdates
+                    updates={phone.updates}
+                    lastSent={phone.lastSent}
+                    warning={phone.warning}
+                  />
                 </li>
               ))}
             </ul>
