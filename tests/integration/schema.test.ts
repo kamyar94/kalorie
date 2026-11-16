@@ -1,6 +1,7 @@
 // The migrations build the whole schema: the first one every phase's tables, later ones the
 // medicines (0004), the activities (0005), Move's badges (0006), Body (0007), body photos
-// (0008), linked phones (0009) and heart rate and sleep from Health Connect (0010).
+// (0008), linked phones (0009), heart rate and sleep from Health Connect (0010) and the phones'
+// update log (0011).
 import { sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
@@ -23,6 +24,7 @@ const TABLES = [
   "food_memory",
   "food_portions",
   "foods",
+  "health_connect_updates",
   "health_profiles",
   "heart_rates",
   "integrations",

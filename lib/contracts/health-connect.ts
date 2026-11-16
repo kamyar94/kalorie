@@ -16,6 +16,13 @@
 //                    bpm null removes the day
 //   sleep            sleep sessions with their stage minutes -> sleep_sessions
 //   deleted          Health Connect record ids deleted on the phone
+//   firstReadDays    on the batches of a read of the whole window (the first one, or again after
+//                    access changed): how many days it covered (30, or 365 with the history
+//                    permission). App 1.1 and newer; such a read sends one batch even when Health
+//                    Connect had nothing, so the server's log can say so.
+//
+// Every accepted batch adds a row to the phone's update log (lib/health-connect/log.ts): counts
+// of what it held and what was stored, kept 30 days, shown on "Kal for Android".
 //
 // Step totals from Health Connect win over other sources for the same day (lib/move/score.ts).
 // Server: lib/health-connect/sync.ts (writes), lib/health-connect/parse.ts (zod checks).
@@ -110,6 +117,7 @@ export type HcSyncBatch = {
   restingHeartRate?: HcRestingDay[];
   sleep?: HcSleep[];
   deleted?: string[];
+  firstReadDays?: number | null;
 };
 
 export type HcSyncResult = {
@@ -125,4 +133,41 @@ export type HealthConnectKeptDto = {
   restingDays: number;
   workoutHeartRates: number;
   sleepNights: number;
+};
+
+/** How long the server keeps a phone's update log. */
+export const UPDATE_LOG_DAYS = 30;
+
+/**
+ * One update in a phone's log: how many records of each kind the batch held (step days with a
+ * count and at 0, workouts, days of resting heart rate, sleep sessions, body records and how many
+ * of them were weigh-ins, height, deleted ids, records left out) and what the server stored.
+ * `stepsToday` is the phone's step total for the day it sent, when the batch held it. `empty`:
+ * nothing to store.
+ */
+export type HcUpdateCounts = {
+  firstReadDays: number | null;
+  stepDays: number;
+  stepDaysZero: number;
+  stepsToday: number | null;
+  workouts: number;
+  restingDays: number;
+  sleepSessions: number;
+  bodyRecords: number;
+  weighIns: number;
+  height: boolean;
+  deleted: number;
+  skipped: number;
+  added: number;
+  written: number;
+  removed: number;
+  empty: boolean;
+};
+
+export type HcUpdateDto = HcUpdateCounts & {
+  id: string;
+  deviceId: string;
+  receivedAt: string;
+  tz: string;
+  appVersion: string | null;
 };

@@ -857,6 +857,47 @@ export const devices = pgTable(
   (t) => [uniqueIndex("devices_token_idx").on(t.tokenHash), index("devices_user_idx").on(t.userId)],
 );
 
+// One row per batch a linked phone sent to /api/health-connect/sync (lib/health-connect/log.ts):
+// when, the app's version, how many records of each kind the batch held, what the server stored,
+// and whether there was nothing to store. Counts only: no record ids, times or values, except
+// steps_today, the phone's step total for the day it sent (what "6,812 steps today" says). Kept
+// 30 days (pruned on write), shown on "Kal for Android", removed with the phone.
+export const healthConnectUpdates = pgTable(
+  "health_connect_updates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    deviceId: uuid("device_id")
+      .notNull()
+      .references(() => devices.id, { onDelete: "cascade" }),
+    userId: userRef(),
+    receivedAt: tz("received_at").notNull().defaultNow(),
+    // The phone's time zone, so "today" means the phone's day.
+    tz: text("tz").notNull(),
+    appVersion: text("app_version"),
+    // Set when the app read its whole window (the first read, or again after access changed).
+    firstReadDays: integer("first_read_days"),
+    stepDays: integer("step_days").notNull().default(0),
+    stepDaysZero: integer("step_days_zero").notNull().default(0),
+    stepsToday: integer("steps_today"),
+    workouts: integer("workouts").notNull().default(0),
+    restingDays: integer("resting_days").notNull().default(0),
+    sleepSessions: integer("sleep_sessions").notNull().default(0),
+    bodyRecords: integer("body_records").notNull().default(0),
+    weighIns: integer("weigh_ins").notNull().default(0),
+    height: boolean("height").notNull().default(false),
+    deleted: integer("deleted").notNull().default(0),
+    skipped: integer("skipped").notNull().default(0),
+    added: integer("added").notNull().default(0),
+    written: integer("written").notNull().default(0),
+    removed: integer("removed").notNull().default(0),
+    empty: boolean("empty").notNull(),
+  },
+  (t) => [
+    index("health_connect_updates_device_idx").on(t.deviceId, t.receivedAt),
+    index("health_connect_updates_user_idx").on(t.userId, t.receivedAt),
+  ],
+);
+
 // One-time codes that link a phone: made by the signed-in page, traded once by the phone for a
 // device token within a few minutes. Only the SHA-256 of the code is stored.
 export const deviceLinkCodes = pgTable(

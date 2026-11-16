@@ -2,7 +2,7 @@
 // the person's tables: steps and workouts into activities, body values into body_measurements,
 // heart rate into heart_rates, sleep into sleep_sessions. Everything is keyed by (user, source
 // "health_connect", external id), so sending a record again updates it; deletions remove by
-// external id. Values are never logged.
+// external id. Values are never logged; the phone's update log (./log.ts) keeps counts.
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
@@ -18,6 +18,7 @@ import { isUuid } from "@/lib/meals/service";
 import { localParts } from "@/lib/meals/time";
 import { fromLocalInputValue } from "@/lib/ui/format";
 
+import { recordUpdate } from "./log";
 import type { ParsedBatch } from "./parse";
 
 const SOURCE = "health_connect" as const;
@@ -134,7 +135,10 @@ const weightNear = async (
   return stored[0]?.value ?? null;
 };
 
-/** Writes one checked batch for the phone's owner and notes the sync on the phone's row. */
+/**
+ * Writes one checked batch for the phone's owner, notes the sync on the phone's row and adds a
+ * row to the phone's update log (counts only).
+ */
 export const applyHealthConnectBatch = async (
   owner: DeviceOwner,
   { batch, skipped: skippedBefore }: ParsedBatch,
@@ -345,7 +349,9 @@ export const applyHealthConnectBatch = async (
   if (batch.body.some((b) => b.code === "weight")) sent.push("weight");
   if (batch.body.some((b) => b.code !== "weight") || batch.height) sent.push("body");
   await markDeviceSynced(owner.device, sent, batch.appVersion, dbx);
-  return { ...counts, skipped };
+  const result = { ...counts, skipped };
+  await recordUpdate(owner.device, batch, result, dbx);
+  return result;
 };
 
 /** The counts "Kal for Android" shows for the records kept for later charts. */

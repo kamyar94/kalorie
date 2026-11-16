@@ -9,6 +9,7 @@ import { deviceLinkCodes, devices, users } from "@/db/schema";
 import { audit } from "@/lib/audit";
 import { sha256Hex } from "@/lib/crypto";
 import { DEVICE_LIMITS, isSendKind, SEND_KINDS, type DeviceDto } from "@/lib/contracts/devices";
+import { removeUpdates } from "@/lib/health-connect/log";
 import { isUuid } from "@/lib/meals/service";
 
 type DeviceRow = typeof devices.$inferSelect;
@@ -157,7 +158,10 @@ export const listDevices = async (userId: string, dbx: DbOrTx = defaultDb) => {
   return rows.map(toDeviceDto);
 };
 
-/** Unlinks a phone: its token stops working at once. False for an unknown or unlinked id. */
+/**
+ * Unlinks a phone: its token stops working at once and its update log goes. False for an unknown
+ * or unlinked id.
+ */
 export const revokeDevice = async (userId: string, id: string, dbx: DbOrTx = defaultDb) => {
   if (!isUuid(userId) || !isUuid(id)) return false;
   const gone = await dbx
@@ -166,6 +170,7 @@ export const revokeDevice = async (userId: string, id: string, dbx: DbOrTx = def
     .where(and(eq(devices.id, id), eq(devices.userId, userId), isNull(devices.revokedAt)))
     .returning({ id: devices.id });
   if (!gone.length) return false;
+  await removeUpdates(userId, id, dbx);
   await audit({ userId, action: "device.unlink", targetType: "device", targetId: id }, dbx);
   return true;
 };

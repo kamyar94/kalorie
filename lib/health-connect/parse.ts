@@ -89,7 +89,11 @@ const batchShape = z.object({
   restingHeartRate: list(HEALTH_CONNECT_LIMITS.batchRecords),
   sleep: list(HEALTH_CONNECT_LIMITS.batchRecords),
   deleted: z.array(recordId).max(HEALTH_CONNECT_LIMITS.deletedIds).optional(),
+  firstReadDays: z.unknown().optional(),
 });
+
+/** How many days a read of the whole window covered; anything else is read as "not said". */
+const firstReadDays = z.number().int().min(1).max(HEALTH_CONNECT_LIMITS.maxDaysBack);
 
 /** A batch after the checks: every list present, only usable records in it. */
 export type CheckedBatch = {
@@ -102,6 +106,8 @@ export type CheckedBatch = {
   restingHeartRate: HcRestingDay[];
   sleep: HcSleep[];
   deleted: string[];
+  /** Set on the batches of a read of the whole window (app 1.1 and newer). */
+  firstReadDays: number | null;
 };
 
 export type ParsedBatch = { batch: CheckedBatch; skipped: number };
@@ -186,6 +192,7 @@ export const parseSyncBatch = (
       restingHeartRate,
       sleep: sleepSessions,
       deleted: data.deleted ?? [],
+      firstReadDays: firstReadDays.safeParse(data.firstReadDays).data ?? null,
     },
     skipped,
   };

@@ -3,8 +3,9 @@
 // files themselves. Deleting removes every logged meal, photo file, item, personal food,
 // correction memory, medicine, medicine log and label photo, activity, badge, body measurement,
 // body photo (and its files), the health profile, heart rate and sleep record, linked phone
-// (their tokens stop working) and link code, key, integration, notification subscription and custom target, and resets the
-// profile; the account itself (name, username, password, role) stays so the person can go on.
+// (their tokens stop working) with its update log, link code, key, integration, notification
+// subscription and custom target, and resets the profile; the account itself (name, username,
+// password, role) stays so the person can go on.
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
@@ -17,6 +18,7 @@ import {
   deviceLinkCodes,
   devices,
   aiUsage,
+  healthConnectUpdates,
   dishComponents,
   foodMemory,
   foods,
@@ -43,6 +45,8 @@ import { audit } from "@/lib/audit";
 import type { ActivityDto } from "@/lib/contracts/activities";
 import type { MeasurementDto } from "@/lib/contracts/body";
 import type { BodySessionDto } from "@/lib/contracts/body-photos";
+import type { HcUpdateDto } from "@/lib/contracts/health-connect";
+import { allUpdates } from "@/lib/health-connect/log";
 import type { MealDto } from "@/lib/contracts/meals";
 import type { MedicineDto, MedicineLogDto } from "@/lib/contracts/medicines";
 import { NUTRIENT_CATALOGUE } from "@/lib/contracts/nutrients";
@@ -107,7 +111,10 @@ export type ExportData = {
     title: string | null;
     sourceApp: string | null;
   }[];
-  /** Phones linked through the Android app, unlinked ones too (never their tokens). */
+  /**
+   * Phones linked through the Android app, unlinked ones too (never their tokens), each with its
+   * update log of the last 30 days (counts only, oldest first).
+   */
   devices: {
     name: string;
     platform: string;
@@ -117,6 +124,7 @@ export type ExportData = {
     lastSyncAt: string | null;
     unlinkedAt: string | null;
     sends: string[];
+    updates: Omit<HcUpdateDto, "id" | "deviceId">[];
   }[];
 };
 
@@ -149,6 +157,7 @@ export const exportUserData = async (
     deviceRows,
     heartRows,
     sleepRows,
+    updateRows,
   ] = await Promise.all([
     ids.length ? dbx.select().from(mealPhotos).where(inArray(mealPhotos.mealId, ids)) : [],
     ids.length
@@ -202,6 +211,7 @@ export const exportUserData = async (
       .from(sleepSessions)
       .where(eq(sleepSessions.userId, userId))
       .orderBy(asc(sleepSessions.startedAt)),
+    allUpdates(userId, dbx),
   ]);
 
   return {
@@ -298,6 +308,9 @@ export const exportUserData = async (
       lastSyncAt: d.lastSyncAt?.toISOString() ?? null,
       unlinkedAt: d.revokedAt?.toISOString() ?? null,
       sends: d.sends,
+      updates: updateRows
+        .filter((u) => u.deviceId === d.id)
+        .map(({ id: _id, deviceId: _deviceId, ...update }) => update),
     })),
   };
 };
@@ -401,7 +414,9 @@ export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) =>
     await tx.delete(bodyPhotoSessions).where(eq(bodyPhotoSessions.userId, userId));
     await tx.delete(heartRates).where(eq(heartRates.userId, userId));
     await tx.delete(sleepSessions).where(eq(sleepSessions.userId, userId));
-    // Linked phones go too: their tokens stop working, the app says "Unlinked. Link again."
+    // Linked phones go too, with their update logs: their tokens stop working, the app says
+    // "Unlinked. Link again."
+    await tx.delete(healthConnectUpdates).where(eq(healthConnectUpdates.userId, userId));
     await tx.delete(devices).where(eq(devices.userId, userId));
     await tx.delete(deviceLinkCodes).where(eq(deviceLinkCodes.userId, userId));
     // Parts of their own dishes first: a dish part may be another of their own foods, which
