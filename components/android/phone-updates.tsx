@@ -19,8 +19,31 @@ const Menu = () => (
   </span>
 );
 
-/** Shown while the phone has sent updates and no Health Connect record of the person is stored. */
-export const NothingArrived = ({ updates }: { updates: number }) => (
+/** Where Move's hint and the page's own "How to fix it" lead (`/more/android#how-to-fix`). */
+export const HOW_TO_FIX_ID = "how-to-fix";
+
+/** The five steps that get Samsung Health and Renpho sharing with Health Connect (board 34). */
+export const FixSteps = () => (
+  <ol className="flex list-decimal flex-col gap-1.5 pl-5">
+    <li>
+      Samsung Health: <Menu />, Settings, Data management, Health Connect. Turn sharing on and tick
+      Steps, Exercise, Heart rate, Sleep, Weight.
+    </li>
+    <li>
+      Phone Settings, Health Connect, App permissions: Samsung Health may write; Kal may read, also
+      in the background.
+    </li>
+    <li>Renpho Health: Me, Apps, Health Connect, all permissions on.</li>
+    <li>Settings, Apps, Samsung Health, Battery: Unrestricted.</li>
+    <li>Open Kal&apos;s Health Connect screen and tap Send now.</li>
+  </ol>
+);
+
+/**
+ * Shown while the phone has sent updates and no Health Connect record of the person is stored.
+ * `fixId` names its "How to fix it" (the first warning on the page carries HOW_TO_FIX_ID).
+ */
+export const NothingArrived = ({ updates, fixId }: { updates: number; fixId?: string }) => (
   <div
     role="status"
     className="bg-warning-soft border-on-warning-soft/40 flex flex-col gap-2 rounded-2xl border px-3.5 py-3"
@@ -30,23 +53,11 @@ export const NothingArrived = ({ updates }: { updates: number }) => (
       Nothing has arrived yet
     </h3>
     <p className="text-sm leading-[1.45]">{nothingArrivedText(updates)}</p>
-    <details open className="text-sm leading-[1.45]">
+    <details open id={fixId} className="scroll-mt-4 text-sm leading-[1.45]">
       <summary className="text-on-warning-soft cursor-pointer py-3 font-semibold">
         How to fix it
       </summary>
-      <ol className="flex list-decimal flex-col gap-1.5 pl-5">
-        <li>
-          Samsung Health: <Menu />, Settings, Data management, Health Connect. Turn sharing on and
-          tick Steps, Exercise, Heart rate, Sleep, Weight.
-        </li>
-        <li>
-          Phone Settings, Health Connect, App permissions: Samsung Health may write; Kal may read,
-          also in the background.
-        </li>
-        <li>Renpho Health: Me, Apps, Health Connect, all permissions on.</li>
-        <li>Settings, Apps, Samsung Health, Battery: Unrestricted.</li>
-        <li>Open Kal&apos;s Health Connect screen and tap Send now.</li>
-      </ol>
+      <FixSteps />
     </details>
   </div>
 );

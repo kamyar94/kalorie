@@ -126,7 +126,9 @@ export const BodyView = ({
                   <p className="text-caption text-muted">
                     From{" "}
                     {listJoin(
-                      summary.weightSources.map((s) => (s === "Kal" ? "what you logged" : s)),
+                      summary.weightSources.map((s) =>
+                        s === "typed in Kal" ? "what you logged" : s,
+                      ),
                     )}
                     .
                   </p>

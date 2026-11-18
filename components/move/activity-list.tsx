@@ -14,24 +14,24 @@ import {
   formatSteps,
   INTENSITY_LABELS,
   sourceLabel,
+  sourcePhrase,
   type ActivityDto,
 } from "@/lib/contracts/activities";
+import { dayActivityCaption } from "@/lib/move/words";
 import { dayTitle } from "@/lib/ui/format";
 
 import { CategoryIcon } from "./category-icon";
 
-/** "Today 07:30 · Strength · from openGym" (steps have no time). */
+/** "Today 07:30 · Strength · openGym" (steps have no time). */
 export const activityCaption = (activity: ActivityDto, today: string) => {
   const day = dayTitle(activity.localDate, today);
   const when =
     activity.steps !== null && activity.durationMin === null ? day : `${day} ${activity.localTime}`;
-  const from =
-    activity.source === "manual"
-      ? null
-      : activity.source === "import"
-        ? `imported from ${sourceLabel(activity.source, activity.sourceApp)}`
-        : `from ${sourceLabel(activity.source, activity.sourceApp)}`;
-  return [when, ACTIVITY_CATEGORY_LABELS[activity.category], from].filter(Boolean).join(" · ");
+  return [
+    when,
+    ACTIVITY_CATEGORY_LABELS[activity.category],
+    sourcePhrase(activity.source, activity.sourceApp),
+  ].join(" · ");
 };
 
 const estimateText = (activity: ActivityDto) =>
@@ -41,13 +41,20 @@ const estimateText = (activity: ActivityDto) =>
       ? `${Math.round(activity.energyKcal).toLocaleString("en-US")} kcal`
       : `~${Math.round(activity.energyKcal).toLocaleString("en-US")} kcal`;
 
-/** The activities, newest first; a tap opens the details with Remove. */
+/**
+ * The activities, newest first; a tap opens the details with Remove. On Move's day ("day"), each
+ * row says its time, length, distance and source, and the points it earned.
+ */
 export const ActivityList = ({
   activities,
   today,
+  variant = "list",
+  testId = "activity-list",
 }: {
-  activities: ActivityDto[];
+  activities: (ActivityDto & { points?: number })[];
   today: string;
+  variant?: "list" | "day";
+  testId?: string;
 }) => {
   const router = useRouter();
   const { show } = useToast();
@@ -70,10 +77,41 @@ export const ActivityList = ({
 
   return (
     <>
-      <ul className="flex flex-col gap-2" data-testid="activity-list">
+      <ul className="flex flex-col gap-2" data-testid={testId}>
         {activities.map((activity) => {
           const steps = activity.durationMin === null && activity.steps !== null;
           const energy = estimateText(activity);
+          if (variant === "day")
+            return (
+              <li key={activity.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpen(activity)}
+                  aria-haspopup="dialog"
+                  className="hover:bg-surface-2/60 -mx-1.5 flex min-h-13 w-[calc(100%+0.75rem)] items-center gap-3 rounded-xl px-1.5 py-1.5 text-left"
+                  data-testid="activity"
+                >
+                  <CategoryIcon category={activity.category} />
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className="block text-[0.9375rem] font-semibold wrap-break-word"
+                      dir="auto"
+                    >
+                      {activity.title}
+                    </span>
+                    <span className="text-caption text-muted block">
+                      {dayActivityCaption(activity)}
+                    </span>
+                  </span>
+                  {activity.points !== undefined && (
+                    <span className="tabular text-caption text-muted shrink-0">
+                      +{activity.points.toLocaleString("en-US")}
+                      <span className="sr-only"> points</span>
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
           return (
             <li key={activity.id}>
               <button

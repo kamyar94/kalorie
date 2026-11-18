@@ -99,6 +99,11 @@ export const users = pgTable(
       .$type<NotificationPrefs>()
       .notNull()
       .default({ analysisReady: false, questions: false }),
+    // Hints the person closed (lib/account/hints.ts); a closed hint stays closed.
+    dismissedHints: text("dismissed_hints")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

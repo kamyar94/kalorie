@@ -16,6 +16,8 @@ import { NutrientBar } from "@/components/ui/nutrient-bar";
 import { NutrientRing } from "@/components/ui/nutrient-ring";
 import { requireUser } from "@/lib/auth/session";
 import { sumNutrients } from "@/lib/contracts/nutrients";
+import { lastUpdateAt } from "@/lib/health-connect/log";
+import { updatedWords } from "@/lib/health-connect/summary";
 import { getDayPlan } from "@/lib/integrations/day";
 import { listFavorites } from "@/lib/meals/favorites";
 import { listMealsForDay } from "@/lib/meals/service";
@@ -26,7 +28,7 @@ import { getMoveDay } from "@/lib/move/service";
 import { activityWaterMl } from "@/lib/move/water";
 import { getTargets } from "@/lib/targets/service";
 import { dayTitle, formatKcal, longDate } from "@/lib/ui/format";
-import { viewerToday } from "@/lib/ui/viewer-time";
+import { viewerTimeZone, viewerToday } from "@/lib/ui/viewer-time";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -54,7 +56,11 @@ export default async function TodayPage({
     listWaterEntries(user.id, date),
   ]);
   // After the day plan: it reads openGym again when its data is old, which updates the activities.
-  const move = await getMoveDay(user.id, date);
+  const [move, lastUpdate, zone] = await Promise.all([
+    getMoveDay(user.id, date),
+    date === today ? lastUpdateAt(user.id) : null,
+    viewerTimeZone(user.timeZone),
+  ]);
   const totals = sumNutrients(meals.map((m) => m.totals));
   const pending = meals.some((m) => m.status === "queued" || m.status === "analysing");
   const burned = plan.workouts.reduce((sum, w) => sum + (w.kcalEstimate ?? 0), 0);
@@ -152,7 +158,12 @@ export default async function TodayPage({
               activityMl={activityWaterMl(move.sweatMinutes)}
               activityMinutes={move.sweatMinutes}
             />
-            <MoveCard day={move} isToday={date === today} />
+            <MoveCard
+              day={move}
+              date={date}
+              today={today}
+              updated={lastUpdate ? updatedWords(lastUpdate, zone, today) : null}
+            />
             <MedicinesCard day={medicines} date={date} today={today} />
             <FavoriteChips favorites={favorites} date={date} today={today} />
             <DayPlanSection plan={plan} />

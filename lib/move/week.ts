@@ -25,3 +25,7 @@ export const weekLabel = (monday: string) => {
     ? `${dayMonth(monday, false)} to ${dayMonth(sunday, true)}`
     : `${dayMonth(monday, true)} to ${dayMonth(sunday, true)}`;
 };
+
+/** Move's address for a day: "/move" for today, "/move?date=2026-11-17" for another. */
+export const moveHref = (date: string, today: string) =>
+  date === today ? "/move" : `/move?date=${date}`;

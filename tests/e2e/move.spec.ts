@@ -16,11 +16,11 @@ test("move: + Activity, a Samsung Health zip imported twice, and a CSV with its 
 
   await page.goto("/move");
   await expect(page.getByRole("heading", { level: 1, name: "Move" })).toBeVisible();
-  await expect(page.getByText(/^This week, /)).toBeVisible();
+  await expect(page.getByTestId("move-date")).toHaveText(/^Today, /);
   await expectAccessible(page);
 
   // + Activity: a run of 30 minutes, about 320 kcal at 80 kg.
-  await page.getByRole("button", { name: "Add an activity" }).click();
+  await page.getByRole("button", { name: "Add an activity on this day" }).click();
   const sheet = page.getByRole("dialog", { name: "Add an activity" });
   await sheet.getByLabel("What did you do?").selectOption("run");
   await sheet.getByLabel("Minutes").fill("30");
@@ -35,7 +35,17 @@ test("move: + Activity, a Samsung Health zip imported twice, and a CSV with its 
   await sheet.getByRole("button", { name: "Save" }).click();
   await expect(sheet).toBeHidden();
   await expect(page.getByRole("status").filter({ hasText: "Running added" })).toBeVisible();
+  const day = page.getByTestId("day-activities");
+  await expect(day.getByTestId("activity")).toHaveCount(1);
+  await expect(day).toContainText("Running");
+  await expect(day).toContainText(/\d\d:\d\d · 30 min · typed in Kal/);
+  await expect(day).toContainText("+60 points");
+  await expect(page.getByTestId("move-day-minutes")).toHaveText("Active minutes30 min");
+  await expect(page.getByTestId("move-day-energy")).toHaveText("Energy from activity320 kcal");
+  // The last six weeks are folded.
   const list = page.getByTestId("activity-list");
+  await expect(list).toBeHidden();
+  await page.getByText("Last six weeks").click();
   await expect(list.getByTestId("activity")).toHaveCount(1);
   await expect(list).toContainText("Running");
   await expect(list).toContainText("30 min");
@@ -100,6 +110,7 @@ test("move: + Activity, a Samsung Health zip imported twice, and a CSV with its 
 
   // Back on Move: everything in the list; the details of one, and Remove.
   await page.getByRole("link", { name: "See Move" }).click();
+  await page.getByText("Last six weeks").click();
   await expect(list.getByTestId("activity")).toHaveCount(5);
   await expect(list).toContainText("imported from Samsung Health");
   await expect(list).toContainText("8,900");
@@ -169,7 +180,7 @@ test("move: level, streak, the week by category and badges; Today's Move card", 
   await page.goto("/today");
   const card = page.getByTestId("move-card");
   await expect(card.getByTestId("move-minutes")).toHaveText("45 minStrength, openGym");
-  await expect(card.getByTestId("move-steps")).toHaveText("6,240Steps, imported");
+  await expect(card.getByTestId("move-steps")).toHaveText("6,240Steps · imported");
   await expect(card.getByTestId("move-points")).toHaveText("+90Points today");
   // The water goal grows by an estimate for the 45 minutes of activity.
   const water = page.getByTestId("water-card");

@@ -43,6 +43,7 @@ export const ActivitySheet = ({
   onOpenChange,
   weightKg,
   onSaved,
+  day = null,
 }: {
   /** When the sheet was opened (Date.now() of the press), null while closed. */
   openedAt: number | null;
@@ -50,6 +51,8 @@ export const ActivitySheet = ({
   /** The latest known weight, for the estimate (null: no estimate). */
   weightKg: number | null;
   onSaved: (activity: ActivityDto) => void;
+  /** The day it starts on ("+ Activity on this day"): noon of a day before today. */
+  day?: { date: string; today: string } | null;
 }) => {
   const id = useId();
   const [typeId, setTypeId] = useState(DEFAULT_TYPE);
@@ -62,7 +65,8 @@ export const ActivitySheet = ({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Each opening starts afresh: a walk of 30 minutes that ended just now.
+  // Each opening starts afresh: a walk of 30 minutes that ended just now, or at noon of an
+  // earlier day.
   const open = openedAt !== null;
   const [shownAt, setShownAt] = useState<number | null>(null);
   if (openedAt !== shownAt) {
@@ -72,10 +76,12 @@ export const ActivitySheet = ({
       setMinutes(String(DEFAULT_MINUTES));
       setIntensity(activityType(DEFAULT_TYPE)!.intensity);
       setStartedAt(
-        toLocalInputValue(
-          new Date(openedAt - DEFAULT_MINUTES * 60_000).toISOString(),
-          deviceTimeZone(),
-        ),
+        day && day.date < day.today
+          ? `${day.date}T12:00`
+          : toLocalInputValue(
+              new Date(openedAt - DEFAULT_MINUTES * 60_000).toISOString(),
+              deviceTimeZone(),
+            ),
       );
       setDistance("");
       setSteps("");

@@ -4,8 +4,9 @@
 // Server functions (lib/move/service.ts), scoped by user id:
 //   getMoveSummary(userId, today)   -> MoveSummaryDto   (also stores newly earned badges)
 //   getMoveDay(userId, localDate)   -> MoveDayDto
+//   getMoveDayView(userId, date, today) -> MoveDayViewDto   (Move for one day, board 36)
 // The rules are plain functions in lib/move/score.ts.
-import type { ActivityCategory } from "./activities";
+import type { ActivityCategory, ActivityDto, ActivitySource } from "./activities";
 
 /**
  * Points: 1 per minute of moderate activity, 2 per vigorous minute, 1 per 2 light minutes;
@@ -145,9 +146,34 @@ export type MoveDayDto = {
   /** "Strength, openGym": the category (and source) of the day's longest activity. */
   activeLabel: string | null;
   steps: number;
-  /** "imported", "from openGym", null when typed in Kal or none. */
+  /** "imported", "Phone", "Samsung Health"; null when typed in Kal or none. */
   stepsSource: string | null;
+  /** The record the day's steps were taken from (Health Connect's total wins), null without. */
+  stepsFrom: { source: ActivitySource; sourceApp: string | null } | null;
   points: number;
   /** Minutes of moderate or harder timed activity (the water estimate). */
   sweatMinutes: number;
+};
+
+/** One day of the week strip on Move: its steps; days still to come are drawn outlined. */
+export type MoveWeekDayDto = { date: string; steps: number; future: boolean };
+
+/** Move for one local day (board 36). */
+export type MoveDayViewDto = {
+  date: string;
+  /** The day's steps as the rules count them (Health Connect's total wins). */
+  steps: number;
+  stepGoal: number;
+  /** Minutes of timed activities. */
+  activeMinutes: number;
+  /** Energy of the day's activities, kcal (estimates and measured); null when none has one. */
+  energyKcal: number | null;
+  points: number;
+  /** Timed activities (not step counts). */
+  workouts: number;
+  stepsFrom: { source: ActivitySource; sourceApp: string | null } | null;
+  /** The day's activities as they happened, step counts last, each with its share of points. */
+  activities: (ActivityDto & { points: number })[];
+  /** Monday to Sunday of the day's week. */
+  week: MoveWeekDayDto[];
 };

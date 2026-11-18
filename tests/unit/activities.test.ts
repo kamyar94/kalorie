@@ -4,12 +4,19 @@ import { describe, expect, it } from "vitest";
 
 import { parseImportedActivity, parseManualActivity } from "@/lib/activities/parse";
 import {
+  appLabel,
+  appNote,
   categoryFromWords,
   energyEstimate,
   formatMinutes,
+  isPhoneCounter,
   metOf,
+  sourceLabel,
+  sourcePhrase,
 } from "@/lib/contracts/activities";
+import { updatedWords } from "@/lib/health-connect/summary";
 import { weekDays, weekLabel, weekStart } from "@/lib/move/week";
+import { stepsCaption } from "@/lib/move/words";
 
 const NOW = Date.parse("2026-11-10T12:00:00Z");
 
@@ -86,6 +93,89 @@ describe("imported records", () => {
     expect(parseImportedActivity({ ...record, startedAt: "2030-01-01T00:00:00Z" }, NOW)).toBeNull();
     expect(parseImportedActivity({ ...record, steps: 0 }, NOW)).toBeNull();
     expect(parseImportedActivity(null, NOW)).toBeNull();
+  });
+});
+
+describe("source names", () => {
+  // A made-up suffix: each phone's step counter has its own.
+  const phone = "com.android.healthconnect.phone.0a1b2c3d";
+
+  it("names the phone's step counter, known apps, and another app for the rest", () => {
+    expect(isPhoneCounter(phone)).toBe(true);
+    expect(isPhoneCounter("com.android.healthconnect.phone")).toBe(true);
+    expect(isPhoneCounter("com.android.healthconnect.phonebook")).toBe(false);
+    expect(isPhoneCounter(null)).toBe(false);
+    expect(appLabel(phone)).toBe("Phone");
+    expect(appNote(phone)).toBe("Android's step counter");
+    expect(appNote("com.sec.android.app.shealth")).toBeNull();
+    expect(
+      [
+        "com.sec.android.app.shealth",
+        "com.samsung.android.wear.shealth",
+        "com.renpho.health",
+        "com.qingniu.renpho",
+        "com.google.android.apps.fitness",
+        "com.fitbit.FitbitMobile",
+        "com.garmin.android.apps.connectmobile",
+        "com.strava",
+        "org.example.unknown",
+      ].map(appLabel),
+    ).toEqual([
+      "Samsung Health",
+      "Samsung Health",
+      "Renpho",
+      "Renpho",
+      "Google Fit",
+      "Fitbit",
+      "Garmin Connect",
+      "Strava",
+      "another app",
+    ]);
+    expect(appLabel(null)).toBeNull();
+  });
+
+  it("says where a record came from, for every source", () => {
+    expect(sourceLabel("health_connect", phone)).toBe("Phone");
+    expect(sourceLabel("health_connect", null)).toBe("Health Connect");
+    expect(sourceLabel("health_connect", "org.example.unknown")).toBe("another app");
+    expect(sourceLabel("opengym", null)).toBe("openGym");
+    expect(sourceLabel("manual", null)).toBe("typed in Kal");
+    expect(sourceLabel("import", "samsung-health")).toBe("Samsung Health");
+    expect(sourceLabel("import", "renpho")).toBe("Renpho");
+    expect(sourceLabel("import", "file")).toBe("a file");
+    expect(sourcePhrase("import", "samsung-health")).toBe("imported from Samsung Health");
+    expect(sourcePhrase("import", null)).toBe("imported from a file");
+    expect(sourcePhrase("manual", null)).toBe("typed in Kal");
+    expect(sourcePhrase("health_connect", "com.sec.android.app.shealth")).toBe("Samsung Health");
+  });
+
+  it("words Today's steps tile and when a phone last sent", () => {
+    const day = {
+      activeMinutes: 0,
+      activeLabel: null,
+      steps: 4150,
+      points: 20,
+      sweatMinutes: 0,
+    };
+    const fromPhone = {
+      ...day,
+      stepsSource: "Phone",
+      stepsFrom: { source: "health_connect" as const, sourceApp: phone },
+    };
+    expect(stepsCaption(fromPhone, "23:04")).toBe("Steps · Phone, updated 23:04");
+    expect(stepsCaption(fromPhone, null)).toBe("Steps · Phone");
+    const imported = {
+      ...day,
+      stepsSource: "imported",
+      stepsFrom: { source: "import" as const, sourceApp: "samsung-health" },
+    };
+    expect(stepsCaption(imported, "23:04")).toBe("Steps · imported");
+    expect(stepsCaption({ ...day, stepsSource: null, stepsFrom: null }, "23:04")).toBe("Steps");
+    // 21:04 UTC is 00:34 the next day in Tehran (+03:30).
+    const at = "2026-11-17T21:04:00Z";
+    expect(updatedWords(at, "Asia/Tehran", "2026-11-18")).toBe("00:34");
+    expect(updatedWords(at, "UTC", "2026-11-18")).toBe("yesterday 21:04");
+    expect(updatedWords(at, "UTC", "2026-11-20")).toBe("Nov 17, 21:04");
   });
 });
 

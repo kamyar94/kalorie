@@ -4,22 +4,33 @@ import { describe, expect, it } from "vitest";
 
 import type { ActivityCategory, Intensity } from "@/lib/contracts/activities";
 import { shiftLocalDate } from "@/lib/meals/time";
+import type { ActivityDto } from "@/lib/contracts/activities";
 import {
   activityPoints,
   byDay,
   cardioMinutes,
+  countedSteps,
   currentStreak,
   dayPoints,
   daySteps,
   earnedBadges,
+  isStepsOnly,
   levelOf,
   levelThreshold,
+  pointsOfEach,
   stepPoints,
   sweatMinutes,
   weekRows,
   type ScoredActivity,
 } from "@/lib/move/score";
 import { activityWaterMl, dayWaterGoalMl } from "@/lib/move/water";
+import {
+  dayActivityCaption,
+  moveDayTitle,
+  stepsFromLine,
+  stripDay,
+  stripLabel,
+} from "@/lib/move/words";
 
 const timed = (
   localDate: string,
@@ -181,5 +192,119 @@ describe("water for activity", () => {
     expect(activityWaterMl(60)).toBe(500);
     expect(activityWaterMl(400)).toBe(1500);
     expect(dayWaterGoalMl(2000, 45)).toBe(2400);
+  });
+});
+
+describe("one day on Move", () => {
+  const at = (time: string) => `2026-11-17T${time}:00.000Z`;
+  const run = { ...timed("2026-11-17", "cardio", 28, "vigorous"), startedAt: at("07:10") };
+  const lift = (time: string) => ({ ...timed("2026-11-17", "strength", 10), startedAt: at(time) });
+  const count = (n: number, source: ScoredActivity["source"]) => ({
+    ...steps("2026-11-17", n),
+    source,
+    startedAt: at("12:00"),
+  });
+
+  it("splits the day's points over its activities, adding up to the day's", () => {
+    const phone = count(4150, "health_connect");
+    const imported = count(9000, "import");
+    const day = [lift("18:30"), run, lift("07:00"), lift("12:00"), imported, phone];
+    // The strength bonus goes to the first two sessions by start; steps to Health Connect's.
+    expect(pointsOfEach(day)).toEqual([10, 56, 25, 25, 0, 20]);
+    expect(pointsOfEach(day).reduce((a, b) => a + b, 0)).toBe(dayPoints(day));
+    expect(countedSteps(day)).toBe(phone);
+    expect(countedSteps([imported, count(9000, "manual")])).toBe(imported);
+    expect(countedSteps([run])).toBeNull();
+  });
+
+  it("knows a step count from a timed activity", () => {
+    expect(isStepsOnly({ type: "steps", durationMin: null, steps: 4000 })).toBe(true);
+    expect(isStepsOnly({ type: "walk", durationMin: null, steps: 4000 })).toBe(true);
+    expect(isStepsOnly({ type: "walk", durationMin: 30, steps: 4000 })).toBe(false);
+    expect(isStepsOnly({ type: "run", durationMin: 30, steps: null })).toBe(false);
+  });
+
+  it("names the day and the days of the week strip", () => {
+    expect(moveDayTitle("2026-11-18", "2026-11-18")).toBe("Today, Wednesday 18 November");
+    expect(moveDayTitle("2026-11-17", "2026-11-18")).toBe("Yesterday, Tuesday 17 November");
+    expect(moveDayTitle("2026-11-16", "2026-11-18")).toBe("Monday 16 November");
+    expect(moveDayTitle("2025-12-31", "2026-01-02")).toBe("Wednesday 31 December 2025");
+    expect(stripDay("2026-11-16")).toEqual({ weekday: "Mon", day: "16" });
+    expect(stripLabel({ date: "2026-11-16", steps: 4701, future: false }, 7000)).toBe(
+      "Mon 16 November, 4,701 steps",
+    );
+    expect(stripLabel({ date: "2026-11-18", steps: 7480, future: false }, 7000)).toBe(
+      "Wed 18 November, 7,480 steps, goal reached",
+    );
+    expect(stripLabel({ date: "2026-11-19", steps: 0, future: true }, 7000)).toBe(
+      "Thu 19 November, still to come",
+    );
+  });
+
+  it("says where the steps came from and when a phone last sent", () => {
+    const phone = "com.android.healthconnect.phone.0a1b2c3d";
+    const words = (line: ReturnType<typeof stepsFromLine>) =>
+      `${line.before}${line.name ? `[${line.name}]` : ""}${line.after}`;
+    const from = (source: ScoredActivity["source"] & string, sourceApp: string | null) => ({
+      steps: 4150,
+      stepsFrom: { source, sourceApp },
+    });
+    expect(words(stepsFromLine(from("health_connect", phone), "23:04"))).toBe(
+      "Steps from Health Connect: [Phone] (Android's step counter). Updated 23:04.",
+    );
+    expect(words(stepsFromLine(from("health_connect", "com.sec.android.app.shealth"), null))).toBe(
+      "Steps from Health Connect: [Samsung Health].",
+    );
+    expect(words(stepsFromLine(from("health_connect", null), "yesterday 21:05"))).toBe(
+      "Steps from Health Connect (several apps). Updated yesterday 21:05.",
+    );
+    expect(words(stepsFromLine(from("import", "samsung-health"), "23:04"))).toBe(
+      "Steps imported from [Samsung Health].",
+    );
+    expect(words(stepsFromLine(from("manual", null), "23:04"))).toBe("Steps typed in Kal.");
+    expect(words(stepsFromLine({ steps: 0, stepsFrom: null }, null))).toBe(
+      "No steps for this day.",
+    );
+    expect(words(stepsFromLine({ steps: 0, stepsFrom: null }, "23:04"))).toBe(
+      "No steps from Health Connect for this day. A phone last sent an update 23:04.",
+    );
+  });
+
+  it("captions an activity of the day", () => {
+    const base: ActivityDto = {
+      id: "a",
+      category: "cardio",
+      type: "run",
+      title: "Run",
+      startedAt: at("07:10"),
+      tz: "UTC",
+      localDate: "2026-11-17",
+      localTime: "07:10",
+      durationMin: 28,
+      distanceM: 4120,
+      steps: null,
+      energyKcal: 299,
+      intensity: "vigorous",
+      source: "health_connect",
+      sourceApp: "com.sec.android.app.shealth",
+      notes: null,
+    };
+    expect(dayActivityCaption(base)).toBe("07:10 · 28 min · 4.1 km · Samsung Health");
+    expect(dayActivityCaption({ ...base, distanceM: null, source: "opengym" })).toBe(
+      "07:10 · 28 min · openGym",
+    );
+    expect(
+      dayActivityCaption({
+        ...base,
+        type: "steps",
+        durationMin: null,
+        distanceM: null,
+        steps: 4150,
+        sourceApp: "com.android.healthconnect.phone.0a1b2c3d",
+      }),
+    ).toBe("4,150 steps · day total · Phone");
+    expect(dayActivityCaption({ ...base, source: "manual", sourceApp: null })).toBe(
+      "07:10 · 28 min · 4.1 km · typed in Kal",
+    );
   });
 });

@@ -81,11 +81,17 @@ const rowText = (row: WeekRowDto) => {
   return row.value >= row.target ? `${text} · done` : text;
 };
 
-/** This week by category against the targets (board 10, second card). */
-export const WeekCard = ({ summary }: { summary: MoveSummaryDto }) => (
+/** A week by category against the targets (board 10, second card): this week unless named. */
+export const WeekCard = ({
+  summary,
+  title = "This week by category",
+}: {
+  summary: MoveSummaryDto;
+  title?: string;
+}) => (
   <Card as="section" aria-labelledby="week-heading" className="flex flex-col gap-3">
     <h2 id="week-heading" className="text-body font-semibold">
-      This week by category
+      {title}
     </h2>
     <ul className="flex flex-col gap-3" data-testid="week-rows">
       {summary.week.rows.map((row) => {

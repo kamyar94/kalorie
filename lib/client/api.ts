@@ -267,6 +267,8 @@ export const api = {
     request<{ activities: ActivityDto[] }>(`/api/activities?from=${id(from)}&to=${id(to)}`).then(
       (r) => r.activities,
     ),
+  dismissHint: (hint: "phone-steps-only") =>
+    request<{ ok: true }>("/api/hints", { method: "POST", body: { hint } }),
   createActivity: (input: ManualActivityInput) =>
     request<ActivityDto>("/api/activities", { method: "POST", body: input }),
   deleteActivity: (activityId: string) =>

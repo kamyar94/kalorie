@@ -4,16 +4,18 @@
 // it sent is the one number kept, for "6,812 steps today"). Rows older than UPDATE_LOG_DAYS go
 // when a phone writes; unlinking a phone removes its rows, and Delete my data removes them all.
 // Every function that takes a user id reads only that person's rows.
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import {
   activities,
   bodyMeasurements,
+  devices,
   healthConnectUpdates,
   heartRates,
   sleepSessions,
 } from "@/db/schema";
+import { PHONE_STEP_COUNTER, SAMSUNG_HEALTH_APPS, STEPS_TYPE } from "@/lib/contracts/activities";
 import {
   UPDATE_LOG_DAYS,
   type HcSyncResult,
@@ -165,6 +167,29 @@ export const listUpdates = async (
   return out;
 };
 
+/**
+ * When one of the person's phones last sent an update: the newest row of the log, else (a phone
+ * that sent before the log existed) the latest `last_sync_at` of their phones. Null when no phone
+ * has sent anything.
+ */
+export const lastUpdateAt = async (userId: string, dbx: DbOrTx = defaultDb) => {
+  if (!isUuid(userId)) return null;
+  const [logged] = await dbx
+    .select({ at: healthConnectUpdates.receivedAt })
+    .from(healthConnectUpdates)
+    .where(eq(healthConnectUpdates.userId, userId))
+    .orderBy(desc(healthConnectUpdates.receivedAt))
+    .limit(1);
+  if (logged) return logged.at.toISOString();
+  const [synced] = await dbx
+    .select({ at: devices.lastSyncAt })
+    .from(devices)
+    .where(and(eq(devices.userId, userId), isNotNull(devices.lastSyncAt)))
+    .orderBy(desc(devices.lastSyncAt))
+    .limit(1);
+  return synced?.at ? synced.at.toISOString() : null;
+};
+
 /** Every update of the person's phones in the kept window, oldest first (for the export). */
 export const allUpdates = async (userId: string, dbx: DbOrTx = defaultDb) => {
   if (!isUuid(userId)) return [];
@@ -201,4 +226,32 @@ export const hasHealthConnectRecords = async (userId: string, dbx: DbOrTx = defa
     sql`select (${exists(activities)} or ${exists(bodyMeasurements)} or ${exists(heartRates)} or ${exists(sleepSessions)}) as found`,
   );
   return Boolean(result.rows[0]?.found);
+};
+
+/**
+ * Whether the person's Health Connect steps come only from the phone's own step counter (every
+ * stored day names it as the one app) and nothing from Samsung Health has ever arrived through
+ * Health Connect (no activity, body value, heart rate or sleep). Move then says that a watch's
+ * steps come through Samsung Health.
+ */
+export const stepsOnlyFromPhone = async (userId: string, dbx: DbOrTx = defaultDb) => {
+  if (!isUuid(userId)) return false;
+  const hcSteps = sql`${activities.userId} = ${userId} and ${activities.source} = 'health_connect' and ${activities.type} = ${STEPS_TYPE}`;
+  const phone = sql`(${activities.sourceApp} = ${PHONE_STEP_COUNTER} or starts_with(${activities.sourceApp}, ${`${PHONE_STEP_COUNTER}.`}))`;
+  const samsung = sql.join(
+    SAMSUNG_HEALTH_APPS.map((app) => sql`${app}`),
+    sql`, `,
+  );
+  const fromSamsung = (
+    table: typeof activities | typeof bodyMeasurements | typeof heartRates | typeof sleepSessions,
+  ) =>
+    sql`exists (select 1 from ${table} where ${table.userId} = ${userId} and ${table.source} = 'health_connect' and ${table.sourceApp} in (${samsung}))`;
+  const result = await dbx.execute<{ phone: boolean; other: boolean; samsung: boolean }>(
+    sql`select
+      exists (select 1 from ${activities} where ${hcSteps} and ${phone}) as phone,
+      exists (select 1 from ${activities} where ${hcSteps} and not coalesce(${phone}, false)) as other,
+      (${fromSamsung(activities)} or ${fromSamsung(bodyMeasurements)} or ${fromSamsung(heartRates)} or ${fromSamsung(sleepSessions)}) as samsung`,
+  );
+  const row = result.rows[0];
+  return Boolean(row?.phone) && !row?.other && !row?.samsung;
 };

@@ -20,7 +20,13 @@ import {
 import type { DeviceDto } from "@/lib/contracts/devices";
 import type { HealthConnectKeptDto } from "@/lib/contracts/health-connect";
 
-import { NothingArrived, RecentUpdates, type PhoneUpdate } from "./phone-updates";
+import {
+  FixSteps,
+  HOW_TO_FIX_ID,
+  NothingArrived,
+  RecentUpdates,
+  type PhoneUpdate,
+} from "./phone-updates";
 
 /**
  * A linked phone as the page shows it, worded on the server in the viewer's zone: "Linked today
@@ -90,6 +96,18 @@ export const AndroidView = ({
     );
     return () => window.clearTimeout(timer);
   }, []);
+
+  // "How to fix it" from Move's hint (#how-to-fix): opened and brought into view.
+  useEffect(() => {
+    if (window.location.hash !== `#${HOW_TO_FIX_ID}`) return;
+    const details = document.getElementById(HOW_TO_FIX_ID);
+    if (!(details instanceof HTMLDetailsElement)) return;
+    details.open = true;
+    details.scrollIntoView({ block: "start" });
+  }, []);
+
+  /** The phone whose warning carries "How to fix it"; without one the page has its own. */
+  const firstWarned = phones.find((p) => p.warning)?.id ?? null;
 
   const fail = (title: string, error: unknown) =>
     show({ title, body: error instanceof Error ? error.message : undefined, tone: "error" });
@@ -335,7 +353,12 @@ export const AndroidView = ({
                       </Button>
                     </div>
                   )}
-                  {phone.warning && <NothingArrived updates={phone.updateCount} />}
+                  {phone.warning && (
+                    <NothingArrived
+                      updates={phone.updateCount}
+                      fixId={phone.id === firstWarned ? HOW_TO_FIX_ID : undefined}
+                    />
+                  )}
                   <RecentUpdates
                     updates={phone.updates}
                     lastSent={phone.lastSent}
@@ -365,6 +388,18 @@ export const AndroidView = ({
             <p className="text-caption text-muted" data-testid="android-kept">
               {keptText}
             </p>
+          )}
+          {!firstWarned && (
+            <details
+              id={HOW_TO_FIX_ID}
+              className="scroll-mt-4 text-sm leading-[1.45]"
+              data-testid="android-how-to-fix"
+            >
+              <summary className="text-label text-primary min-h-11 cursor-pointer py-3">
+                How to fix it: steps from a watch or a scale do not arrive
+              </summary>
+              <FixSteps />
+            </details>
           )}
           <p className="text-caption text-muted">
             Only to your Kal server, about once an hour and when you open the app. Read-only: Kal

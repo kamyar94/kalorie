@@ -56,8 +56,41 @@ export const SOURCE_APP_LABELS: Record<string, string> = {
   "com.renpho.health": "Renpho",
   "com.google.android.apps.fitness": "Google Fit",
   "com.fitbit.FitbitMobile": "Fitbit",
+  "com.garmin.android.apps.connectmobile": "Garmin Connect",
+  "com.strava": "Strava",
   "com.google.android.apps.healthdata": "Health Connect",
 };
+
+/**
+ * Android's own step counter writes to Health Connect under this package name, with a suffix
+ * that differs per phone ("com.android.healthconnect.phone.<hash>").
+ */
+export const PHONE_STEP_COUNTER = "com.android.healthconnect.phone";
+
+/** Samsung Health's packages (the phone app and the watch's), as Health Connect names them. */
+export const SAMSUNG_HEALTH_APPS = [
+  "com.sec.android.app.shealth",
+  "com.samsung.android.wear.shealth",
+] as const;
+
+export const isPhoneCounter = (sourceApp: string | null | undefined) =>
+  !!sourceApp &&
+  (sourceApp === PHONE_STEP_COUNTER || sourceApp.startsWith(`${PHONE_STEP_COUNTER}.`));
+
+/**
+ * The name of the app a record came from: "Phone" for Android's step counter, a known app's
+ * name, "another app" for a package Kal does not know; null without one.
+ */
+export const appLabel = (sourceApp: string | null | undefined) =>
+  !sourceApp
+    ? null
+    : isPhoneCounter(sourceApp)
+      ? "Phone"
+      : (SOURCE_APP_LABELS[sourceApp] ?? "another app");
+
+/** A few more words about an app, where its name alone says little ("Android's step counter"). */
+export const appNote = (sourceApp: string | null | undefined) =>
+  isPhoneCounter(sourceApp) ? "Android's step counter" : null;
 
 export const INTENSITIES = ["light", "moderate", "vigorous"] as const;
 export type Intensity = (typeof INTENSITIES)[number];
@@ -231,15 +264,28 @@ export type ImportedActivity = {
 
 export type ImportResult = { added: number; updated: number; skipped: number };
 
-/** "Samsung Health", "openGym", "Kal" for where a record came from. */
+/**
+ * Where a record came from, in a few words: "Samsung Health", "Phone", "openGym", "typed in Kal";
+ * "Health Connect" for a Health Connect record that several apps wrote, "another app" for an app
+ * Kal does not know; an import says its app ("Renpho") or "a file".
+ */
 export const sourceLabel = (source: ActivitySource, sourceApp: string | null) =>
   source === "opengym"
     ? "openGym"
     : source === "manual"
-      ? "Kal"
+      ? "typed in Kal"
       : source === "health_connect"
-        ? (SOURCE_APP_LABELS[sourceApp ?? ""] ?? "Health Connect")
+        ? (appLabel(sourceApp) ?? "Health Connect")
         : (SOURCE_APP_LABELS[sourceApp ?? ""] ?? "a file");
+
+/**
+ * The source at the end of a caption: "typed in Kal", "imported from Samsung Health", "openGym",
+ * "Phone".
+ */
+export const sourcePhrase = (source: ActivitySource, sourceApp: string | null) =>
+  source === "import"
+    ? `imported from ${sourceLabel(source, sourceApp)}`
+    : sourceLabel(source, sourceApp);
 
 /**
  * Energy estimate (kcal) = MET x body weight (kg) x hours. The MET is the middle of the WHO

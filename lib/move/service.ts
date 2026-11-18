@@ -8,16 +8,18 @@ import { activities, foods, mealItems, meals, userBadges } from "@/db/schema";
 import {
   ACTIVITY_CATEGORY_LABELS,
   sourceLabel,
-  STEPS_TYPE,
   type ActivitySource,
 } from "@/lib/contracts/activities";
 import {
   BADGES,
   isBadgeCode,
+  WEEKLY_TARGETS,
   type BadgeCode,
   type MoveDayDto,
+  type MoveDayViewDto,
   type MoveSummaryDto,
 } from "@/lib/contracts/move";
+import { listActivities } from "@/lib/activities/service";
 import { isUuid } from "@/lib/meals/service";
 import { totalWaterMl } from "@/lib/meals/hydration";
 import { shiftLocalDate } from "@/lib/meals/time";
@@ -26,19 +28,23 @@ import { getTargets } from "@/lib/targets/service";
 import {
   activeMinutes,
   byDay,
+  countedSteps,
   currentStreak,
   dayPoints,
   daySteps,
   earnedBadges,
   isActiveDay,
+  isStepsOnly,
+  isWorkout,
   levelOf,
+  pointsOfEach,
   sweatMinutes,
   weekRows,
   type BadgeDay,
   type ScoredActivity,
 } from "./score";
 import { dayWaterGoalMl } from "./water";
-import { weekStart } from "./week";
+import { weekDays, weekStart } from "./week";
 
 /** How far back the water goal is checked for its badges. */
 const WATER_DAYS = 120;
@@ -53,12 +59,10 @@ type Row = {
   source: ActivitySource;
   sourceApp: string | null;
   title: string;
+  energyKcal: number | null;
 };
 
-const scored = (row: Row): ScoredActivity & Row => ({
-  ...row,
-  stepsOnly: row.type === STEPS_TYPE || (!row.durationMin && !!row.steps),
-});
+const scored = (row: Row): ScoredActivity & Row => ({ ...row, stepsOnly: isStepsOnly(row) });
 
 const loadActivities = async (userId: string, dbx: DbOrTx, where?: SQL) =>
   (
@@ -73,6 +77,7 @@ const loadActivities = async (userId: string, dbx: DbOrTx, where?: SQL) =>
         source: activities.source,
         sourceApp: activities.sourceApp,
         title: activities.title,
+        energyKcal: activities.energyKcal,
       })
       .from(activities)
       .where(and(eq(activities.userId, userId), where))
@@ -115,11 +120,15 @@ export const waterByDay = async (userId: string, from: string, to: string, dbx: 
   return new Map([...days].map(([date, items]) => [date, totalWaterMl(items)]));
 };
 
-/** Points, level, streak, the week by category and the badges; stores newly earned badges. */
+/**
+ * Points, level, streak, the week by category and the badges; stores newly earned badges. The
+ * week is the one `weekOf` falls in (this week unless another day is shown).
+ */
 export const getMoveSummary = async (
   userId: string,
   today: string,
   dbx: DbOrTx = defaultDb,
+  weekOf: string = today,
 ): Promise<MoveSummaryDto> => {
   const rows = isUuid(userId) ? await loadActivities(userId, dbx) : [];
   const days = byDay(rows);
@@ -170,7 +179,7 @@ export const getMoveSummary = async (
       days: currentStreak(days, today),
       activeToday: isActiveDay(days.get(today) ?? []),
     },
-    week: { start: weekStart(today), rows: weekRows(days, weekStart(today)) },
+    week: { start: weekStart(weekOf), rows: weekRows(days, weekStart(weekOf)) },
     badges: BADGES.map((badge) => ({ ...badge, earnedOn: known.get(badge.code) ?? null })),
   };
 };
@@ -188,13 +197,7 @@ export const getMoveDay = async (
     .filter((r) => !r.stepsOnly && r.durationMin)
     .sort((a, b) => (b.durationMin ?? 0) - (a.durationMin ?? 0))[0];
   const steps = daySteps(rows);
-  const stepsRow = rows
-    .filter((r) => r.stepsOnly && r.steps === steps)
-    .sort(
-      (a, b) =>
-        Number(b.source === "health_connect") - Number(a.source === "health_connect") ||
-        a.source.localeCompare(b.source),
-    )[0];
+  const stepsRow = countedSteps(rows);
   return {
     activeMinutes: activeMinutes(rows),
     activeLabel: longest
@@ -212,7 +215,55 @@ export const getMoveDay = async (
         : stepsRow.source === "import"
           ? "imported"
           : sourceLabel(stepsRow.source, stepsRow.sourceApp),
+    stepsFrom: stepsRow ? { source: stepsRow.source, sourceApp: stepsRow.sourceApp } : null,
     points: dayPoints(rows),
     sweatMinutes: sweatMinutes(rows),
+  };
+};
+
+/**
+ * Move for one local day (board 36): the day's steps against the step goal, active minutes,
+ * energy from activity and points; its activities in the order they happened (step counts last)
+ * with each one's points; and the steps of each day of its week, Monday to Sunday.
+ */
+export const getMoveDayView = async (
+  userId: string,
+  date: string,
+  today: string,
+  dbx: DbOrTx = defaultDb,
+): Promise<MoveDayViewDto> => {
+  const monday = weekStart(date);
+  const [list, week] = await Promise.all([
+    listActivities(userId, { from: date, to: date, limit: 500 }, dbx),
+    activitiesBetween(userId, monday, shiftLocalDate(monday, 6), dbx),
+  ]);
+  const scoredList = list.map((a) => ({ ...a, stepsOnly: isStepsOnly(a) }));
+  const stepsRow = countedSteps(scoredList);
+  // Timed activities as they happened, then the step count the day takes, then other counts.
+  const rank = (a: (typeof scoredList)[number]) => (!a.stepsOnly ? 0 : a === stepsRow ? 1 : 2);
+  const ordered = scoredList.sort(
+    (a, b) =>
+      rank(a) - rank(b) || a.startedAt.localeCompare(b.startedAt) || a.id.localeCompare(b.id),
+  );
+  const points = pointsOfEach(ordered);
+  const energies = ordered.filter((a) => a.energyKcal !== null);
+  const days = byDay(week);
+  return {
+    date,
+    steps: daySteps(ordered),
+    stepGoal: WEEKLY_TARGETS.stepsPerDay,
+    activeMinutes: activeMinutes(ordered),
+    energyKcal: energies.length
+      ? Math.round(energies.reduce((sum, a) => sum + a.energyKcal!, 0))
+      : null,
+    points: points.reduce((sum, p) => sum + p, 0),
+    workouts: ordered.filter(isWorkout).length,
+    stepsFrom: stepsRow ? { source: stepsRow.source, sourceApp: stepsRow.sourceApp } : null,
+    activities: ordered.map(({ stepsOnly: _stepsOnly, ...a }, i) => ({ ...a, points: points[i]! })),
+    week: weekDays(monday).map((day) => ({
+      date: day,
+      steps: daySteps(days.get(day) ?? []),
+      future: day > today,
+    })),
   };
 };

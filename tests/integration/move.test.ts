@@ -147,6 +147,7 @@ describe("Move", () => {
       activeLabel: "Strength, openGym",
       steps: 6240,
       stepsSource: "imported",
+      stepsFrom: { source: "import", sourceApp: "samsung-health" },
       points: 45 + 15 + 7 + 30,
       sweatMinutes: 45,
     });
@@ -155,6 +156,7 @@ describe("Move", () => {
       activeLabel: null,
       steps: 0,
       stepsSource: null,
+      stepsFrom: null,
       points: 0,
       sweatMinutes: 0,
     });

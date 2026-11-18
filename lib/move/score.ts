@@ -52,7 +52,33 @@ export const daySteps = (activities: ScoredActivity[]) => {
   );
 };
 
+/**
+ * The day's step count the rules take (what daySteps returns): Health Connect's highest when it
+ * sent one, else the highest of the others; on a tie the source first in the alphabet. Null
+ * without a step count.
+ */
+export const countedSteps = <T extends ScoredActivity>(activities: T[]): T | null => {
+  const counts = activities.filter((a) => a.stepsOnly && a.steps);
+  const healthConnect = counts.filter((a) => a.source === "health_connect");
+  const pool = healthConnect.length ? healthConnect : counts;
+  return (
+    [...pool].sort(
+      (a, b) => b.steps! - a.steps! || (a.source ?? "").localeCompare(b.source ?? ""),
+    )[0] ?? null
+  );
+};
+
+/** A record that is a day's step count: type "steps", or steps without a duration. */
+export const isStepsOnly = (a: {
+  type: string;
+  durationMin: number | null;
+  steps: number | null;
+}) => a.type === "steps" || (!a.durationMin && !!a.steps);
+
 const timed = (a: ScoredActivity) => !a.stepsOnly && !!a.durationMin && a.durationMin > 0;
+
+/** Timed activities (not step counts): what Move calls workouts. */
+export const isWorkout = timed;
 
 export const activeMinutes = (activities: ScoredActivity[]) =>
   Math.round(activities.filter(timed).reduce((sum, a) => sum + a.durationMin!, 0));
@@ -72,6 +98,27 @@ export const dayPoints = (activities: ScoredActivity[]) => {
     activities.reduce((sum, a) => sum + activityPoints(a), 0) +
     stepPoints(daySteps(activities)) +
     Math.min(strength, POINT_RULES.strengthSessionsPerDay) * POINT_RULES.strengthSession
+  );
+};
+
+/**
+ * Each activity's share of its day's points, in the order given: its minutes, 15 more for each of
+ * the day's first two strength sessions (by start), and the step points on the step count the day
+ * takes. The shares add up to dayPoints.
+ */
+export const pointsOfEach = (activities: (ScoredActivity & { startedAt: string })[]) => {
+  const strength = activities
+    .map((a, i) => ({ a, i }))
+    .filter(({ a }) => timed(a) && a.category === "strength")
+    .sort((x, y) => x.a.startedAt.localeCompare(y.a.startedAt) || x.i - y.i)
+    .slice(0, POINT_RULES.strengthSessionsPerDay)
+    .map(({ i }) => i);
+  const steps = countedSteps(activities);
+  return activities.map(
+    (a, i) =>
+      activityPoints(a) +
+      (strength.includes(i) ? POINT_RULES.strengthSession : 0) +
+      (a === steps ? stepPoints(a.steps!) : 0),
   );
 };
 

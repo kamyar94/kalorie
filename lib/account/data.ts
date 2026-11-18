@@ -237,6 +237,7 @@ export const exportUserData = async (
         mealWindows: user.mealWindows,
         cuisines: user.cuisines,
         notifications: user.notifications,
+        dismissedHints: user.dismissedHints,
       },
     },
     targets: targetRows.map((t) => ({
@@ -444,6 +445,7 @@ export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) =>
         cuisines: [],
         mealWindows: DEFAULT_MEAL_WINDOWS,
         notifications: { analysisReady: false, questions: false },
+        dismissedHints: [],
       })
       .where(eq(users.id, userId));
     await audit({ userId, action: "data.delete", details: { meals: gone.length } }, tx);

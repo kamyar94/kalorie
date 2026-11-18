@@ -199,7 +199,7 @@ describe("the Body summary", () => {
       [day(10), 81, "import"],
       [day(40), 82, "manual"],
     ]);
-    expect(summary.weightSources).toEqual(["Kal", "Renpho"]);
+    expect(summary.weightSources).toEqual(["typed in Kal", "Renpho"]);
 
     // Another day to compare with.
     const since10 = await getBodySummary(ann.id, today, day(10));

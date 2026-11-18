@@ -1,21 +1,44 @@
 import Link from "next/link";
 
 import { Card } from "@/components/ui/card";
+import { cn } from "@/components/ui/cn";
 import { formatMinutes, formatSteps } from "@/lib/contracts/activities";
 import type { MoveDayDto } from "@/lib/contracts/move";
+import { moveHref } from "@/lib/move/week";
+import { stepsCaption } from "@/lib/move/words";
+
+const TILE = "bg-bg block min-w-0 rounded-[0.875rem] p-2.5";
+
+const TileText = ({ value, caption }: { value: string; caption: string }) => (
+  <>
+    <span className="tabular block text-xl leading-tight font-bold">{value}</span>
+    <span className="text-caption text-muted block wrap-break-word">{caption}</span>
+  </>
+);
 
 const Tile = ({ value, caption, testId }: { value: string; caption: string; testId: string }) => (
-  <div className="bg-bg min-w-0 rounded-[0.875rem] p-2.5" data-testid={testId}>
-    <p className="tabular text-xl leading-tight font-bold">{value}</p>
-    <p className="text-caption text-muted wrap-break-word">{caption}</p>
+  <div className={TILE} data-testid={testId}>
+    <TileText value={value} caption={caption} />
   </div>
 );
 
 /**
- * Today's Move card (board 9): active minutes with what they were, the day's steps, and the
- * points of the day; Details opens Move.
+ * Today's Move card (board 9): active minutes with what they were, the day's steps with where they
+ * came from (and when a phone last sent, for Health Connect's), and the points of the day. The
+ * steps and Details open Move for the same day.
  */
-export const MoveCard = ({ day, isToday }: { day: MoveDayDto; isToday: boolean }) => (
+export const MoveCard = ({
+  day,
+  date,
+  today,
+  updated = null,
+}: {
+  day: MoveDayDto;
+  date: string;
+  today: string;
+  /** When a phone last sent ("23:04"), worded in the viewer's zone; null to leave it out. */
+  updated?: string | null;
+}) => (
   <Card
     as="section"
     aria-labelledby="move-heading"
@@ -27,7 +50,7 @@ export const MoveCard = ({ day, isToday }: { day: MoveDayDto; isToday: boolean }
         Move
       </h2>
       <Link
-        href="/move"
+        href={moveHref(date, today)}
         className="text-label text-primary -mr-2 inline-flex min-h-11 items-center rounded-full px-2"
       >
         Details
@@ -39,15 +62,17 @@ export const MoveCard = ({ day, isToday }: { day: MoveDayDto; isToday: boolean }
         value={formatMinutes(day.activeMinutes)}
         caption={day.activeLabel ?? "Active"}
       />
-      <Tile
-        testId="move-steps"
-        value={formatSteps(day.steps)}
-        caption={day.stepsSource ? `Steps, ${day.stepsSource}` : "Steps"}
-      />
+      <Link
+        href={moveHref(date, today)}
+        className={cn(TILE, "hover:bg-surface-2 transition-colors")}
+        data-testid="move-steps"
+      >
+        <TileText value={formatSteps(day.steps)} caption={stepsCaption(day, updated)} />
+      </Link>
       <Tile
         testId="move-points"
         value={`+${day.points.toLocaleString("en-US")}`}
-        caption={isToday ? "Points today" : "Points"}
+        caption={date === today ? "Points today" : "Points"}
       />
     </div>
   </Card>

@@ -10,29 +10,44 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/client/api";
 import type { ActivityDto } from "@/lib/contracts/activities";
+import type { MoveDayViewDto } from "@/lib/contracts/move";
 
 import { ActivityList } from "./activity-list";
 import { ActivitySheet } from "./activity-sheet";
+import { DayCard } from "./day-card";
+import { StepsHint } from "./steps-hint";
+import { WeekStrip } from "./week-strip";
 
 export type OpenGymState = "unavailable" | "unpaired" | "paired";
 
 /**
- * Move (board 10): "+ Activity", the activities of the last weeks, and where the data comes from
- * (openGym by itself, Samsung Health or a scale by an export file for now).
+ * Move for one day (boards 10 and 36): the week strip, the day's card, the hint about the phone's
+ * step counter, the day's activities with "+ Activity on this day"; beside or below them the
+ * level, the week and the badges, the last six weeks (folded) and where the data comes from.
  */
 export const MoveView = ({
+  day,
   today,
   weekLabel,
-  activities,
+  recent,
   weightKg,
   openGym,
+  hint,
+  updated,
   children,
 }: {
+  day: MoveDayViewDto;
   today: string;
+  /** "Week of 16 to 22 November". */
   weekLabel: string;
-  activities: ActivityDto[];
+  /** The last six weeks, newest first. */
+  recent: ActivityDto[];
   weightKg: number | null;
   openGym: OpenGymState;
+  /** Show the hint that only the phone's own step counter sends steps. */
+  hint: boolean;
+  /** When a phone last sent, worded in the viewer's zone. */
+  updated: string | null;
   /** The level, week and badges sections. */
   children?: React.ReactNode;
 }) => {
@@ -60,36 +75,64 @@ export const MoveView = ({
 
   return (
     <>
-      <div className="flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-title">Move</h1>
-          <p className="text-caption text-muted">This week, {weekLabel}</p>
+      <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
+        <div className="flex flex-col gap-4">
+          <WeekStrip
+            days={day.week}
+            selected={day.date}
+            today={today}
+            goal={day.stepGoal}
+            label={weekLabel}
+          />
+          <DayCard day={day} updated={updated} />
+          {hint && <StepsHint />}
+          <Card
+            as="section"
+            aria-labelledby="day-activities-heading"
+            className="flex flex-col gap-2"
+          >
+            <h2 id="day-activities-heading" className="text-body font-semibold">
+              {day.date === today ? "Today" : "That day"}
+            </h2>
+            {day.activities.length ? (
+              <ActivityList
+                activities={day.activities}
+                today={today}
+                variant="day"
+                testId="day-activities"
+              />
+            ) : (
+              <p className="text-body text-muted">Nothing logged on this day.</p>
+            )}
+            <Button
+              variant="ghost"
+              className="border-primary text-primary mt-1 rounded-full border border-dashed"
+              aria-label="Add an activity on this day"
+              onClick={() => setAdding(Date.now())}
+            >
+              <Plus aria-hidden className="size-4" /> Activity on this day
+            </Button>
+          </Card>
         </div>
-        <Button
-          className="shrink-0 rounded-full"
-          aria-label="Add an activity"
-          onClick={() => setAdding(Date.now())}
-        >
-          <Plus aria-hidden className="size-4" /> Activity
-        </Button>
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
-        <div className="flex flex-col gap-4">{children}</div>
 
         <div className="flex flex-col gap-4">
-          <section aria-labelledby="activities-heading" className="flex flex-col gap-2">
-            <h2 id="activities-heading" className="text-body font-semibold">
-              Activities
-            </h2>
-            {activities.length ? (
-              <ActivityList activities={activities} today={today} />
-            ) : (
-              <p className="text-body text-muted">
-                Nothing in the last weeks yet. Add an activity, or bring in your data below.
-              </p>
-            )}
-          </section>
+          {children}
+
+          <details data-testid="move-recent">
+            <summary className="text-body flex min-h-11 cursor-pointer items-center font-semibold">
+              Last six weeks
+              <span className="text-muted ml-1 font-normal">· {recent.length}</span>
+            </summary>
+            <div className="mt-2">
+              {recent.length ? (
+                <ActivityList activities={recent} today={today} />
+              ) : (
+                <p className="text-body text-muted">
+                  Nothing in the last weeks yet. Add an activity, or bring in your data below.
+                </p>
+              )}
+            </div>
+          </details>
 
           <Card as="section" aria-labelledby="connect-heading" className="flex flex-col gap-2.5">
             <h2 id="connect-heading" className="text-body font-semibold">
@@ -130,6 +173,7 @@ export const MoveView = ({
         openedAt={adding}
         onOpenChange={(open) => !open && setAdding(null)}
         weightKg={weightKg}
+        day={{ date: day.date, today }}
         onSaved={(activity) => {
           setAdding(null);
           show({ title: `${activity.title} added`, tone: "success" });

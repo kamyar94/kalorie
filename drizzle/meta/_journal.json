@@ -85,6 +85,13 @@
       "when": 1794865205655,
       "tag": "0011_hc_updates",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795044982808,
+      "tag": "0012_dismissed_hints",
+      "breakpoints": true
     }
   ]
 }

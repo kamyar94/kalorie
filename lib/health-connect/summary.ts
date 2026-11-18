@@ -3,6 +3,8 @@
 // Health Connect was empty"), and the warning shown while a phone sends but nothing is stored.
 // Pure functions of the counts, safe for client components.
 import type { HcUpdateCounts } from "@/lib/contracts/health-connect";
+import { localParts, shiftLocalDate } from "@/lib/meals/time";
+import { shortDate } from "@/lib/ui/format";
 
 const number = new Intl.NumberFormat("en-US");
 
@@ -75,3 +77,14 @@ export const summaryText = (s: UpdateSummary) =>
  */
 export const nothingArrivedText = (updates: number) =>
   `${updates > 0 ? `The phone sent ${count(updates, "update")}` : "The phone has sent updates"}, but Health Connect had no steps, workouts, heart rate, sleep or weigh-ins to share. Usually Samsung Health or the Renpho app is not sharing with Health Connect yet.`;
+
+/**
+ * When a phone last sent, after "updated": "23:04" today, "yesterday 21:05", "Nov 9, 08:10";
+ * in the viewer's time zone.
+ */
+export const updatedWords = (iso: string, zone: string, today: string) => {
+  const at = localParts(new Date(iso), zone);
+  if (at.date === today) return at.time;
+  if (at.date === shiftLocalDate(today, -1)) return `yesterday ${at.time}`;
+  return `${shortDate(at.date)}, ${at.time}`;
+};
