@@ -1,6 +1,6 @@
 "use client";
 
-import { FileUp, Plus, RefreshCw } from "lucide-react";
+import { ChevronDown, FileUp, Plus, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -118,10 +118,14 @@ export const MoveView = ({
         <div className="flex flex-col gap-4">
           {children}
 
-          <details data-testid="move-recent">
-            <summary className="text-body flex min-h-11 cursor-pointer items-center font-semibold">
+          <details className="group" data-testid="move-recent">
+            <summary className="text-body flex min-h-11 cursor-pointer items-center gap-1 font-semibold">
               Last six weeks
-              <span className="text-muted ml-1 font-normal">· {recent.length}</span>
+              <span className="text-muted font-normal">· {recent.length}</span>
+              <ChevronDown
+                aria-hidden
+                className="text-muted size-5 transition-transform group-open:rotate-180"
+              />
             </summary>
             <div className="mt-2">
               {recent.length ? (

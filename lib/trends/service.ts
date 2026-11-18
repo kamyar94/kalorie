@@ -1,11 +1,14 @@
-// Loads a period of the person's meals and items for the Trends screen (lib/trends/compute.ts
-// does the arithmetic).
+// Loads a period of the person's meals, items and activities for the Trends screen
+// (lib/trends/compute.ts and lib/trends/activity.ts do the arithmetic).
 import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { foods, mealItems, meals } from "@/db/schema";
 import { getWeightHistory } from "@/lib/integrations/day";
 import { isUuid } from "@/lib/meals/service";
+import { shiftLocalDate } from "@/lib/meals/time";
+import { activitiesBetween } from "@/lib/move/service";
+import { weekStart } from "@/lib/move/week";
 import { getTargets } from "@/lib/targets/service";
 
 import { computeTrends, rangeDates, type TrendRange, type TrendsData } from "./compute";
@@ -37,7 +40,9 @@ export const getTrends = async (
         lte(meals.localDate, end),
       )
     : undefined;
-  const [mealRows, itemRows, { targets }, weight] = await Promise.all([
+  // A day's view also reads the rest of its Monday-to-Sunday week, for the WHO line.
+  const monday = weekStart(end);
+  const [mealRows, itemRows, { targets }, weight, activityRows] = await Promise.all([
     inPeriod
       ? dbx
           .select({
@@ -65,6 +70,9 @@ export const getTrends = async (
       : [],
     getTargets(userId, dbx),
     getWeightHistory(userId, start, end, dbx),
+    range === "day"
+      ? activitiesBetween(userId, monday, shiftLocalDate(monday, 6), dbx)
+      : activitiesBetween(userId, start, end, dbx),
   ]);
   return computeTrends({
     range,
@@ -78,5 +86,6 @@ export const getTrends = async (
     })),
     targets,
     weight,
+    activities: activityRows,
   });
 };

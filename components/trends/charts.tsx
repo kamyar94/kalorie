@@ -72,6 +72,8 @@ export const BarChart = ({
   label,
   decimals = 0,
   height = 168,
+  goalColor,
+  targetLabel = "Target",
 }: {
   data: BarDatum[];
   unit: string;
@@ -81,6 +83,10 @@ export const BarChart = ({
   label: string;
   decimals?: number;
   height?: number;
+  /** A goal to reach (more is fine): bars at or past the target take this colour. */
+  goalColor?: NutrientColor;
+  /** The word on the target line: "Target", "Goal". */
+  targetLabel?: string;
 }) => {
   const [ref, width] = useWidth();
   const [active, setActive] = useState<number | null>(null);
@@ -106,7 +112,7 @@ export const BarChart = ({
             width={width}
             height={height}
             role="img"
-            aria-label={`${label}. ${logged.length} of ${data.length} with data.${target ? ` Target ${fmt(target, decimals)} ${unit}.` : ""} The table below lists every value.`}
+            aria-label={`${label}. ${logged.length} of ${data.length} with data.${target ? ` ${targetLabel} ${fmt(target, decimals)} ${unit}.` : ""} The table below lists every value.`}
             onPointerLeave={() => setActive(null)}
           >
             {ticks.map((t) => (
@@ -140,7 +146,10 @@ export const BarChart = ({
                   {h > 0 && (
                     <path
                       d={`M${x},${y(0)} V${y(v) + r} Q${x},${y(v)} ${x + r},${y(v)} H${x + barW - r} Q${x + barW},${y(v)} ${x + barW},${y(v) + r} V${y(0)} Z`}
-                      className={cn(FILL[color], active !== null && active !== i && "opacity-45")}
+                      className={cn(
+                        FILL[goalColor && target && v >= target ? goalColor : color],
+                        active !== null && active !== i && "opacity-45",
+                      )}
                     />
                   )}
                   {d.label && (
@@ -183,7 +192,7 @@ export const BarChart = ({
                   textAnchor="end"
                   className="fill-[var(--text)] text-[11px] font-semibold"
                 >
-                  Target {fmt(target, decimals)}
+                  {targetLabel} {fmt(target, decimals)}
                 </text>
               </g>
             ) : null}
@@ -214,6 +223,188 @@ export const BarChart = ({
         caption={label}
         head={["", unit]}
         rows={data.map((d) => [d.title, d.value === null ? "–" : fmt(d.value, decimals)])}
+      />
+    </figure>
+  );
+};
+
+export type StackSeries = {
+  key: string;
+  label: string;
+  /** The SVG fill class and the legend's swatch class. */
+  fill: string;
+  swatch: string;
+};
+
+export type StackDatum = {
+  key: string;
+  label: string;
+  title: string;
+  /** Values by series key; null for a day without data. */
+  values: Record<string, number> | null;
+};
+
+/**
+ * Vertical bars stacked from a zero baseline (minutes by category), with a legend, a hover
+ * tooltip and a table of every value.
+ */
+export const StackedBarChart = ({
+  data,
+  series,
+  unit,
+  label,
+  height = 150,
+}: {
+  data: StackDatum[];
+  /** Bottom first. */
+  series: StackSeries[];
+  unit: string;
+  label: string;
+  height?: number;
+}) => {
+  const [ref, width] = useWidth();
+  const [active, setActive] = useState<number | null>(null);
+  const top = 12;
+  const bottom = 22;
+  const left = 36;
+  const plotH = height - top - bottom;
+  const plotW = Math.max(0, width - left - 4);
+  const total = (d: StackDatum) =>
+    d.values ? series.reduce((sum, s) => sum + (d.values![s.key] ?? 0), 0) : 0;
+  const max = niceMax(Math.max(0, ...data.map(total)) * 1.05);
+  const slot = data.length ? plotW / data.length : 0;
+  const gap = Math.max(2, Math.min(8, slot * 0.25));
+  const barW = Math.max(2, slot - gap);
+  const y = (v: number) => top + plotH - (v / max) * plotH;
+  const hovered = active !== null ? data[active] : undefined;
+  const withData = data.filter((d) => total(d) > 0).length;
+
+  return (
+    <figure className="flex flex-col gap-2">
+      <div ref={ref} className="relative" style={{ height }}>
+        {width > 0 && (
+          <svg
+            width={width}
+            height={height}
+            role="img"
+            aria-label={`${label}. ${withData} of ${data.length} with some. The table below lists every value.`}
+            onPointerLeave={() => setActive(null)}
+          >
+            {[0, max / 2, max].map((t) => (
+              <g key={t}>
+                <line
+                  x1={left}
+                  x2={width}
+                  y1={y(t)}
+                  y2={y(t)}
+                  className="stroke-border"
+                  strokeWidth={1}
+                />
+                <text
+                  x={left - 6}
+                  y={y(t)}
+                  dy="0.32em"
+                  textAnchor="end"
+                  className="fill-[var(--text-muted)] text-[11px]"
+                >
+                  {fmt(t)}
+                </text>
+              </g>
+            ))}
+            {data.map((d, i) => {
+              const x = left + i * slot + gap / 2;
+              let base = 0;
+              return (
+                <g key={d.key}>
+                  {series.map((s) => {
+                    const v = d.values?.[s.key] ?? 0;
+                    if (v <= 0) return null;
+                    const y0 = y(base);
+                    base += v;
+                    const y1 = y(base);
+                    return (
+                      <rect
+                        key={s.key}
+                        x={x}
+                        y={y1}
+                        width={barW}
+                        height={Math.max(0, y0 - y1)}
+                        className={cn(s.fill, active !== null && active !== i && "opacity-45")}
+                      />
+                    );
+                  })}
+                  {d.label && (
+                    <text
+                      x={x + barW / 2}
+                      y={height - 6}
+                      textAnchor="middle"
+                      className="fill-[var(--text-muted)] text-[11px]"
+                    >
+                      {d.label}
+                    </text>
+                  )}
+                  <rect
+                    x={left + i * slot}
+                    y={top}
+                    width={slot}
+                    height={plotH}
+                    fill="transparent"
+                    onPointerEnter={() => setActive(i)}
+                    onPointerDown={() => setActive(i)}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+        )}
+        {hovered && active !== null && (
+          <div
+            role="presentation"
+            className="border-border bg-surface shadow-raised text-caption pointer-events-none absolute z-10 -translate-x-1/2 rounded-lg border px-2.5 py-1.5 whitespace-nowrap"
+            style={{
+              left: Math.min(
+                Math.max(left + active * slot + slot / 2, 70),
+                Math.max(70, width - 70),
+              ),
+              top: 0,
+            }}
+          >
+            <p className="text-muted">{hovered.title}</p>
+            {hovered.values === null ? (
+              <p className="text-label">Nothing logged</p>
+            ) : (
+              <p className="tabular text-label">
+                {fmt(total(hovered))} {unit}
+                {series
+                  .filter((s) => (hovered.values![s.key] ?? 0) > 0)
+                  .map((s) => (
+                    <span key={s.key} className="text-muted block font-normal">
+                      {s.label} {fmt(hovered.values![s.key]!)}
+                    </span>
+                  ))}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      {series.length > 0 && (
+        <ul aria-label="Colours" className="flex flex-wrap gap-x-3 gap-y-1">
+          {series.map((s) => (
+            <li key={s.key} className="text-caption text-muted inline-flex items-center gap-1.5">
+              <span aria-hidden className={cn("size-2.5 rounded-[3px]", s.swatch)} />
+              {s.label}
+            </li>
+          ))}
+        </ul>
+      )}
+      <ChartTable
+        caption={label}
+        head={["", ...series.map((s) => s.label), `Total, ${unit}`]}
+        rows={data.map((d) => [
+          d.title,
+          ...series.map((s) => (d.values === null ? "–" : fmt(d.values[s.key] ?? 0))),
+          d.values === null ? "–" : fmt(total(d)),
+        ])}
       />
     </figure>
   );

@@ -3,15 +3,19 @@ import { Activity, Dumbbell, Footprints, HeartPulse, PersonStanding, Trophy } fr
 import { cn } from "@/components/ui/cn";
 import type { ActivityCategory } from "@/lib/contracts/activities";
 
-/** One colour per category (the chart tokens), used by its icon and its progress bar. */
-export const CATEGORY_COLOR: Record<ActivityCategory, { text: string; bar: string }> = {
-  cardio: { text: "text-energy", bar: "bg-energy" },
-  strength: { text: "text-protein", bar: "bg-protein" },
-  walking: { text: "text-fiber", bar: "bg-fiber" },
-  mobility: { text: "text-fat", bar: "bg-fat" },
-  sports: { text: "text-carbs", bar: "bg-carbs" },
-  other: { text: "text-water", bar: "bg-water" },
-};
+/**
+ * One colour per category (the chart tokens), used by its icon, its progress bar and its part of
+ * a stacked chart.
+ */
+export const CATEGORY_COLOR: Record<ActivityCategory, { text: string; bar: string; fill: string }> =
+  {
+    cardio: { text: "text-energy", bar: "bg-energy", fill: "fill-energy" },
+    strength: { text: "text-protein", bar: "bg-protein", fill: "fill-protein" },
+    walking: { text: "text-fiber", bar: "bg-fiber", fill: "fill-fiber" },
+    mobility: { text: "text-fat", bar: "bg-fat", fill: "fill-fat" },
+    sports: { text: "text-carbs", bar: "bg-carbs", fill: "fill-carbs" },
+    other: { text: "text-water", bar: "bg-water", fill: "fill-water" },
+  };
 
 const ICONS = {
   cardio: HeartPulse,

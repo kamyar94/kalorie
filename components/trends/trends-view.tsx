@@ -28,6 +28,7 @@ import {
 import { trendsHref, type YearData } from "@/lib/trends/year";
 import { dayTitle, formatKcal, shortDate, weekdayLetter } from "@/lib/ui/format";
 
+import { ActivitySection } from "./activity-section";
 import { BarChart, ChartTable, LineChart, type BarDatum } from "./charts";
 import { YearCard } from "./year-card";
 
@@ -51,7 +52,10 @@ const Section = ({
   </Card>
 );
 
-/** Trends (docs/DESIGN.md section 7): the year card, then day, week and month views. */
+/**
+ * Trends (docs/DESIGN.md section 7): the year card, then day, week and month views: the food
+ * sections, then activity and "Eaten and burned".
+ */
 export const TrendsView = ({
   data,
   year,
@@ -156,12 +160,17 @@ export const TrendsView = ({
       </header>
 
       {!data.loggedDays ? (
-        <EmptyState
-          className="mt-6"
-          icon={<BarChart3 className="size-7" />}
-          title="Nothing logged in this period"
-          body="Log meals and Kal shows your energy, protein and other nutrients against your targets here."
-        />
+        <>
+          <EmptyState
+            className="mt-6"
+            icon={<BarChart3 className="size-7" />}
+            title="Nothing logged in this period"
+            body="Log meals and Kal shows your energy, protein and other nutrients against your targets here."
+          />
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
+            <ActivitySection data={data} today={today} />
+          </div>
+        </>
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
           <Section title={data.range === "day" ? "The day" : "Daily average"}>
@@ -356,6 +365,8 @@ export const TrendsView = ({
               <p className="text-body text-muted">No foods yet.</p>
             )}
           </Section>
+
+          <ActivitySection data={data} today={today} />
 
           {data.weight.length > 1 && (
             <Section title="Weight" className="md:col-span-2">

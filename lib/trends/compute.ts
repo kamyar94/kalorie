@@ -9,6 +9,8 @@ import type { NutrientTarget } from "@/lib/contracts/targets";
 import type { WeightPointDto } from "@/lib/contracts/integrations";
 import { localParts, shiftLocalDate } from "@/lib/meals/time";
 
+import { computeActivityTrends, type ActivityTrends, type TrendActivity } from "./activity";
+
 export const TREND_RANGES = ["day", "week", "month"] as const;
 export type TrendRange = (typeof TREND_RANGES)[number];
 export const RANGE_DAYS: Record<TrendRange, number> = { day: 1, week: 7, month: 30 };
@@ -72,6 +74,8 @@ export type TrendsData = {
   nutrients: NutrientStatus[];
   topFoods: TopFood[];
   weight: WeightPointDto[];
+  /** Steps, active minutes, workouts and energy from activity (lib/trends/activity.ts). */
+  activity: ActivityTrends;
 };
 
 /** The first and last day of a period that ends on `end`. */
@@ -95,6 +99,8 @@ export const computeTrends = (input: {
   items: TrendItem[];
   targets: Partial<Record<NutrientCode, NutrientTarget>>;
   weight?: WeightPointDto[];
+  /** The period's activities (and the rest of a day's week, for its WHO line). */
+  activities?: TrendActivity[];
 }): TrendsData => {
   const dates = rangeDates(input.range, input.end);
   const inRange = new Set(dates);
@@ -198,5 +204,10 @@ export const computeTrends = (input: {
     nutrients,
     topFoods,
     weight: (input.weight ?? []).filter((w) => w.date >= dates[0]! && w.date <= input.end),
+    activity: computeActivityTrends({
+      range: input.range,
+      end: input.end,
+      activities: input.activities ?? [],
+    }),
   };
 };
