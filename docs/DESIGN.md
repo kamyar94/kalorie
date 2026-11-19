@@ -212,7 +212,8 @@ the day's openGym workouts.
   target as a ring, kcal left, protein, carbs, fat bars); the Water card (the day's water from
   drinks against its goal, the latest entries with Show all, + Glass, + Bottle and + Other
   amount, and a sheet that changes an entry's amount and time or removes it); the Move card
-  (active minutes, steps, points today); the Medicines card (each medicine with Log now, or
+  (active minutes, steps with where they came from, "Steps · Phone, updated 23:04", points; the
+  steps and Details open Move for the same day); the Medicines card (each medicine with Log now, or
   the time it was taken, which opens a sheet to change the time and amount); "Log a favorite
   again" chips; planned Mealie meals as tap-to-log chips; workouts from openGym with an energy
   estimate; the day's meals as a timeline of cards (the cover photo, or for a meal without a
@@ -237,12 +238,25 @@ the day's openGym workouts.
   notes) with Photograph a label, Add a medicine, Log now and Edit; the history by day, where
   a logged dose's time and amount can be changed or the log removed. A short line says Kal
   records what was taken and does not check doses or interactions.
-- **Move:** the level and points, the streak (a day with 20 active minutes or 5,000 steps),
-  this week by category against the weekly targets (WHO 2020: 150 minutes of moderate activity,
-  a vigorous minute counting twice, and strength on 2 days; Kal's own 7,000 steps a day and an
-  hour of mobility), eleven badges, the activities with their source, and + Activity. Points:
-  1 per moderate minute, 2 per vigorous minute, 1 per 2 light minutes, 5 per 1,000 steps up to
-  15,000, and 15 per strength session (two a day).
+- **Move:** one day at a time (`/move?date=`, today without it, no days to come), with the
+  previous and next day and the same sideways swipe as Today; a Monday-to-Sunday strip with a
+  small steps ring per day (green once the step goal is reached, days to come outlined); the
+  day's card (its steps in a ring against the goal, active minutes, energy from activity,
+  points, where the steps came from and when a phone last sent); "That day" with each
+  activity's time, length, distance, source and points, and + Activity on this day. Below: the
+  level and points, the streak (a day with 20 active minutes or 5,000 steps), the shown day's
+  week by category against the weekly targets (WHO 2020: 150 minutes of moderate activity, a
+  vigorous minute counting twice, and strength on 2 days; Kal's own 7,000 steps a day and an
+  hour of mobility), eleven badges, and the last six weeks (folded). Points: 1 per moderate
+  minute, 2 per vigorous minute, 1 per 2 light minutes, 5 per 1,000 steps up to 15,000, and 15
+  per strength session (two a day). While a person's Health Connect steps come only from the
+  phone's own step counter and nothing from Samsung Health has arrived, a hint says that a
+  watch's steps come through Samsung Health and links to "How to fix it" on Kal for Android;
+  closed once, it stays closed (`users.dismissed_hints`).
+- **Source names:** wherever a source shows, Android's step counter
+  (`com.android.healthconnect.phone.*`) is "Phone", known apps go by name (Samsung Health,
+  Renpho, Google Fit, Fitbit, Garmin Connect, Strava), other packages are "another app", and
+  the rest is openGym, "typed in Kal" or "imported from ..." (lib/contracts/activities.ts).
 - **Body:** the latest weight with its chart and change over 30 days judged against the goal
   (better, steady, worse), body composition values, tape measurements compared with an earlier
   day, all weigh-ins; Log measurements with where to measure each part; the private health
@@ -251,10 +265,18 @@ the day's openGym workouts.
 - **Import a file:** a Samsung Health export (the zip or its CSV files), a Renpho CSV, or any
   CSV through a column-mapping step. The file is read on the device; only the records are sent.
 - **Trends:** day, week and month views: energy and macros per day against targets, time of
-  day, nutrients against their targets (consistently below or above), top foods, weight from
-  Body. Above them, "Your year": a GitHub-style calendar of one calendar year (weeks as
-  columns, Monday to Sunday as rows) for a nutrient picked from a menu grouped like the
-  catalogue (water from drinks under Other). Each day is coloured by its amount as a percent of
+  day, nutrients against their targets (consistently below or above), top foods; then
+  Activity (steps a day, active minutes a day and workouts; steps per day against the step goal
+  and active minutes per day by category, each with a table; the WHO week line; days without
+  any activity record left out of the averages, not counted as zero) and "Eaten and burned"
+  (the average eaten next to the energy from activity); weight from Body
+  (lib/trends/activity.ts). Above them, "Your year": a GitHub-style calendar of one calendar
+  year (weeks as columns, Monday to Sunday as rows) for a measure of activity or a nutrient
+  picked from a menu (Activity first: steps against the step goal, active minutes against a
+  seventh of the WHO week with vigorous minutes counting twice, and energy from activity; then
+  the nutrients grouped like the catalogue, water from drinks under Other). Steps and active
+  minutes are "more is better": under half the goal, under it, reached, one and a half times it
+  or more, grey without data. Each day is coloured by its amount as a percent of
   the current target (no target history is kept): under 50, 50 to 85, 85 to 110 (on target),
   110 to 125, 125 to 150, over 150; grey without meals, outlined for days to come; a nutrient
   without a target is shaded against the year's highest day. A square opens the day's summary
@@ -319,8 +341,8 @@ Android.
 
 ## 10. Data model (Postgres, Drizzle migrations)
 
-- Accounts: users (profile, preferences, meal windows, notifications), sessions, invites,
-  reset_codes, rate_limits, audit_log.
+- Accounts: users (profile, preferences, meal windows, notifications, closed hints), sessions,
+  invites, reset_codes, rate_limits, audit_log.
 - AI: ai_keys, ai_settings, ai_usage (tasks `analysis` and `matching`; medicine labels use the
   analysis settings).
 - Meals: meals (user, client id, eaten_at, tz, local_date, slot, slot_locked, title, note,
@@ -428,7 +450,8 @@ Health, a Galaxy watch and Renpho keep their records.
   page lists each phone's ten latest updates in words ("6,812 steps today · 1 workout · 1
   weigh-in", "Nothing new", "First read, 30 days: Health Connect was empty") and warns
   "Nothing has arrived yet", with how to make Samsung Health and Renpho share, while a phone has
-  sent updates and no Health Connect record of the person is stored.
+  sent updates and no Health Connect record of the person is stored. The same steps are
+  reachable at `/more/android#how-to-fix` at any time (Move's hint links there).
 - **On the phone.** The app's Health Connect screen counts what Health Connect holds for the
   last 30 days (days with steps, workouts, days with resting heart rate, nights of sleep,
   weigh-ins) with the apps that wrote them; this list is never sent. When every kind it may read

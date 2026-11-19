@@ -159,10 +159,12 @@ interactions.
 
 Activities in six categories (cardio, strength, walking, mobility, sports, other), typed in Kal,
 read from openGym, imported from a Samsung Health export (read on the device; only the records
-are sent to your server) or sent by Kal for Android from Health Connect. Points, levels, a
-streak (a day with 20 active minutes or 5,000 steps), weekly targets after the WHO guidance
-(150 minutes of moderate activity, strength on two days) with Kal's own steps and mobility
-targets, and eleven badges.
+are sent to your server) or sent by Kal for Android from Health Connect. Move shows one day at
+a time: a week strip of steps, the day's steps against the goal, active minutes, energy and
+points, where the steps came from ("Phone", "Samsung Health") and the day's activities, with
+the previous and next day a swipe away. Points, levels, a streak (a day with 20 active minutes
+or 5,000 steps), weekly targets after the WHO guidance (150 minutes of moderate activity,
+strength on two days) with Kal's own steps and mobility targets, and eleven badges.
 
 ### Body
 
@@ -176,11 +178,14 @@ front, left, back and right photos are kept on your server for comparing over ti
 Daily targets come from your profile (Mifflin-St Jeor energy, protein by body weight, the US
 Dietary Reference Intakes for vitamins and minerals), and every target can be edited. Trends
 shows days, weeks and months: calories, protein, carbs and fat per day against the targets, the
-time of day you eat, every nutrient against its target, top foods, and weight.
+time of day you eat, every nutrient against its target, top foods, your activity (steps and
+active minutes per day, workouts, the WHO week, and what you ate next to what activity
+burned), and weight.
 
 **Your year** is a calendar of the year, one square a day, coloured by how the day compares
-with its target: calories, any other nutrient Kal tracks, or water from drinks. A square opens
-the day's summary, and the arrows go back to earlier years.
+with its target: steps, active minutes or energy from activity, calories, any other nutrient
+Kal tracks, or water from drinks. A square opens the day's summary, and the arrows go back to
+earlier years.
 
 ### Kal for Android (optional)
 
