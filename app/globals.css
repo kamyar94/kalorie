@@ -47,6 +47,12 @@
   --year-scale-2: #6844b1;
   --year-scale-3: #502c92;
   --year-scale-4: #381b6e;
+  /* "Your year" for steps and active minutes, where more is better: under half the goal, under
+     it, reached, one and a half times it. */
+  --year-more-low: #1d4f9a;
+  --year-more-under: #3a7fd5;
+  --year-more-met: #2a9259;
+  --year-more-high: #17663c;
   --shadow-color: 30 30 20;
   color-scheme: light;
 }
@@ -91,6 +97,10 @@
     --year-scale-2: #a58de2;
     --year-scale-3: #8a6dcc;
     --year-scale-4: #6e58a8;
+    --year-more-low: #3d6fc2;
+    --year-more-under: #6aa6ee;
+    --year-more-met: #3fb37a;
+    --year-more-high: #2a8a57;
     --shadow-color: 0 0 0;
     color-scheme: dark;
   }
@@ -135,6 +145,10 @@
   --year-scale-2: #a58de2;
   --year-scale-3: #8a6dcc;
   --year-scale-4: #6e58a8;
+  --year-more-low: #3d6fc2;
+  --year-more-under: #6aa6ee;
+  --year-more-met: #3fb37a;
+  --year-more-high: #2a8a57;
   --shadow-color: 0 0 0;
   color-scheme: dark;
 }
@@ -178,6 +192,10 @@
   --color-year-scale-2: var(--year-scale-2);
   --color-year-scale-3: var(--year-scale-3);
   --color-year-scale-4: var(--year-scale-4);
+  --color-year-more-low: var(--year-more-low);
+  --color-year-more-under: var(--year-more-under);
+  --color-year-more-met: var(--year-more-met);
+  --color-year-more-high: var(--year-more-high);
 }
 
 @theme {

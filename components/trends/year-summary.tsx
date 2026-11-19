@@ -15,18 +15,25 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { IconButton } from "@/components/ui/icon-button";
+import { formatMinutes, formatSteps } from "@/lib/contracts/activities";
 import type { NutrientCode } from "@/lib/contracts/nutrients";
 import type { NutrientTarget } from "@/lib/contracts/targets";
+import { moveHref } from "@/lib/move/week";
 import {
   dayName,
   formatAmount,
+  isActivityMetric,
   mealsText,
   metricLabel,
+  MORE_LABELS,
+  noneWords,
   percentOf,
   SCALE_WORDS,
+  targetText,
   targetWords,
   type DayLook,
   type YearDay,
+  type YearMetric,
 } from "@/lib/trends/year";
 
 import { lookClass } from "./year-colors";
@@ -59,10 +66,12 @@ const MACROS: [NutrientCode, string][] = [
 ];
 
 /**
- * A day's summary from the year (board 31): the date with the day before and after, the chosen
- * nutrient against its target with words for the kind of target, protein, carbs and fat, meals,
- * water and steps, and "Open this day". A press outside or Escape closes it and focus goes back
- * to the day's square. Centred over a light scrim on phones, next to the square on wide screens.
+ * A day's summary from the year (boards 31 and 38): the date with the day before and after, the
+ * chosen metric against its target with words for the kind of target; for a nutrient protein,
+ * carbs and fat, meals, water and steps, and "Open this day"; for activity the day's steps,
+ * active minutes, workouts and energy, and "Open this day in Move". A press outside or Escape
+ * closes it and focus goes back to the day's square. Centred over a light scrim on phones, next
+ * to the square on wide screens.
  */
 export const YearDaySummary = ({
   date,
@@ -80,7 +89,7 @@ export const YearDaySummary = ({
   date: string | null;
   day: YearDay | undefined;
   look: DayLook | null;
-  metric: NutrientCode;
+  metric: YearMetric;
   targets: Partial<Record<NutrientCode, NutrientTarget>>;
   today: string;
   withYear: boolean;
@@ -130,21 +139,35 @@ export const YearDaySummary = ({
 
   const name = date ? dayName(date, withYear) : "";
   const label = metricLabel(metric);
+  const activity = isActivityMetric(metric);
 
   let amount = "";
   let detail = "";
   if (look && date) {
     switch (look.state) {
       case "none":
-        amount = metric === "water" ? "No water logged" : "No meals logged";
+        amount = activity
+          ? `${noneWords(metric)[0]!.toUpperCase()}${noneWords(metric).slice(1)}`
+          : metric === "water"
+            ? "No water logged"
+            : "No meals logged";
         break;
       case "unknown":
         amount = `${label} not recorded`;
-        detail = mealsText(day?.meals ?? 0);
+        detail = activity
+          ? "no energy recorded for this day's activity"
+          : mealsText(day?.meals ?? 0);
         break;
       case "scale":
         amount = `${metric === "energy" ? "" : `${label} `}${formatAmount(metric, look.amount)}`;
-        detail = `No target set · ${SCALE_WORDS[look.level]}`;
+        detail = `${activity ? "No target" : "No target set"} · ${SCALE_WORDS[look.level]}`;
+        break;
+      case "more":
+        amount =
+          metric === "steps"
+            ? formatAmount(metric, look.amount)
+            : `${label} ${formatAmount(metric, look.amount)}`;
+        detail = `${look.percent}% of ${targetText(metric, look.target).replace(/ a day$/, "")} · ${MORE_LABELS[look.bin].toLowerCase()}`;
         break;
       case "bin": {
         const { target, upper, kind } = look.target;
@@ -217,7 +240,36 @@ export const YearDaySummary = ({
             {detail && <span className="text-caption text-muted tabular">{detail}</span>}
           </div>
 
-          {(day?.meals ?? 0) > 0 && (
+          {activity && metric === "active_minutes" && (
+            <p className="text-caption text-muted -mt-1">
+              Walks, cardio and sports at moderate effort or harder; a vigorous minute counts twice.
+            </p>
+          )}
+
+          {activity && (
+            <dl className="grid grid-cols-2 gap-2" data-testid="year-day-activity">
+              {(
+                [
+                  ["Steps", day && day.steps > 0 ? formatSteps(day.steps) : "–"],
+                  ["Active minutes", day?.activity ? formatMinutes(day.activeMinutes) : "–"],
+                  ["Workouts", String(day?.workouts ?? 0)],
+                  [
+                    "Energy from activity",
+                    day?.activityEnergy == null
+                      ? "–"
+                      : `${day.activityEnergy.toLocaleString("en-US")} kcal`,
+                  ],
+                ] as const
+              ).map(([term, value]) => (
+                <div key={term} className="flex flex-col-reverse">
+                  <dt className="text-caption text-muted">{term}</dt>
+                  <dd className="text-headline tabular">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          {!activity && (day?.meals ?? 0) > 0 && (
             <dl className="grid grid-cols-3 gap-2">
               {MACROS.map(([code, title]) => {
                 const value = day?.[code as "protein" | "carbs" | "fat"] ?? null;
@@ -239,11 +291,15 @@ export const YearDaySummary = ({
             </dl>
           )}
 
-          <p className="text-caption text-muted">{facts}</p>
+          {!activity && <p className="text-caption text-muted">{facts}</p>}
 
           {date && (
             <Button asChild fullWidth className="rounded-full">
-              <Link href={date === today ? "/today" : `/today?date=${date}`}>Open this day</Link>
+              {activity ? (
+                <Link href={moveHref(date, today)}>Open this day in Move</Link>
+              ) : (
+                <Link href={date === today ? "/today" : `/today?date=${date}`}>Open this day</Link>
+              )}
             </Button>
           )}
           <Dialog.Close asChild>

@@ -1,6 +1,6 @@
 // The year card's colour classes (tokens in app/globals.css, light and dark). Literal class names
 // so Tailwind finds them.
-import type { DayLook, ScaleLevel, YearBin } from "@/lib/trends/year";
+import type { DayLook, MoreBin, ScaleLevel, YearBin } from "@/lib/trends/year";
 
 export const BIN_CLASS: Record<YearBin, string> = {
   far_under: "bg-year-far-under",
@@ -9,6 +9,14 @@ export const BIN_CLASS: Record<YearBin, string> = {
   over: "bg-year-over",
   well_over: "bg-year-well-over",
   far_over: "bg-year-far-over",
+};
+
+/** Steps and active minutes against their goal: more is better. */
+export const MORE_CLASS: Record<MoreBin, string> = {
+  more_low: "bg-year-more-low",
+  more_under: "bg-year-more-under",
+  more_met: "bg-year-more-met",
+  more_high: "bg-year-more-high",
 };
 
 export const SCALE_CLASS: Record<ScaleLevel, string> = {
@@ -32,6 +40,8 @@ export const lookClass = (look: DayLook) => {
       return NONE_CLASS;
     case "bin":
       return BIN_CLASS[look.bin];
+    case "more":
+      return MORE_CLASS[look.bin];
     case "scale":
       return SCALE_CLASS[look.level];
   }

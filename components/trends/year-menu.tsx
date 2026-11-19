@@ -11,36 +11,44 @@ import {
   targetText,
   YEAR_METRIC_GROUPS,
   yearTarget,
+  type YearMetric,
   type YearTarget,
 } from "@/lib/trends/year";
 
-/** The words after the metric on the closed button: "against 2,100 kcal", "no target set". */
-const againstText = (code: NutrientCode, target: YearTarget | null) =>
+/**
+ * The words after the metric on the closed button: "against 2,100 kcal", "goal 7,000 a day",
+ * "no target set".
+ */
+const againstText = (code: YearMetric, target: YearTarget | null) =>
   !target
     ? "no target set"
-    : target.kind === "max"
-      ? `against the ${targetText(code, { ...target, kind: "goal" })} limit`
-      : `against ${targetText(code, target)}`;
+    : target.kind === "more"
+      ? `goal ${targetText(code, target)}`
+      : target.kind === "max"
+        ? `against the ${targetText(code, { ...target, kind: "goal" })} limit`
+        : `against ${targetText(code, target)}`;
 
 /**
- * What the year shows (board 32): a button that opens a list of the nutrients grouped like the
- * catalogue, each with its target. Arrow keys, Home and End move, Enter or Space chooses, a letter
+ * What the year shows (boards 32 and 38): a button that opens a list of activity measures and the
+ * nutrients grouped like the catalogue, each with its target or goal. Arrow keys, Home and End move, Enter or Space chooses, a letter
  * jumps to the next name starting with it, Escape or a press outside closes.
  */
 export const YearMetricMenu = ({
   value,
   targets,
   waterGoalMl,
+  stepGoal,
   onChange,
 }: {
-  value: NutrientCode;
+  value: YearMetric;
   targets: Partial<Record<NutrientCode, NutrientTarget>>;
   waterGoalMl: number;
-  onChange: (metric: NutrientCode) => void;
+  stepGoal: number;
+  onChange: (metric: YearMetric) => void;
 }) => {
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState<NutrientCode>(value);
+  const [active, setActive] = useState<YearMetric>(value);
   const button = useRef<HTMLButtonElement>(null);
   const popup = useRef<HTMLDivElement>(null);
   const list = useRef<HTMLDivElement>(null);
@@ -49,11 +57,11 @@ export const YearMetricMenu = ({
     () =>
       YEAR_METRIC_GROUPS.flatMap((group) =>
         group.codes.map((code) => {
-          const target = yearTarget(code, targets, waterGoalMl);
+          const target = yearTarget(code, targets, waterGoalMl, stepGoal);
           return { code, group: group.label, label: metricLabel(code), target };
         }),
       ),
-    [targets, waterGoalMl],
+    [targets, waterGoalMl, stepGoal],
   );
   const optionId = (code: string) => `${id}-${code}`;
   const current = options.find((o) => o.code === value) ?? options[0]!;
@@ -79,7 +87,7 @@ export const YearMetricMenu = ({
     document.getElementById(`${id}-${active}`)?.scrollIntoView({ block: "nearest" });
   }, [open, active, id]);
 
-  const choose = (code: NutrientCode) => {
+  const choose = (code: YearMetric) => {
     close(true);
     if (code !== value) onChange(code);
   };
@@ -158,7 +166,8 @@ export const YearMetricMenu = ({
           className="border-primary bg-surface shadow-raised absolute inset-x-0 top-full z-30 mt-1.5 flex max-h-[min(38rem,70dvh)] flex-col overflow-hidden rounded-2xl border lg:right-auto lg:w-96"
         >
           <p className="text-caption text-muted border-border border-b px-3.5 py-2.5">
-            Each nutrient is compared with its own target from Settings. A day&apos;s summary says
+            Steps and active minutes are compared with Move&apos;s goals, where more is better. Each
+            nutrient is compared with its own target from Settings; a day&apos;s summary says
             whether being over or under is fine for it (more fiber is fine, more sodium is not).
           </p>
           <div

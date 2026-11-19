@@ -86,6 +86,10 @@ GRAPHIC_PAIRS.push(
     "scale-2",
     "scale-3",
     "scale-4",
+    "more-low",
+    "more-under",
+    "more-met",
+    "more-high",
   ].map((c): [string, string] => [`year-${c}`, "surface"]),
 );
 

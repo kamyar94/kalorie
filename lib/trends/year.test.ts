@@ -4,15 +4,22 @@ import { NUTRIENT_CODES } from "@/lib/contracts/nutrients";
 import type { NutrientTarget } from "@/lib/contracts/targets";
 
 import {
+  activityCountsText,
+  amountOf,
   binFor,
   clampYear,
   countsText,
   dayLook,
   dayName,
   formatAmount,
+  isActivityMetric,
+  isLogged,
   isYearMetric,
   lastDayOf,
   metricLabel,
+  moreBinFor,
+  morePercent,
+  moreRanges,
   moveInGrid,
   percentOf,
   scaleLevel,
@@ -43,6 +50,11 @@ const day = (date: string, over: Partial<YearDay> = {}): YearDay => ({
   waterMl: 0,
   waterGoalMl: 1800,
   steps: 0,
+  activity: false,
+  activeMinutes: 0,
+  whoMinutes: 0,
+  workouts: 0,
+  activityEnergy: null,
   ...over,
 });
 
@@ -392,9 +404,12 @@ describe("the grid", () => {
 });
 
 describe("the menu and the address", () => {
-  it("offers every nutrient once, grouped like the catalogue, water from drinks under Other", () => {
-    expect([...YEAR_METRICS].sort()).toEqual([...NUTRIENT_CODES].sort());
+  it("offers activity, then every nutrient once grouped like the catalogue, water under Other", () => {
+    expect(YEAR_METRICS.filter((m) => !isActivityMetric(m)).sort()).toEqual(
+      [...NUTRIENT_CODES].sort(),
+    );
     expect(YEAR_METRIC_GROUPS.map((g) => g.label)).toEqual([
+      "Activity",
       "Main",
       "Fats",
       "Carbs",
@@ -402,11 +417,14 @@ describe("the menu and the address", () => {
       "Vitamins",
       "Other",
     ]);
-    expect(YEAR_METRIC_GROUPS[0]!.codes).toEqual(["energy", "protein", "carbs", "fat"]);
+    expect(YEAR_METRIC_GROUPS[0]!.codes).toEqual(["steps", "active_minutes", "activity_energy"]);
+    expect(YEAR_METRIC_GROUPS[1]!.codes).toEqual(["energy", "protein", "carbs", "fat"]);
     expect(YEAR_METRIC_GROUPS.at(-1)!.codes[0]).toBe("water");
     expect(metricLabel("energy")).toBe("Calories");
     expect(metricLabel("fat_sat")).toBe("Saturated fat");
     expect(isYearMetric("protein")).toBe(true);
+    expect(isYearMetric("steps")).toBe(true);
+    expect(metricLabel("active_minutes")).toBe("Active minutes");
     expect(isYearMetric("fdc:1008")).toBe(false);
     expect(isYearMetric(undefined)).toBe(false);
   });
@@ -437,5 +455,143 @@ describe("the menu and the address", () => {
     expect(
       trendsHref({ range: "month", end: "2026-10-01", year: 2025, metric: "protein" }, today),
     ).toBe("/trends?range=month&end=2026-10-01&year=2025&metric=protein");
+  });
+});
+
+describe("activity in the year", () => {
+  const steps = yearTarget("steps", {}, 1800)!;
+  const minutes = yearTarget("active_minutes", {}, 1800)!;
+
+  it("compares steps with the step goal, active minutes with a seventh of the WHO week", () => {
+    expect(steps).toEqual({ kind: "more", target: 7000, upper: null });
+    expect(yearTarget("steps", {}, 1800, 8000)).toEqual({
+      kind: "more",
+      target: 8000,
+      upper: null,
+    });
+    expect(minutes.kind).toBe("more");
+    expect(minutes.target).toBeCloseTo(150 / 7);
+    expect(yearTarget("activity_energy", {}, 1800)).toBeNull();
+    expect(targetText("steps", steps)).toBe("7,000 a day");
+    expect(targetText("active_minutes", minutes)).toBe("21.4 min a day");
+    expect(formatAmount("steps", 4150)).toBe("4,150 steps");
+    expect(formatAmount("active_minutes", 34)).toBe("34 min");
+    expect(formatAmount("activity_energy", 212.4)).toBe("212 kcal");
+  });
+
+  it("puts more-is-better days in four bins, the percent rounded down", () => {
+    expect([0, 49, 50, 99, 100, 149, 150, 400].map(moreBinFor)).toEqual([
+      "more_low",
+      "more_low",
+      "more_under",
+      "more_under",
+      "more_met",
+      "more_met",
+      "more_high",
+      "more_high",
+    ]);
+    // 6,980 of 7,000 is 99 %: the goal is not reached.
+    expect(morePercent(6980, 7000)).toBe(99);
+    expect(morePercent(3499, 7000)).toBe(49);
+    expect(morePercent(3500, 7000)).toBe(50);
+    expect(morePercent(10_500, 7000)).toBe(150);
+    // 22 minutes reach a seventh of 150; 21 do not.
+    expect(morePercent(21, 150 / 7)).toBe(98);
+    expect(morePercent(22, 150 / 7)).toBe(102);
+    expect(moreRanges("steps", 7000)).toEqual({
+      more_low: "under 3,500",
+      more_under: "3,500–6,999",
+      more_met: "7,000–10,499",
+      more_high: "10,500 and more",
+    });
+    expect(moreRanges("active_minutes", 150 / 7)).toEqual({
+      more_low: "under 11 min",
+      more_under: "11–21 min",
+      more_met: "22–32 min",
+      more_high: "33 min and more",
+    });
+    expect(targetWords(steps, 7000, 100)).toBe("goal reached");
+  });
+
+  it("colours a day by its steps, active minutes or energy; no data stays grey", () => {
+    const today = "2026-11-18";
+    const ctx = (metric: "steps" | "active_minutes" | "activity_energy", max = 0) => ({
+      today,
+      metric,
+      target: yearTarget(metric, {}, 1800),
+      max,
+    });
+    const walked = day("2026-11-17", { meals: 0, steps: 4150, activity: true, whoMinutes: 34 });
+    expect(dayLook("2026-11-17", walked, ctx("steps"))).toEqual({
+      state: "more",
+      bin: "more_under",
+      percent: 59,
+      amount: 4150,
+      target: steps,
+    });
+    expect(dayLook("2026-11-17", walked, ctx("active_minutes"))).toMatchObject({
+      state: "more",
+      bin: "more_high",
+      percent: 158,
+    });
+    // A day with a workout and no step count: no steps, but it counts for minutes.
+    const lifted = day("2026-11-16", { meals: 2, activity: true, whoMinutes: 0, workouts: 1 });
+    expect(dayLook("2026-11-16", lifted, ctx("steps"))).toEqual({ state: "none" });
+    expect(dayLook("2026-11-16", lifted, ctx("active_minutes"))).toMatchObject({
+      bin: "more_low",
+      percent: 0,
+    });
+    // A day with meals only has no activity data.
+    expect(dayLook("2026-11-15", day("2026-11-15"), ctx("active_minutes"))).toEqual({
+      state: "none",
+    });
+    // Energy from activity: no target, the scale; activity without energy is "not recorded".
+    expect(
+      dayLook("2026-11-17", { ...walked, activityEnergy: 300 }, ctx("activity_energy", 400)),
+    ).toEqual({ state: "scale", level: 3, amount: 300 });
+    expect(dayLook("2026-11-17", walked, ctx("activity_energy", 400))).toEqual({
+      state: "unknown",
+    });
+    expect(dayLook("2026-11-19", walked, ctx("steps"))).toEqual({ state: "future" });
+  });
+
+  it("labels the squares and counts the days at the goal", () => {
+    const walked = day("2026-11-17", { meals: 0, steps: 4150, activity: true });
+    const look = dayLook("2026-11-17", walked, {
+      today: "2026-11-18",
+      metric: "steps",
+      target: steps,
+      max: 0,
+    });
+    expect(squareLabel("2026-11-17", look, "steps", walked)).toBe(
+      "Tuesday 17 November, 4,150 steps, under the goal",
+    );
+    expect(squareLabel("2026-11-16", { state: "none" }, "steps", undefined)).toBe(
+      "Monday 16 November, no steps recorded",
+    );
+    expect(squareLabel("2026-11-16", { state: "none" }, "active_minutes", undefined)).toBe(
+      "Monday 16 November, no activity recorded",
+    );
+    expect(squareLabel("2026-11-16", { state: "unknown" }, "activity_energy", undefined)).toBe(
+      "Monday 16 November, activity without energy, not recorded",
+    );
+    const counts = yearCounts([
+      look,
+      { state: "more", bin: "more_met", percent: 107, amount: 7480, target: steps },
+      { state: "more", bin: "more_high", percent: 160, amount: 11_240, target: steps },
+      { state: "none" },
+      { state: "future" },
+    ]);
+    expect(counts).toMatchObject({ logged: 3, onTarget: 2, under: 1 });
+    expect(activityCountsText(counts, "steps", true)).toEqual({
+      logged: "3 days with steps",
+      rest: "2 at goal",
+    });
+    expect(activityCountsText({ ...counts, unknown: 1 }, "activity_energy", false)).toEqual({
+      logged: "3 days with activity",
+      rest: "1 not recorded",
+    });
+    expect(isLogged(walked, "steps")).toBe(true);
+    expect(amountOf(walked, "active_minutes")).toBe(0);
   });
 });

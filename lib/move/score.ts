@@ -132,8 +132,8 @@ export const levelOf = (points: number) => {
 };
 
 /** Activities grouped by local day. */
-export const byDay = (activities: ScoredActivity[]) => {
-  const days = new Map<string, ScoredActivity[]>();
+export const byDay = <T extends ScoredActivity>(activities: T[]) => {
+  const days = new Map<string, T[]>();
   for (const a of activities) {
     const list = days.get(a.localDate);
     if (list) list.push(a);

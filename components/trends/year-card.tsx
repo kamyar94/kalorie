@@ -17,17 +17,20 @@ import {
 
 import { Card } from "@/components/ui/card";
 import { cn } from "@/components/ui/cn";
-import type { NutrientCode } from "@/lib/contracts/nutrients";
 import { shiftLocalDate } from "@/lib/meals/time";
 import {
+  activityCountsText,
   amountOf,
   BIN_LABELS,
   BIN_RANGES,
   countsText,
   dayLook,
+  isActivityMetric,
   isLogged,
   lastDayOf,
   metricLabel,
+  MORE_BINS,
+  moreRanges,
   moveInGrid,
   SCALE_LEVELS,
   scaleMax,
@@ -39,9 +42,10 @@ import {
   yearTarget,
   type DayLook,
   type YearData,
+  type YearMetric,
 } from "@/lib/trends/year";
 
-import { BIN_CLASS, lookClass, NONE_CLASS, SCALE_CLASS } from "./year-colors";
+import { BIN_CLASS, lookClass, MORE_CLASS, NONE_CLASS, SCALE_CLASS } from "./year-colors";
 import { YearMetricMenu } from "./year-menu";
 import { squareOf, YearDaySummary } from "./year-summary";
 
@@ -62,7 +66,23 @@ const LegendItem = ({ swatch, children }: { swatch: string; children: ReactNode 
   </li>
 );
 
-export type YearHref = (patch: { year?: number; metric?: NutrientCode }) => string;
+export type YearHref = (patch: { year?: number; metric?: YearMetric }) => string;
+
+/** "16 Nov". */
+const dayMonth = (date: string) =>
+  new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+
+/** The line under the legend of an activity metric: what the day is compared with. */
+const activityCompared = (metric: YearMetric, stepGoal: number) =>
+  metric === "steps"
+    ? `Compared with Move's step goal of ${stepGoal.toLocaleString("en-US")} a day.`
+    : metric === "active_minutes"
+      ? "Compared with a seventh of WHO's 150 minutes a week: walks, cardio and sports at moderate effort or harder, a vigorous minute counting twice, as on Move."
+      : null;
 
 /**
  * "Your year" at the top of Trends (boards 30 to 33): one square per day of a calendar year,
@@ -86,9 +106,10 @@ export const YearCard = ({ data, hrefFor }: { data: YearData; hrefFor: YearHref 
   const grid = useMemo(() => yearGrid(year), [year]);
   const byDate = useMemo(() => new Map(data.days.map((d) => [d.date, d])), [data.days]);
   const target = useMemo(
-    () => yearTarget(metric, data.targets, data.waterGoalMl),
-    [metric, data.targets, data.waterGoalMl],
+    () => yearTarget(metric, data.targets, data.waterGoalMl, data.stepGoal),
+    [metric, data.targets, data.waterGoalMl, data.stepGoal],
   );
+  const activity = isActivityMetric(metric);
   const looks = useMemo(() => {
     const max = target
       ? 0
@@ -100,7 +121,14 @@ export const YearCard = ({ data, hrefFor }: { data: YearData; hrefFor: YearHref 
     return out;
   }, [grid, byDate, data.days, metric, target, today]);
   const counts = yearCounts(looks.values());
-  const countLine = countsText(counts, !!target);
+  const countLine = isActivityMetric(metric)
+    ? activityCountsText(counts, metric, !!target)
+    : countsText(counts, !!target);
+  const since =
+    metric === "steps" && data.stepsSince
+      ? `from Health Connect since ${dayMonth(data.stepsSince)}`
+      : null;
+  const countRest = [countLine.rest, since].filter(Boolean).join(" · ");
 
   // The square that takes the Tab key (roving focus) and the day whose summary is open; both
   // belong to the year they were picked in.
@@ -113,7 +141,7 @@ export const YearCard = ({ data, hrefFor }: { data: YearData; hrefFor: YearHref 
     setOpen({ year, date });
   };
 
-  const go = (patch: { year?: number; metric?: NutrientCode }) =>
+  const go = (patch: { year?: number; metric?: YearMetric }) =>
     startTransition(() => router.push(hrefFor(patch), { scroll: false }));
 
   // Phones: the strip starts at the latest week (December for past years).
@@ -200,6 +228,7 @@ export const YearCard = ({ data, hrefFor }: { data: YearData; hrefFor: YearHref 
             value={metric}
             targets={data.targets}
             waterGoalMl={data.waterGoalMl}
+            stepGoal={data.stepGoal}
             onChange={(next) => go({ metric: next })}
           />
         </div>
@@ -288,7 +317,16 @@ export const YearCard = ({ data, hrefFor }: { data: YearData; hrefFor: YearHref 
       </p>
 
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-        {target ? (
+        {target?.kind === "more" ? (
+          <ul aria-label="Colours" className="flex flex-wrap gap-x-2.5 gap-y-1.5">
+            <LegendItem swatch={NONE_CLASS}>No data</LegendItem>
+            {MORE_BINS.map((bin) => (
+              <LegendItem key={bin} swatch={MORE_CLASS[bin]}>
+                {moreRanges(metric, target.target)[bin]}
+              </LegendItem>
+            ))}
+          </ul>
+        ) : target ? (
           <ul aria-label="Colours" className="flex flex-wrap gap-x-2.5 gap-y-1.5">
             <LegendItem swatch={NONE_CLASS}>
               {counts.unknown
@@ -308,7 +346,13 @@ export const YearCard = ({ data, hrefFor }: { data: YearData; hrefFor: YearHref 
           <div className="flex flex-col gap-1.5">
             <ul aria-label="Colours" className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
               <LegendItem swatch={NONE_CLASS}>
-                {counts.unknown ? "No meals or not recorded" : "No meals"}
+                {activity
+                  ? counts.unknown
+                    ? "No data or not recorded"
+                    : "No data"
+                  : counts.unknown
+                    ? "No meals or not recorded"
+                    : "No meals"}
               </LegendItem>
               <li className="text-muted inline-flex items-center gap-[3px] text-[11px] leading-4">
                 <span className="mr-0.5">Less</span>
@@ -319,17 +363,20 @@ export const YearCard = ({ data, hrefFor }: { data: YearData; hrefFor: YearHref 
               </li>
             </ul>
             <p className="text-caption text-muted">
-              No target set: each day is shaded against your highest day of the year, lighter is
-              less.
+              {activity ? "No target" : "No target set"}: each day is shaded against your highest
+              day of the year, lighter is less.
             </p>
           </div>
         )}
         <p className="text-label shrink-0" data-testid="year-counts">
           {countLine.logged}
-          {countLine.rest && <span className="text-muted font-normal"> · {countLine.rest}</span>}
+          {countRest && <span className="text-muted font-normal"> · {countRest}</span>}
         </p>
       </div>
-      {target && (
+      {activity && activityCompared(metric, data.stepGoal) && (
+        <p className="text-caption text-muted -mt-1">{activityCompared(metric, data.stepGoal)}</p>
+      )}
+      {target && !activity && (
         <p className="text-caption text-muted -mt-1">
           Compared with your current targets
           {metric === "water" ? "; each day's water goal includes its activity, as on Today" : ""}.

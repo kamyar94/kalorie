@@ -204,6 +204,125 @@ describe("the year card's days", () => {
     expect(dayLook("2025-04-03", dayOf(year, "2025-04-03"), ctx)).toMatchObject({ level: 1 });
   });
 
+  it("reads steps, active minutes, workouts and energy from Move, by each one's local day", async () => {
+    const user = await createUser({ timeZone: "Asia/Tehran" });
+    const move = (values: Partial<typeof activities.$inferInsert> & { localDate: string }) =>
+      db.insert(activities).values({
+        userId: user.id,
+        category: "cardio",
+        type: "run",
+        title: "Run",
+        startedAt: new Date(`${values.localDate}T07:00:00Z`),
+        tz: "UTC",
+        durationMin: 30,
+        intensity: "moderate",
+        source: "manual",
+        ...values,
+      });
+    const steps = (localDate: string, count: number, source: "health_connect" | "import") =>
+      move({
+        localDate,
+        category: "walking",
+        type: "steps",
+        title: "Steps",
+        durationMin: null,
+        intensity: null,
+        steps: count,
+        source,
+        sourceApp: source === "import" ? "samsung-health" : "com.android.healthconnect.phone.0a1b",
+        externalId: `${source}:${localDate}`,
+      });
+    // Steps imported in March, from Health Connect from 16 November.
+    await steps("2025-03-02", 9000, "import");
+    await steps("2026-11-16", 4701, "health_connect");
+    await steps("2026-11-17", 4150, "health_connect");
+    await steps("2026-11-17", 12_000, "import");
+    // A vigorous run of 20 minutes counts 40 for the WHO week; strength and light yoga do not.
+    await move({
+      localDate: "2026-11-17",
+      durationMin: 20,
+      intensity: "vigorous",
+      energyKcal: 210,
+    });
+    await move({
+      localDate: "2026-11-17",
+      category: "strength",
+      type: "weights",
+      title: "Gym",
+      durationMin: 45,
+      energyKcal: 190,
+    });
+    // A late yoga in Tehran on the evening of the 12th (UTC) is on the 13th there.
+    await move({
+      localDate: "2026-11-13",
+      startedAt: new Date("2026-11-12T21:00:00Z"),
+      tz: "Asia/Tehran",
+      category: "mobility",
+      type: "yoga",
+      title: "Yoga",
+      durationMin: 25,
+      intensity: "light",
+    });
+
+    const year = await getYear(user.id, { metric: "steps", today: "2026-11-18" });
+    expect(year.metric).toBe("steps");
+    expect(year.stepGoal).toBe(7000);
+    // The pager reaches back to the first activity, before any meal.
+    expect(year.firstYear).toBe(2025);
+    expect(year.stepsSince).toBe("2026-11-16");
+    expect(
+      year.days.map((d) => [
+        d.date,
+        d.steps,
+        d.activeMinutes,
+        d.whoMinutes,
+        d.workouts,
+        d.activityEnergy,
+      ]),
+    ).toEqual([
+      ["2026-11-13", 0, 25, 0, 1, null],
+      ["2026-11-16", 4701, 0, 0, 0, null],
+      // Health Connect's count wins over the import.
+      ["2026-11-17", 4150, 65, 40, 2, 400],
+    ]);
+    expect(year.days.every((d) => d.activity && d.meals === 0 && d.value === null)).toBe(true);
+
+    const target = yearTarget("steps", year.targets, year.waterGoalMl, year.stepGoal);
+    const ctx = { today: "2026-11-18", metric: "steps" as const, target, max: 0 };
+    expect(dayLook("2026-11-16", dayOf(year, "2026-11-16"), ctx)).toMatchObject({
+      state: "more",
+      bin: "more_under",
+      percent: 67,
+    });
+    expect(dayLook("2026-11-13", dayOf(year, "2026-11-13"), ctx)).toEqual({ state: "none" });
+    const active = {
+      ...ctx,
+      metric: "active_minutes" as const,
+      target: yearTarget("active_minutes", year.targets, year.waterGoalMl),
+    };
+    // 40 of 150 / 7 = 21.4 minutes: 186 %.
+    expect(dayLook("2026-11-17", dayOf(year, "2026-11-17"), active)).toMatchObject({
+      state: "more",
+      bin: "more_high",
+      percent: 186,
+    });
+    expect(dayLook("2026-11-13", dayOf(year, "2026-11-13"), active)).toMatchObject({
+      bin: "more_low",
+      percent: 0,
+    });
+
+    const last = await getYear(user.id, {
+      year: "2025",
+      metric: "active_minutes",
+      today: "2026-11-18",
+    });
+    expect(last.days.map((d) => [d.date, d.steps])).toEqual([["2025-03-02", 9000]]);
+    expect(last.stepsSince).toBeNull();
+    // Someone else sees none of it.
+    const other = await getYear((await createUser()).id, { metric: "steps", today: "2026-11-18" });
+    expect(other.days).toEqual([]);
+  });
+
   it("keeps the year to the years with meals and the metric to known nutrients", async () => {
     const user = await createUser();
     await meal(user.id, "2024-08-01", { totals: { energy: 1000 } });

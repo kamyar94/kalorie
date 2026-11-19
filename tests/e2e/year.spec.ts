@@ -91,12 +91,15 @@ test("trends year: squares, the nutrient menu, last year, a day's summary and th
   await expect(card.getByRole("grid", { name: `Protein by day, ${last}` })).toBeVisible();
   await expect(card.getByRole("button", { name: `Next year (${year})` })).toBeVisible();
 
-  // Calories again, by keyboard.
+  // Calories again, by keyboard: the first nutrient after the three activity measures.
   const button = card.getByRole("button", { name: /^Show Protein/ });
   await button.focus();
   await page.keyboard.press("Enter");
   await expect(menu).toBeFocused();
   await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowDown", { delay: 20 });
+  await page.keyboard.press("ArrowDown", { delay: 20 });
+  await page.keyboard.press("ArrowDown", { delay: 20 });
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`year=${last}$`));
   await expect(card.getByRole("grid", { name: `Calories by day, ${last}` })).toBeVisible();
@@ -167,4 +170,129 @@ test("trends year: squares, the nutrient menu, last year, a day's summary and th
   await expect(summary.getByTestId("year-day-metric")).toHaveText("No meals logged");
   await page.keyboard.press("Escape");
   await expect(summary).toBeHidden();
+});
+
+test("trends year: the Activity group, steps against the goal, and a day's summary that opens Move", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  const last = Number(localDay().slice(0, 4)) - 1;
+  const d = (monthDay: string) => `${last}-${monthDay}`;
+  const move = (date: string, values: Record<string, unknown>) =>
+    pool().query(
+      `insert into activities (user_id, category, type, title, started_at, tz, local_date,
+         duration_min, intensity, steps, energy_kcal, source, source_app, external_id)
+       values ($1, $2, $3, $4, ($5::date + time '08:00') at time zone $6, $6, $5, $7, $8, $9,
+         $10, $11, $12, $13)`,
+      [
+        userId,
+        values.category,
+        values.type,
+        values.title,
+        date,
+        zone(),
+        values.durationMin ?? null,
+        values.intensity ?? null,
+        values.steps ?? null,
+        values.energyKcal ?? null,
+        values.source ?? "manual",
+        values.sourceApp ?? null,
+        values.externalId ?? null,
+      ],
+    );
+  const steps = (date: string, count: number) =>
+    move(date, {
+      category: "walking",
+      type: "steps",
+      title: "Steps",
+      steps: count,
+      source: "health_connect",
+      sourceApp: "com.android.healthconnect.phone.0a1b",
+      externalId: `steps:${date}`,
+    });
+  // 3,000 (under half of 7,000), 4,701, 7,480 and 11,240 steps; a run and a session at the gym.
+  await steps(d("03-09"), 3000);
+  await steps(d("03-10"), 4701);
+  await steps(d("03-11"), 7480);
+  await steps(d("03-12"), 11_240);
+  await move(d("03-10"), {
+    category: "cardio",
+    type: "run",
+    title: "Run",
+    durationMin: 20,
+    intensity: "vigorous",
+    energyKcal: 210,
+  });
+  await move(d("03-10"), {
+    category: "strength",
+    type: "weights",
+    title: "Gym",
+    durationMin: 45,
+    intensity: "moderate",
+    energyKcal: 190,
+  });
+
+  await page.goto(`/trends?year=${last}`);
+  const card = page.getByRole("region", { name: "Your year" });
+  await card.getByRole("button", { name: /^Show Calories/ }).click();
+  const menu = page.getByRole("listbox", { name: "Show in the year" });
+  const activity = menu.getByRole("group", { name: "Activity" });
+  await expect(activity.getByRole("option")).toHaveText([
+    "Steps · 7,000 a day",
+    "Active minutes · 21.4 min a day",
+    "Energy from activity",
+  ]);
+  await expectAccessible(page);
+  await activity.getByRole("option", { name: /^Steps/ }).click();
+  await expect(page).toHaveURL(new RegExp(`year=${last}&metric=steps$`));
+  await expect(card.getByRole("grid", { name: `Steps by day, ${last}` })).toBeVisible();
+  await expect(card.getByRole("button", { name: /^Show Steps goal 7,000 a day/ })).toBeVisible();
+  for (const [date, words] of [
+    ["03-09", "3,000 steps, under half the goal"],
+    ["03-10", "4,701 steps, under the goal"],
+    ["03-11", "7,480 steps, goal reached"],
+    ["03-12", "11,240 steps, well past the goal"],
+    ["03-13", "no steps recorded"],
+  ] as const)
+    await expect(square(page, d(date))).toHaveAttribute(
+      "aria-label",
+      `${dayName(d(date))}, ${words}`,
+    );
+  await expect(card.getByRole("list", { name: "Colours" })).toHaveText(
+    /No data\s*under 3,500\s*3,500–6,999\s*7,000–10,499\s*10,500 and more/,
+  );
+  await expect(card.getByTestId("year-counts")).toHaveText(
+    `4 days with steps · 2 at goal · from Health Connect since 9 Mar`,
+  );
+  await expect(card).toContainText("Compared with Move's step goal of 7,000 a day.");
+  await expectAccessible(page);
+
+  // A day's summary: steps, active minutes, workouts and energy, and Move for that day.
+  await square(page, d("03-10")).click();
+  const summary = page.getByRole("dialog");
+  await expect(summary.getByTestId("year-day-metric")).toContainText("4,701 steps");
+  await expect(summary.getByTestId("year-day-metric")).toContainText(
+    "67% of 7,000 · under the goal",
+  );
+  await expect(summary.getByTestId("year-day-activity")).toHaveText(
+    "Steps4,701Active minutes1 h 5 minWorkouts2Energy from activity400 kcal",
+  );
+  await expectAccessible(page);
+  await summary.getByRole("link", { name: "Open this day in Move" }).click();
+  await expect(page).toHaveURL(new RegExp(`/move\\?date=${d("03-10")}$`));
+  await expect(page.getByRole("img", { name: "Steps: 4,701 of 7,000" })).toBeVisible();
+  await expect(page.getByTestId("day-activities").getByTestId("activity")).toHaveCount(3);
+
+  // Active minutes: 40 WHO minutes on the day of the run (a vigorous minute counts twice).
+  await page.goto(`/trends?year=${last}&metric=active_minutes`);
+  await expect(square(page, d("03-10"))).toHaveAttribute(
+    "aria-label",
+    `${dayName(d("03-10"))}, 40 min, well past the goal`,
+  );
+  await expect(square(page, d("03-11"))).toHaveAttribute(
+    "aria-label",
+    `${dayName(d("03-11"))}, 0 min, under half the goal`,
+  );
+  await expect(card.getByTestId("year-counts")).toHaveText("4 days with activity · 1 at goal");
+  await expectAccessible(page);
 });

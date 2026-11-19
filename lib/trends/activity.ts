@@ -173,7 +173,7 @@ export const computeActivityTrends = (input: {
 }): ActivityTrends => {
   const stepGoal = input.stepGoal ?? WEEKLY_TARGETS.stepsPerDay;
   const dates = rangeDates(input.range, input.end);
-  const grouped = byDay(input.activities) as Map<string, TrendActivity[]>;
+  const grouped = byDay(input.activities);
   const days = dates.map((date) => activityDay(date, grouped.get(date) ?? []));
   const steps = days.flatMap((d) => (d.steps === null ? [] : [d.steps]));
   const minutesOf = days.flatMap((d) => (d.activeMinutes === null ? [] : [d.activeMinutes]));

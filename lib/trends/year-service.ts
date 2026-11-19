@@ -2,17 +2,26 @@
 // The day totals are the meals' totals added up per local date, as Today and Trends add them
 // (countedMeal: deleted meals and failed ones without items left out); only the four macros and
 // the chosen nutrient are read from each meal's totals. Water comes from drinks as on Today's Water
-// card, steps and the activity part of the water goal from Move. Nothing is sent for days without
-// meals, water or steps. Scoped by user id; values are never logged.
+// card; steps, active minutes, workouts, the energy of activity and the activity part of the
+// water goal from Move. Nothing is sent for days without meals, water or activity. Scoped by user
+// id; values are never logged.
 import { and, between, eq, ilike, like, or, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
-import { foods, mealItems, meals } from "@/db/schema";
-import type { NutrientCode, NutrientMap } from "@/lib/contracts/nutrients";
+import { activities, foods, mealItems, meals } from "@/db/schema";
+import { WEEKLY_TARGETS } from "@/lib/contracts/move";
+import type { NutrientMap } from "@/lib/contracts/nutrients";
 import { itemWaterMl } from "@/lib/meals/hydration";
 import { isUuid } from "@/lib/meals/service";
 import { isWaterOnly } from "@/lib/meals/water";
-import { byDay, daySteps, sweatMinutes } from "@/lib/move/score";
+import {
+  activeMinutes,
+  byDay,
+  cardioMinutes,
+  daySteps,
+  isWorkout,
+  sweatMinutes,
+} from "@/lib/move/score";
 import { activitiesBetween } from "@/lib/move/service";
 import { dayWaterGoalMl } from "@/lib/move/water";
 import { getTargets } from "@/lib/targets/service";
@@ -21,11 +30,13 @@ import { countedMeal } from "./service";
 import {
   clampYear,
   DEFAULT_YEAR_METRIC,
+  isActivityMetric,
   isYearMetric,
   lastDayOf,
   yearStart,
   type YearData,
   type YearDay,
+  type YearMetric,
 } from "./year";
 
 const finite = (value: unknown): value is number =>
@@ -44,6 +55,16 @@ export const firstMealYear = async (userId: string, dbx: DbOrTx = defaultDb) => 
   return row?.first ? Number(row.first.slice(0, 4)) : null;
 };
 
+/** The year of the person's first activity, or null without one. */
+export const firstActivityYear = async (userId: string, dbx: DbOrTx = defaultDb) => {
+  if (!isUuid(userId)) return null;
+  const [row] = await dbx
+    .select({ first: sql<string | null>`min(${activities.localDate})::text` })
+    .from(activities)
+    .where(eq(activities.userId, userId));
+  return row?.first ? Number(row.first.slice(0, 4)) : null;
+};
+
 /**
  * The year card's data. `year` is the one asked for (the address's ?year=), kept between the year
  * of the first meal and the current one; `metric` is a nutrient code ("water": from drinks).
@@ -54,12 +75,13 @@ export const getYear = async (
   dbx: DbOrTx = defaultDb,
 ): Promise<YearData> => {
   const currentYear = Number(input.today.slice(0, 4));
-  const metric: NutrientCode = isYearMetric(input.metric) ? input.metric : DEFAULT_YEAR_METRIC;
-  const [first, { targets, hydration }] = await Promise.all([
+  const metric: YearMetric = isYearMetric(input.metric) ? input.metric : DEFAULT_YEAR_METRIC;
+  const [firstMeal, firstActivity, { targets, hydration }] = await Promise.all([
     firstMealYear(userId, dbx),
+    firstActivityYear(userId, dbx),
     getTargets(userId, dbx),
   ]);
-  const firstYear = Math.min(first ?? currentYear, currentYear);
+  const firstYear = Math.min(firstMeal ?? currentYear, firstActivity ?? currentYear, currentYear);
   const year = clampYear(input.year ?? String(currentYear), firstYear, currentYear);
   const start = yearStart(year);
   const end = lastDayOf(year, input.today);
@@ -70,9 +92,10 @@ export const getYear = async (
     firstYear,
     targets,
     waterGoalMl: hydration.goalMl,
+    stepGoal: WEEKLY_TARGETS.stepsPerDay,
     currentTargets: true as const,
   };
-  if (!isUuid(userId) || start > end) return { ...base, days: [] };
+  if (!isUuid(userId) || start > end) return { ...base, days: [], stepsSince: null };
 
   const pick = (code: string) => sql<unknown>`${meals.totals} -> ${code}::text`;
   const ownDays = and(
@@ -93,7 +116,7 @@ export const getYear = async (
         protein: pick("protein"),
         carbs: pick("carbs"),
         fat: pick("fat"),
-        value: metric === "water" ? sql<null>`null` : pick(metric),
+        value: metric === "water" || isActivityMetric(metric) ? sql<null>`null` : pick(metric),
         // Written out: Drizzle leaves the table off column names in a one-table select.
         items: sql<number>`case when ${maybeWater} then (select count(*)::int from meal_items i where i.meal_id = meals.id) else 0 end`,
         photos: sql<number>`case when ${maybeWater} then (select count(*)::int from meal_photos p where p.meal_id = meals.id) else 0 end`,
@@ -158,6 +181,11 @@ export const getYear = async (
         waterMl: 0,
         waterGoalMl: hydration.goalMl,
         steps: 0,
+        activity: false,
+        activeMinutes: 0,
+        whoMinutes: 0,
+        workouts: 0,
+        activityEnergy: null,
       };
       days.set(date, day);
     }
@@ -186,14 +214,29 @@ export const getYear = async (
     const ml = itemWaterMl(drink);
     if (ml > 0) dayOf(drink.localDate).waterMl += ml;
   }
+  let stepsSince: string | null = null;
   for (const [date, list] of byDay(activityRows)) {
-    const steps = daySteps(list);
-    const goal = dayWaterGoalMl(hydration.goalMl, sweatMinutes(list));
-    if (!steps && goal === hydration.goalMl && !days.has(date)) continue;
     const day = dayOf(date);
-    day.steps = steps;
-    day.waterGoalMl = goal;
+    day.activity = true;
+    day.steps = daySteps(list);
+    day.waterGoalMl = dayWaterGoalMl(hydration.goalMl, sweatMinutes(list));
+    day.activeMinutes = activeMinutes(list);
+    day.whoMinutes = cardioMinutes(list);
+    day.workouts = list.filter(isWorkout).length;
+    const energies = list.filter((a) => a.energyKcal !== null && Number.isFinite(a.energyKcal));
+    day.activityEnergy = energies.length
+      ? Math.round(energies.reduce((sum, a) => sum + a.energyKcal!, 0))
+      : null;
+    if (
+      list.some((a) => a.stepsOnly && a.steps && a.source === "health_connect") &&
+      (!stepsSince || date < stepsSince)
+    )
+      stepsSince = date;
   }
 
-  return { ...base, days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)) };
+  return {
+    ...base,
+    stepsSince,
+    days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)),
+  };
 };
