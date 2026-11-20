@@ -53,7 +53,7 @@ Created by Kamyar Fatemifar.
     <td align="center">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/move-dark.webp">
-        <img src="docs/screenshots/move-light.webp" width="200" alt="Move: the level, points and streak, this week's minutes and steps by category against the weekly targets, and the badges earned">
+        <img src="docs/screenshots/move-light.webp" width="200" alt="Move for one day: the day pager, a week strip with a steps ring per day, the day's steps against the goal with active minutes, energy and points, where the steps came from, and the day's activities">
       </picture>
       <br><sub>Move</sub>
     </td>
@@ -193,7 +193,14 @@ The same Kal in an Android app that also reads Health Connect, where Samsung Hea
 watch and Renpho keep steps, workouts, heart rate, sleep and weigh-ins, and sends them to your
 server. It is linked with a one-time code and can be unlinked at any time. It is built from
 [android/](android/README.md) and downloaded from your own server (More, then Kal for Android),
-not a store.
+not a store, and the page offers each newer version.
+
+The app's Health Connect screen lists what Health Connect holds for the last 30 days (days with
+steps, workouts, resting heart rate, sleep, weigh-ins) and which app wrote each, counted on the
+phone and never sent. When nothing is there, it says so and opens Samsung Health or Health
+Connect's permissions directly. On the server, Kal keeps a 30-day log of each update a phone sends
+(counts only), shows the latest ones under the phone, and warns with the steps to fix it while
+nothing has arrived.
 
 ### Integrations (optional)
 
