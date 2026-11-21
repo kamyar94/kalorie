@@ -14,10 +14,11 @@ and sends the records to the person's own Kal server.
   `intent://link?code=...#Intent;scheme=kal;package=<app id>;end`, trades the one-time code
   (valid 10 minutes) over HTTPS for a device token (`POST /api/devices/claim`) and asks Health
   Connect for read access.
-- `ui/HealthStatusActivity` shows what was sent and when, "Send now", the access
-  Health Connect gives and "Unlink this phone". Health Connect opens it for "How Kal uses this
-  data" (the rationale intent, and the Android 14 `VIEW_PERMISSION_USAGE` alias). A launcher
-  shortcut "Health Connect" opens it too.
+- `ui/HealthStatusActivity` shows what was sent and when, today's steps, active time and
+  activity calories as last sent, "Send now", the access Health Connect gives and "Unlink this
+  phone". Health Connect opens it for "How Kal uses this data" (the rationale intent, and the
+  Android 14 `VIEW_PERMISSION_USAGE` alias). A launcher shortcut "Health Connect" opens it too,
+  and so does Move's "Open Kal's Health Connect screen" (`kal://status`, app 1.2).
 - The same screen counts what Health Connect holds for the last 30 days (`hc/InventoryReader`,
   `hc/Inventory`): days with steps above 0, workouts, days with resting heart rate, nights of
   sleep and weigh-ins, each with the apps that wrote them (named by their launcher labels). The
@@ -34,10 +35,20 @@ and sends the records to the person's own Kal server.
   `POST /api/health-connect/sync` (at most 2 MB each; the server takes 120 batches an hour per
   phone). Every sync sends at least one batch, and a read of the whole window carries
   `firstReadDays`, so the server's update log (shown on Kal for Android) has a line for each
-  sync, also when Health Connect had nothing. WorkManager runs it about every hour when background reading is allowed, and when the
-  app opens. On the server, workouts become Move activities, body values Body measurements
-  (height fills an empty profile height), and heart rate and sleep are kept for later charts;
-  a record sent again updates the one before, and a deletion in Health Connect removes it.
+  sync, also when Health Connect had nothing. WorkManager runs it about every hour when
+  background reading is allowed, and when the app opens. On the server, workouts become Move
+  activities, body values Body measurements (height fills an empty profile height), and heart
+  rate and sleep are kept for later charts; a record sent again updates the one before, and a
+  deletion in Health Connect removes it.
+- From app 1.2 every day it reads (each day of a first read; later the days a change touched,
+  today and yesterday) also goes as a day total (`dayTotals`, `sync/DayNumbers`): steps from
+  the aggregate, activity calories from `ActiveCaloriesBurnedRecord`'s aggregate, and active
+  time, which Health Connect does not keep: the minutes of the day covered by exercise sessions,
+  joined with the minutes of step records walked at 60 steps a minute or more (a record's steps
+  spread evenly over its time), each minute once, cut at the phone's local midnights (method
+  `sessions+steps60`). Each number names the app that wrote most of it. The first sync after
+  updating to 1.2 reads the whole window again, so earlier days get their totals too. Move shows
+  them as the phone's numbers next to Kal's own workouts.
 - `store/TokenStore` keeps the device token encrypted with an Android Keystore key. A 401 from
   the server means the phone was unlinked: the app says "Unlinked. Link again."
 - `update/UpdateCheck` compares the server's `/android/version.json` with the app's version and
@@ -60,7 +71,7 @@ The server's host name and the application id are build properties and never in 
 `kal.properties.example` to `kal.properties` (git ignores it) and set `kal.host` and `kal.appId`
 (the same id goes into `ANDROID_APP_ID` on the server), and `kal.versionName` and
 `kal.versionCode` (raise the code for every build you hand out; without them the build uses the
-release in `app/build.gradle.kts`, now 1.1 and 2). `KAL_HOST`, `KAL_APP_ID`,
+release in `app/build.gradle.kts`, now 1.2 and 3). `KAL_HOST`, `KAL_APP_ID`,
 `KAL_VERSION_NAME` and `KAL_VERSION_CODE` in the environment win over the file, and
 `--properties <file>` reads another file.
 

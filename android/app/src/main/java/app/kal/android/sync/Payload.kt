@@ -9,7 +9,8 @@ import java.time.temporal.ChronoUnit
  * the server). Records are split into batches of at most [maxRecords]; deletions travel in the
  * first batches. Every batch carries the phone's time zone and the app's version, and on a read
  * of the whole window how many days it covered. A sync always sends at least one batch, so the
- * server's update log shows each one, also when Health Connect had nothing.
+ * server's update log shows each one, also when Health Connect had nothing. App 1.2 adds each
+ * day's steps, active time and activity calories ("dayTotals"); everything 1.0 and 1.1 send stays.
  */
 object Payload {
     const val MAX_RECORDS = 1000
@@ -59,6 +60,19 @@ object Payload {
     fun resting(r: RestingDay): Map<String, Any?> =
         linkedMapOf("date" to r.date.toString(), "bpm" to r.bpm?.let { round(it, 1) }, "sourceApp" to r.sourceApp)
 
+    /** A day's three numbers, the method of the active time and the app that wrote most of each. */
+    fun dayTotal(d: DayNumbers): Map<String, Any?> =
+        linkedMapOf(
+            "date" to d.date.toString(),
+            "steps" to d.steps?.coerceAtLeast(0),
+            "stepsApp" to d.stepsApp,
+            "activeMinutes" to d.activeMinutes?.coerceAtLeast(0),
+            "activeMethod" to d.activeMethod,
+            "activeApp" to d.activeApp,
+            "activeKcal" to d.activeKcal?.coerceAtLeast(0.0)?.let { round(it, 1) },
+            "kcalApp" to d.kcalApp,
+        )
+
     fun sleep(s: Sleep): Map<String, Any?> =
         linkedMapOf(
             "id" to s.id,
@@ -83,7 +97,8 @@ object Payload {
                 collected.workouts.map { "workouts" to workout(it, zone) } +
                 collected.body.map { "body" to body(it) } +
                 collected.resting.map { "restingHeartRate" to resting(it) } +
-                collected.sleep.map { "sleep" to sleep(it) }
+                collected.sleep.map { "sleep" to sleep(it) } +
+                collected.days.map { "dayTotals" to dayTotal(it) }
         val recordChunks = records.chunked(maxRecords)
         val deletedChunks = collected.deleted.distinct().chunked(maxDeleted)
         val count = maxOf(recordChunks.size, deletedChunks.size, 1)
@@ -91,7 +106,7 @@ object Payload {
             val chunk = recordChunks.getOrElse(index) { emptyList() }
             val batch = linkedMapOf<String, Any?>("tz" to zone.id, "appVersion" to appVersion)
             firstReadDays?.let { batch["firstReadDays"] = it }
-            for (kind in listOf("steps", "workouts", "body", "restingHeartRate", "sleep")) {
+            for (kind in listOf("steps", "workouts", "body", "restingHeartRate", "sleep", "dayTotals")) {
                 val items = chunk.filter { it.first == kind }.map { it.second }
                 if (items.isNotEmpty()) batch[kind] = items
             }

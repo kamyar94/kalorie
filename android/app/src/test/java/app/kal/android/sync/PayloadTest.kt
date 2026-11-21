@@ -134,6 +134,54 @@ class PayloadTest {
     }
 
     @Test
+    fun dayTotalsCarryTheirMethodAndAppsNextToEverything11Sends() {
+        val day = LocalDate.of(2026, 11, 10)
+        val numbers = DayNumbers(day, 8412, "com.sec.android.app.shealth", 72, "com.sec.android.app.shealth", 486.44, null)
+        assertEquals(
+            linkedMapOf(
+                "date" to "2026-11-10",
+                "steps" to 8412L,
+                "stepsApp" to "com.sec.android.app.shealth",
+                "activeMinutes" to 72,
+                "activeMethod" to "sessions+steps60",
+                "activeApp" to "com.sec.android.app.shealth",
+                "activeKcal" to 486.4,
+                "kcalApp" to null,
+            ),
+            Payload.dayTotal(numbers),
+        )
+        // Unknown numbers go as null, and an unknown active time has no method.
+        val unknown = Payload.dayTotal(DayNumbers(day, 120, null, null, null, null, null))
+        assertEquals(null, unknown["activeMinutes"])
+        assertEquals(null, unknown["activeMethod"])
+        assertEquals(null, unknown["activeKcal"])
+
+        // The steps of 1.0 and 1.1 stay; day totals count towards a batch's records.
+        val collected = Collected(
+            steps = listOf(StepsDay(day, 8412, "com.sec.android.app.shealth")),
+            days = listOf(numbers, DayNumbers(day.minusDays(1), 0, null, 0, null, 0.0, null)),
+        )
+        assertFalse(collected.isEmpty)
+        assertFalse(Collected(days = listOf(numbers)).isEmpty)
+        val batches = Payload.batches(collected, zone, "1.2 (3)", maxRecords = 2)
+        assertEquals(2, batches.size)
+        assertEquals(
+            """{"tz":"Europe/Berlin","appVersion":"1.2 (3)",""" +
+                """"steps":[{"date":"2026-11-10","count":8412,"sourceApp":"com.sec.android.app.shealth"}],""" +
+                """"dayTotals":[{"date":"2026-11-10","steps":8412,"stepsApp":"com.sec.android.app.shealth",""" +
+                """"activeMinutes":72,"activeMethod":"sessions+steps60","activeApp":"com.sec.android.app.shealth",""" +
+                """"activeKcal":486.4,"kcalApp":null}]}""",
+            batches[0],
+        )
+        assertEquals(
+            """{"tz":"Europe/Berlin","appVersion":"1.2 (3)","dayTotals":[{"date":"2026-11-09","steps":0,""" +
+                """"stepsApp":null,"activeMinutes":0,"activeMethod":"sessions+steps60","activeApp":null,""" +
+                """"activeKcal":0,"kcalApp":null}]}""",
+            batches[1],
+        )
+    }
+
+    @Test
     fun changesEndAsTheirLastWord() {
         val log = ChangeLog<Pair<String, Int>> { it.first }
         log.upsert("a" to 1)

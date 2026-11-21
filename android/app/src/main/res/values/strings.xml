@@ -75,6 +75,12 @@
     <string name="status_error_server">Not sent: your Kal server answered with an error. Kal tries again later.</string>
     <string name="status_error_permission">Not sent: Health Connect did not allow reading. Check the access below.</string>
     <string name="status_today_none">Nothing yet</string>
+    <string name="status_today_no_more">No workouts or weigh-ins yet</string>
+    <string name="status_today_totals">Today in Health Connect, as last sent</string>
+    <string name="total_steps">Steps</string>
+    <string name="total_active">Active time</string>
+    <string name="total_kcal">Activity calories</string>
+    <string name="total_spoken">%1$s today: %2$s</string>
 
     <!-- Board 35: Health Connect has nothing to share yet. -->
     <string name="empty_title">Health Connect has nothing to share yet</string>

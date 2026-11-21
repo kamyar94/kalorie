@@ -126,6 +126,50 @@
                     android:textStyle="bold" />
             </GridLayout>
 
+            <!-- App 1.2: today's steps, active time and activity calories, as last sent. -->
+            <TextView
+                android:id="@+id/today_totals_title"
+                style="@style/Kal.Caption"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/status_today_totals"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/today_totals"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <include
+                    android:id="@+id/total_steps"
+                    layout="@layout/item_total"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1" />
+
+                <include
+                    android:id="@+id/total_active"
+                    layout="@layout/item_total"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1" />
+
+                <include
+                    android:id="@+id/total_kcal"
+                    layout="@layout/item_total"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1" />
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/result"
                 style="@style/Kal.Caption"

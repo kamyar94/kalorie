@@ -43,10 +43,15 @@ enum class SyncOutcome { SENT, NOT_LINKED, UNLINKED, NO_ACCESS, HEALTH_CONNECT_M
  * Steps and resting heart rate are sent as day totals: for the days a change touched, today and
  * yesterday (late watch uploads), and the last 30 days after any deletion (a deletion does not say
  * what it deleted). Workouts of the last 48 hours are read again each time, so energy and heart
- * rate that arrive after the session are picked up.
+ * rate that arrive after the session are picked up. From app 1.2 each of those days (and every day
+ * of a first read) also carries its steps, active time and activity calories ([DayNumbers]); the
+ * first sync after the update reads the whole window again, so the earlier days get them too.
  */
 object SyncEngine {
     private val lock = Mutex()
+
+    /** Part of the token's signature: a new value makes every phone read its whole window again. */
+    private const val READ_VERSION = "days1"
 
     /** Types followed with the changes token. Heart rate samples, energy and distance are read
      * per workout instead (their changes would be thousands of samples). */
@@ -82,20 +87,24 @@ object SyncEngine {
         val read: Pair<Collected, String>
         val firstReadDays: Int?
         val todayLine: String?
+        val todayNumbers: DayNumbers?
         try {
             val granted = client.permissionController.getGrantedPermissions()
             if (granted.none { it in HealthConnect.READ_PERMISSIONS }) return SyncOutcome.NO_ACCESS
             val reader = HealthReader(client, zone, granted)
             val types = CHANGE_TYPES.filter { reader.can(it) }
-            val signature = types.joinToString(",") { it.simpleName ?: "" } + "|" + (HealthConnect.HISTORY in granted)
+            val signature =
+                types.joinToString(",") { it.simpleName ?: "" } + "|" + (HealthConnect.HISTORY in granted) + "|" + READ_VERSION
             val known = state.changesToken.takeIf { state.tokenTypes == signature }
             val days = if (HealthConnect.HISTORY in granted) 365L else 30L
             val changes = known?.let { changesSince(reader, it, now, today) }
             read = changes ?: firstRead(reader, types, now, today, days)
             firstReadDays = if (changes == null) days.toInt() else null
             state.tokenTypes = signature
+            todayNumbers = read.first.days.firstOrNull { it.date == today }
             todayLine = Words.today(
-                steps = read.first.steps.firstOrNull { it.date == today }?.count ?: 0,
+                // The three numbers have their own row on the status screen.
+                steps = if (todayNumbers != null) 0L else read.first.steps.firstOrNull { it.date == today }?.count ?: 0L,
                 workouts = read.first.workouts.count { it.start.atZone(zone).toLocalDate() == today },
                 weighIns = reader.readAll(WeightRecord::class, today.atStartOfDay(zone).toInstant(), now).size,
             )
@@ -122,6 +131,7 @@ object SyncEngine {
         state.lastSyncAt = now.toEpochMilli()
         state.todayLine = todayLine
         state.todayDate = today.toString()
+        state.today = todayNumbers
         return SyncOutcome.SENT
     }
 
@@ -143,6 +153,8 @@ object SyncEngine {
             resting = reader.restingDays(window).filter { it.bpm != null },
             sleep = reader.readAll(SleepSessionRecord::class, from, now).map { reader.sleep(it) },
             height = reader.readAll(HeightRecord::class, from, now).maxByOrNull { it.time }?.let { reader.height(it) },
+            // Today always, so the status screen and the server know it; other empty days are left out.
+            days = reader.dayNumbers(window).filter { !it.isEmpty || it.date == today },
         )
         return collected to nextToken
     }
@@ -177,6 +189,10 @@ object SyncEngine {
             recent + afterDeletion
         val restingDays = written.filterIsInstance<RestingHeartRateRecord>().flatMap { reader.daysOf(it.time, it.time) } +
             recent + afterDeletion
+        // A day's three numbers change with its steps and its sessions; a day sent with zeros
+        // clears what the server had for it.
+        val totalDays = stepDays +
+            written.filterIsInstance<ExerciseSessionRecord>().flatMap { reader.daysOf(it.startTime, it.endTime) }
         val sessions = LinkedHashMap<String, ExerciseSessionRecord>()
         written.filterIsInstance<ExerciseSessionRecord>().forEach { sessions[it.metadata.id] = it }
         reader.readAll(ExerciseSessionRecord::class, now.minus(Duration.ofHours(48)), now)
@@ -191,6 +207,7 @@ object SyncEngine {
             sleep = written.filterIsInstance<SleepSessionRecord>().map { reader.sleep(it) },
             height = written.filterIsInstance<HeightRecord>().maxByOrNull { it.time }?.let { reader.height(it) },
             deleted = log.deleted,
+            days = reader.dayNumbers(totalDays.filter { !it.isAfter(today) }),
         )
         return collected to next
     }

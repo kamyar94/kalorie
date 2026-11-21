@@ -26,6 +26,7 @@ import app.kal.android.hc.KindCount
 import app.kal.android.net.KalApi
 import app.kal.android.store.SyncState
 import app.kal.android.store.TokenStore
+import app.kal.android.sync.DayNumbers
 import app.kal.android.sync.SyncEngine
 import app.kal.android.sync.SyncOutcome
 import app.kal.android.sync.SyncScheduler
@@ -210,8 +211,11 @@ class HealthStatusActivity : ComponentActivity() {
             if (state.lastSyncAt > 0) Words.moment(Instant.ofEpochMilli(state.lastSyncAt), zone)
             else getString(R.string.status_not_yet)
         val today = Instant.now().atZone(zone).toLocalDate().toString()
+        val numbers = state.today?.takeIf { it.date.toString() == today }
         findViewById<TextView>(R.id.today).text =
-            state.todayLine?.takeIf { state.todayDate == today } ?: getString(R.string.status_today_none)
+            state.todayLine?.takeIf { state.todayDate == today }
+                ?: getString(if (numbers != null) R.string.status_today_no_more else R.string.status_today_none)
+        showTotals(numbers)
 
         val background = HealthConnect.BACKGROUND in granted
         val next = if (linked && background) withContext(Dispatchers.IO) { SyncScheduler.nextRun(this@HealthStatusActivity) } else null
@@ -229,6 +233,24 @@ class HealthStatusActivity : ComponentActivity() {
         update.text = newer?.let { getString(R.string.status_update, it) }
         update.visibility = if (newer != null) View.VISIBLE else View.GONE
         findViewById<View>(R.id.update_button).visibility = if (newer != null) View.VISIBLE else View.GONE
+    }
+
+    /** Today's steps, active time and activity calories as last sent; hidden before app 1.2 sent them. */
+    private fun showTotals(numbers: DayNumbers?) {
+        val visibility = if (numbers != null) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.today_totals_title).visibility = visibility
+        findViewById<View>(R.id.today_totals).visibility = visibility
+        if (numbers == null) return
+        for ((id, label, value) in listOf(
+            Triple(R.id.total_steps, R.string.total_steps, Words.number(numbers.steps)),
+            Triple(R.id.total_active, R.string.total_active, Words.minutes(numbers.activeMinutes)),
+            Triple(R.id.total_kcal, R.string.total_kcal, Words.kcal(numbers.activeKcal)),
+        )) {
+            val box = findViewById<View>(id)
+            box.findViewById<TextView>(R.id.value).text = value
+            box.findViewById<TextView>(R.id.label).setText(label)
+            box.contentDescription = getString(R.string.total_spoken, getString(label), value)
+        }
     }
 
     /** What Health Connect holds and who wrote it, with the apps the warning names. */

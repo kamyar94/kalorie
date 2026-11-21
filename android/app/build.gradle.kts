@@ -26,8 +26,8 @@ require(Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+$").matches(kalA
     "kal.appId must be a package name such as app.kal."
 }
 // This release (raise both for each build handed out); kal.properties or the environment win.
-val kalVersionCode = (kal("versionCode", "KAL_VERSION_CODE") ?: "2").toInt()
-val kalVersionName = kal("versionName", "KAL_VERSION_NAME") ?: "1.1"
+val kalVersionCode = (kal("versionCode", "KAL_VERSION_CODE") ?: "3").toInt()
+val kalVersionName = kal("versionName", "KAL_VERSION_NAME") ?: "1.2"
 
 val signingFile = (findProperty("kal.signing") as String?)?.let { file(it) }
 val signingProps = Properties().apply {

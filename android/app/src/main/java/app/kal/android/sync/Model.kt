@@ -71,9 +71,11 @@ data class Collected(
     val sleep: List<Sleep> = emptyList(),
     val height: Height? = null,
     val deleted: List<String> = emptyList(),
+    /** Each day's steps, active time and activity calories (app 1.2 and newer). */
+    val days: List<DayNumbers> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() =
             steps.isEmpty() && workouts.isEmpty() && body.isEmpty() && resting.isEmpty() &&
-                sleep.isEmpty() && height == null && deleted.isEmpty()
+                sleep.isEmpty() && height == null && deleted.isEmpty() && days.isEmpty()
 }

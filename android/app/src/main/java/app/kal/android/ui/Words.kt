@@ -22,6 +22,21 @@ object Words {
             if (weighIns > 0) count(weighIns, "weigh-in", "weigh-ins") else null,
         ).joinToString(" · ").ifEmpty { null }
 
+    /** "8,412"; "–" when unknown. */
+    fun number(value: Long?): String =
+        value?.let { NumberFormat.getIntegerInstance(Locale.US).format(it) } ?: "–"
+
+    /** Active time as the web app writes it: "54 min", "1 h 12 min", "2 h"; "–" when unknown. */
+    fun minutes(value: Int?): String {
+        val m = value ?: return "–"
+        if (m < 60) return "$m min"
+        return if (m % 60 == 0) "${m / 60} h" else "${m / 60} h ${m % 60} min"
+    }
+
+    /** "486 kcal", rounded; "–" when unknown. */
+    fun kcal(value: Double?): String =
+        value?.let { "${NumberFormat.getIntegerInstance(Locale.US).format(Math.round(it))} kcal" } ?: "–"
+
     /** "Today 10:42", "Yesterday 21:05", "Mon 9 Nov 08:10". */
     fun moment(at: Instant, zone: ZoneId, now: Instant = Instant.now()): String {
         val date = at.atZone(zone).toLocalDate()

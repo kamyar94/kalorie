@@ -2,11 +2,15 @@ package app.kal.android.hc
 
 import app.kal.android.sync.BodyCode
 import app.kal.android.sync.BodyValue
+import app.kal.android.sync.DayNumbers
 import app.kal.android.sync.Height
+import app.kal.android.sync.PerDay
 import app.kal.android.sync.RestingDay
 import app.kal.android.sync.Sleep
 import app.kal.android.sync.SleepStage
+import app.kal.android.sync.Span
 import app.kal.android.sync.StepsDay
+import app.kal.android.sync.Totals
 import app.kal.android.sync.Workout
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.aggregate.AggregateMetric
@@ -28,11 +32,13 @@ import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.records.WeightRecord
+import androidx.health.connect.client.records.metadata.DataOrigin
 import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ChangesTokenRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.Period
@@ -44,12 +50,18 @@ import kotlin.reflect.KClass
  * turns records into the plain model of sync/Model.kt. Steps and resting heart rate come from
  * Health Connect's aggregates per local day, which merge the phone and the watch without counting
  * twice; workouts get their distance, energy and heart rate aggregated over the session's time.
+ * Each day's steps, active time and activity calories come from [dayNumbers].
  */
 class HealthReader(
     private val client: HealthConnectClient,
     private val zone: ZoneId,
     private val granted: Set<String>,
 ) {
+    private companion object {
+        /** Apps asked one by one for "the app that wrote most" (usually the phone and a watch). */
+        const val MAX_APPS = 6
+    }
+
     fun can(type: KClass<out Record>) = HealthPermission.getReadPermission(type) in granted
 
     /** A changes token for [types], taken before a full read so nothing falls between. */
@@ -58,7 +70,7 @@ class HealthReader(
 
     suspend fun changes(token: String): ChangesResponse = client.getChanges(token)
 
-    suspend fun <T : Record> readAll(type: KClass<T>, from: Instant, to: Instant): List<T> {
+    suspend fun <T : Record> readAll(type: KClass<T>, from: Instant, to: Instant, pageSize: Int = 1000): List<T> {
         if (!can(type)) return emptyList()
         val out = mutableListOf<T>()
         var page: String? = null
@@ -67,7 +79,7 @@ class HealthReader(
                 ReadRecordsRequest(
                     recordType = type,
                     timeRangeFilter = TimeRangeFilter.between(from, to),
-                    pageSize = 1000,
+                    pageSize = pageSize,
                     pageToken = page,
                 ),
             )
@@ -96,6 +108,90 @@ class HealthReader(
             group.startTime.toLocalDate() to
                 (group.result[metric] to group.result.dataOrigins.map { it.packageName }.distinct().singleOrNull())
         }
+    }
+
+    /**
+     * Health Connect's total of [metric] per local day for [days] (one request per run of
+     * consecutive days), and, when several apps wrote to it, each app's own total per day (one
+     * request per app and run, at most [MAX_APPS] apps), to name the app that wrote most.
+     */
+    private suspend fun <T : Any, V : Number> perDayByApp(
+        metric: AggregateMetric<T>,
+        days: Collection<LocalDate>,
+        value: (T) -> V,
+    ): PerDay<V> {
+        val wanted = days.toSet()
+        val runs = Totals.runs(days)
+        suspend fun groups(origins: Set<DataOrigin>) = runs.flatMap { (first, last) ->
+            client.aggregateGroupByPeriod(
+                AggregateGroupByPeriodRequest(
+                    metrics = setOf(metric),
+                    timeRangeFilter = TimeRangeFilter.between(first.atStartOfDay(), last.plusDays(1).atStartOfDay()),
+                    timeRangeSlicer = Period.ofDays(1),
+                    dataOriginFilter = origins,
+                ),
+            )
+        }
+        val totals = HashMap<LocalDate, V>()
+        val single = HashMap<LocalDate, String?>()
+        val apps = LinkedHashSet<String>()
+        for (group in groups(emptySet())) {
+            val day = group.startTime.toLocalDate()
+            if (day !in wanted) continue
+            group.result[metric]?.let { totals[day] = value(it) }
+            val origins = group.result.dataOrigins.map { it.packageName }.distinct()
+            single[day] = origins.singleOrNull()
+            apps += origins
+        }
+        val byApp = HashMap<String, Map<LocalDate, V>>()
+        if (apps.size > 1) {
+            for (app in apps.take(MAX_APPS)) {
+                try {
+                    byApp[app] = groups(setOf(DataOrigin(app)))
+                        .mapNotNull { group -> group.result[metric]?.let { group.startTime.toLocalDate() to value(it) } }
+                        .filter { it.first in wanted }
+                        .toMap()
+                } catch (_: Exception) {
+                    // Health Connect may refuse a request (rate limits); the total still counts.
+                }
+            }
+        }
+        return PerDay(totals, byApp, single)
+    }
+
+    /**
+     * Each day's steps, active time and activity calories (board 39). Steps and calories come from
+     * Health Connect's aggregates; the active time from the exercise sessions and step records
+     * around the days (from a day earlier, for a session that started the evening before). When
+     * reading those fails (Health Connect's rate limits on a long first read), the active time is
+     * left unknown and the rest is still sent.
+     */
+    suspend fun dayNumbers(days: Collection<LocalDate>): List<DayNumbers> {
+        if (days.isEmpty()) return emptyList()
+        val canSteps = can(StepsRecord::class)
+        val canKcal = can(ActiveCaloriesBurnedRecord::class)
+        val canSessions = can(ExerciseSessionRecord::class)
+        if (!canSteps && !canKcal && !canSessions) return emptyList()
+        val steps = if (canSteps) perDayByApp(StepsRecord.COUNT_TOTAL, days) { it } else null
+        val kcal =
+            if (canKcal) perDayByApp(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL, days) { it.inKilocalories }
+            else null
+        val spans =
+            if (!canSteps && !canSessions) null
+            else try {
+                Totals.runs(days).flatMap { (first, last) ->
+                    val from = first.atStartOfDay(zone).toInstant().minus(Duration.ofDays(1))
+                    val to = last.plusDays(1).atStartOfDay(zone).toInstant()
+                    readAll(ExerciseSessionRecord::class, from, to, 5000).map {
+                        Span(it.startTime, it.endTime, it.metadata.dataOrigin.packageName)
+                    } + readAll(StepsRecord::class, from, to, 5000).map {
+                        Span(it.startTime, it.endTime, it.metadata.dataOrigin.packageName, it.count)
+                    }
+                }
+            } catch (_: Exception) {
+                null
+            }
+        return Totals.days(days, zone, steps, kcal, spans)
     }
 
     /** Day totals of steps; a day without steps has count 0. */

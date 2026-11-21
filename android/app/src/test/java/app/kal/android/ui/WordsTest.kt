@@ -28,6 +28,20 @@ class WordsTest {
     }
 
     @Test
+    fun todaysThreeNumbers() {
+        assertEquals("8,412", Words.number(8412))
+        assertEquals("–", Words.number(null))
+        assertEquals("0 min", Words.minutes(0))
+        assertEquals("54 min", Words.minutes(54))
+        assertEquals("1 h 12 min", Words.minutes(72))
+        assertEquals("2 h", Words.minutes(120))
+        assertEquals("–", Words.minutes(null))
+        assertEquals("486 kcal", Words.kcal(486.4))
+        assertEquals("1,201 kcal", Words.kcal(1200.6))
+        assertEquals("–", Words.kcal(null))
+    }
+
+    @Test
     fun moments() {
         assertEquals("Today 10:42", Words.moment(Instant.parse("2026-11-10T09:42:00Z"), zone, now))
         assertEquals("Yesterday 21:05", Words.moment(Instant.parse("2026-11-09T20:05:00Z"), zone, now))

@@ -1,10 +1,13 @@
 package app.kal.android.store
 
 import android.content.Context
+import app.kal.android.sync.DayNumbers
+import java.time.LocalDate
 
 /**
  * What the app remembers between syncs: the Health Connect changes token (and which record types
- * it covers), when it last sent, today's line for the status screen, whether the server unlinked
+ * it covers), when it last sent, today's line and three numbers for the status screen, whether
+ * the server unlinked
  * the phone, and the newest app version the server offers. Times are epoch milliseconds.
  */
 class SyncState(context: Context) {
@@ -36,6 +39,31 @@ class SyncState(context: Context) {
         get() = prefs.getString("todayDate", null)
         set(value) = prefs.edit().putString("todayDate", value).apply()
 
+    /** Today's steps, active time and activity calories as of the last sync (app 1.2). */
+    var today: DayNumbers?
+        get() {
+            val date = todayDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return null
+            if (!prefs.getBoolean("todayNumbers", false)) return null
+            fun <T> known(key: String, read: (String) -> T): T? = if (prefs.contains(key)) read(key) else null
+            return DayNumbers(
+                date = date,
+                steps = known("todaySteps") { prefs.getLong(it, 0) },
+                stepsApp = null,
+                activeMinutes = known("todayActiveMinutes") { prefs.getInt(it, 0) },
+                activeApp = null,
+                activeKcal = known("todayActiveKcal") { prefs.getFloat(it, 0f).toDouble() },
+                kcalApp = null,
+            )
+        }
+        set(value) {
+            val edit = prefs.edit().remove("todaySteps").remove("todayActiveMinutes").remove("todayActiveKcal")
+            edit.putBoolean("todayNumbers", value != null)
+            value?.steps?.let { edit.putLong("todaySteps", it) }
+            value?.activeMinutes?.let { edit.putInt("todayActiveMinutes", it) }
+            value?.activeKcal?.let { edit.putFloat("todayActiveKcal", it.toFloat()) }
+            edit.apply()
+        }
+
     /** The server answered 401: the phone was unlinked there. */
     var unlinked: Boolean
         get() = prefs.getBoolean("unlinked", false)
@@ -62,6 +90,10 @@ class SyncState(context: Context) {
             .remove("lastAttemptAt")
             .remove("todayLine")
             .remove("todayDate")
+            .remove("todayNumbers")
+            .remove("todaySteps")
+            .remove("todayActiveMinutes")
+            .remove("todayActiveKcal")
             .remove("unlinked")
             .apply()
     }
