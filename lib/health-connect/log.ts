@@ -9,6 +9,7 @@ import { and, desc, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { db as defaultDb, type DbOrTx } from "@/db";
 import {
   activities,
+  activityDayTotals,
   bodyMeasurements,
   devices,
   healthConnectUpdates,
@@ -17,6 +18,7 @@ import {
 } from "@/db/schema";
 import { PHONE_STEP_COUNTER, SAMSUNG_HEALTH_APPS, STEPS_TYPE } from "@/lib/contracts/activities";
 import {
+  isEmptyDayTotal,
   UPDATE_LOG_DAYS,
   type HcSyncResult,
   type HcUpdateCounts,
@@ -48,6 +50,8 @@ export const countBatch = (
     weighIns: batch.body.filter((b) => b.code === "weight").length,
     height: batch.height !== null,
     deleted: batch.deleted.length,
+    // Days with a number above 0 (a day sent empty only clears one).
+    dayTotals: batch.dayTotals.filter((d) => !isEmptyDayTotal(d)).length,
   };
   const records =
     counts.stepDays +
@@ -55,7 +59,8 @@ export const countBatch = (
     counts.restingDays +
     counts.sleepSessions +
     counts.bodyRecords +
-    (counts.height ? 1 : 0);
+    (counts.height ? 1 : 0) +
+    counts.dayTotals;
   return { ...counts, empty: records === 0 };
 };
 
@@ -81,6 +86,7 @@ const toUpdateDto = (row: UpdateRow): HcUpdateDto => ({
   written: row.written,
   removed: row.removed,
   empty: row.empty,
+  dayTotals: row.dayTotals,
 });
 
 const olderThanKept = sql`now() - make_interval(days => ${UPDATE_LOG_DAYS})`;
@@ -213,17 +219,22 @@ export const removeUpdates = async (userId: string, deviceId: string, dbx: DbOrT
 
 /**
  * Whether any Health Connect record of the person is stored: an activity, body measurement,
- * heart rate or sleep session with source health_connect. "Kal for Android" warns while a phone
- * has sent updates and this is false.
+ * heart rate, sleep session or day total with source health_connect. "Kal for Android" warns while
+ * a phone has sent updates and this is false.
  */
 export const hasHealthConnectRecords = async (userId: string, dbx: DbOrTx = defaultDb) => {
   if (!isUuid(userId)) return false;
   const exists = (
-    table: typeof activities | typeof bodyMeasurements | typeof heartRates | typeof sleepSessions,
+    table:
+      | typeof activities
+      | typeof bodyMeasurements
+      | typeof heartRates
+      | typeof sleepSessions
+      | typeof activityDayTotals,
   ) =>
     sql`exists (select 1 from ${table} where ${table.userId} = ${userId} and ${table.source} = 'health_connect')`;
   const result = await dbx.execute<{ found: boolean }>(
-    sql`select (${exists(activities)} or ${exists(bodyMeasurements)} or ${exists(heartRates)} or ${exists(sleepSessions)}) as found`,
+    sql`select (${exists(activities)} or ${exists(bodyMeasurements)} or ${exists(heartRates)} or ${exists(sleepSessions)} or ${exists(activityDayTotals)}) as found`,
   );
   return Boolean(result.rows[0]?.found);
 };

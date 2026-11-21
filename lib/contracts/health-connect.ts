@@ -20,6 +20,12 @@
 //                    access changed): how many days it covered (30, or 365 with the history
 //                    permission). App 1.1 and newer; such a read sends one batch even when Health
 //                    Connect had nothing, so the server's log can say so.
+//   dayTotals        app 1.2 and newer: each day's steps, active time and activity calories as
+//                    the phone counts them -> activity_day_totals (one row per day; every number
+//                    at 0 removes the day). Active time is not a Health Connect record: the app
+//                    works it out (ACTIVE_METHODS) and says how. Each number names the app that
+//                    wrote most of it. Shown on Move, Today, Trends and the year as the phone's
+//                    numbers; Move's points, streak and WHO week keep counting Kal's activities.
 //
 // Every accepted batch adds a row to the phone's update log (lib/health-connect/log.ts): counts
 // of what it held and what was stored, kept 30 days, shown on "Kal for Android".
@@ -97,6 +103,32 @@ export type HcBodyRecord = {
 
 export type HcRestingDay = { date: string; bpm: number | null; sourceApp?: string | null };
 
+/**
+ * How the phone counted a day's active time. "sessions+steps60": the minutes covered by exercise
+ * sessions, joined with the minutes of step records walked at 60 steps a minute or more (a
+ * record's steps spread evenly over its time), each minute once, within the phone's local day.
+ */
+export const ACTIVE_METHODS = ["sessions+steps60"] as const;
+export type ActiveMethod = (typeof ACTIVE_METHODS)[number];
+
+/** A day's three numbers from the phone; null: the phone could not read that kind. */
+export type HcDayTotal = {
+  date: string;
+  steps?: number | null;
+  stepsApp?: string | null;
+  activeMinutes?: number | null;
+  activeMethod?: string | null;
+  activeApp?: string | null;
+  activeKcal?: number | null;
+  kcalApp?: string | null;
+};
+
+/** A day total with nothing to show: every number 0 or unknown (sending it clears the day). */
+export const isEmptyDayTotal = (d: HcDayTotal) =>
+  !(d.steps && d.steps > 0) &&
+  !(d.activeMinutes && d.activeMinutes > 0) &&
+  !(d.activeKcal && d.activeKcal > 0);
+
 export type HcSleep = {
   id: string;
   start: string;
@@ -118,6 +150,7 @@ export type HcSyncBatch = {
   sleep?: HcSleep[];
   deleted?: string[];
   firstReadDays?: number | null;
+  dayTotals?: HcDayTotal[];
 };
 
 export type HcSyncResult = {
@@ -162,6 +195,8 @@ export type HcUpdateCounts = {
   written: number;
   removed: number;
   empty: boolean;
+  /** Day totals with a number above 0 the batch held (app 1.2 and newer). */
+  dayTotals: number;
 };
 
 export type HcUpdateDto = HcUpdateCounts & {

@@ -139,6 +139,7 @@ describe("a row per update", () => {
         written: 0,
         removed: 0,
         empty: true,
+        dayTotals: 0,
       },
       {
         deviceId,
@@ -161,6 +162,7 @@ describe("a row per update", () => {
         written: 8,
         removed: 0,
         empty: false,
+        dayTotals: 0,
       },
       expect.objectContaining({ stepsToday: 6812, added: 0, written: 8, empty: false }),
       expect.objectContaining({
@@ -169,6 +171,7 @@ describe("a row per update", () => {
         // The run and its heart rate.
         removed: 2,
         empty: true,
+        dayTotals: 0,
       }),
     ]);
   });

@@ -11,6 +11,12 @@ import { Field } from "@/components/ui/field";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SelectField } from "@/components/ui/select-field";
 import { useToast } from "@/components/ui/toast";
+import {
+  MOVE_GOAL_CODES,
+  MOVE_GOAL_KEYS,
+  MOVE_GOAL_LABELS,
+  type MoveGoalKey,
+} from "@/lib/contracts/move";
 import { formatNutrient, nutrientInfo, type NutrientCode } from "@/lib/contracts/nutrients";
 import { HYDRATION_CODE, type DailyTargets, type Profile } from "@/lib/contracts/targets";
 import { goalLitres } from "@/lib/meals/hydration";
@@ -42,6 +48,10 @@ const WATER_BASIS: Record<string, string> = {
 
 const KIND: Record<string, string> = { goal: "about", min: "at least", max: "at most", range: "" };
 
+/** "7,000 steps", "60 min", "500 kcal". */
+const goalText = (key: MoveGoalKey, value: number) =>
+  `${Math.round(value).toLocaleString("en-US")} ${MOVE_GOAL_LABELS[key].unit}`;
+
 const toText = (value: number | null, factor = 1, decimals = 0) =>
   value === null ? "" : String(Math.round((value / factor) * 10 ** decimals) / 10 ** decimals);
 
@@ -67,7 +77,7 @@ export const ProfileSection = ({
   const [rate, setRate] = useState(String(profile.goalRateKgPerWeek ?? 0.5));
   const [targets, setTargets] = useState(initialTargets);
   const [busy, setBusy] = useState(false);
-  const [editing, setEditing] = useState<NutrientCode | typeof HYDRATION_CODE | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
 
   const num = (text: string, factor = 1) => {
@@ -93,7 +103,7 @@ export const ProfileSection = ({
     router.refresh();
   };
 
-  const saveTarget = async (code: NutrientCode | typeof HYDRATION_CODE, value: number | null) => {
+  const saveTarget = async (code: string, value: number | null) => {
     const result = await setTargetAction(code, value);
     if (!result.ok) return show({ title: "Not saved", body: result.error, tone: "error" });
     setTargets(result.data);
@@ -323,6 +333,79 @@ export const ProfileSection = ({
               </>
             )}
           </li>
+          {MOVE_GOAL_KEYS.map((key) => {
+            const goal = targets.move[key];
+            const code = MOVE_GOAL_CODES[key];
+            const { name, unit } = MOVE_GOAL_LABELS[key];
+            const lower = name.toLowerCase();
+            return (
+              <li
+                key={key}
+                className="border-border flex min-h-14 items-center gap-2 border-b last:border-b-0"
+                data-testid={`move-goal-${key}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-body">{name} a day</p>
+                  <p className="text-caption text-muted">
+                    {goal.custom ? "set by you" : "Move's goal"}
+                  </p>
+                </div>
+                {editing === code ? (
+                  <form
+                    className="flex items-center gap-1.5"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      // Whole numbers: "8,000" is eight thousand here.
+                      const value = num(draft.replace(/[\s,]/g, ""));
+                      if (value !== null) void saveTarget(code, value);
+                    }}
+                  >
+                    <label htmlFor={`target-${code}`} className="sr-only">
+                      {name} goal in {unit}
+                    </label>
+                    <input
+                      id={`target-${code}`}
+                      autoFocus
+                      inputMode="numeric"
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      className="border-border bg-surface tabular text-body h-11 w-24 rounded-xl border px-2 text-right focus:outline-none focus-visible:outline-3 focus-visible:outline-[var(--focus)]"
+                    />
+                    <span className="text-caption text-muted w-8">{unit}</span>
+                    <Button type="submit">Save</Button>
+                  </form>
+                ) : (
+                  <>
+                    <p className="tabular text-body text-right">
+                      <span className="text-caption text-muted">at least </span>
+                      {goalText(key, goal.value)}
+                    </p>
+                    <button
+                      type="button"
+                      aria-label={`Change the ${lower} goal`}
+                      onClick={() => {
+                        setDraft(String(Math.round(goal.value)));
+                        setEditing(code);
+                      }}
+                      className="text-muted hover:bg-surface-2 grid size-11 place-items-center rounded-full"
+                    >
+                      <Pencil aria-hidden className="size-4" />
+                    </button>
+                    {goal.custom && (
+                      <button
+                        type="button"
+                        aria-label={`Reset the ${lower} goal`}
+                        onClick={() => void saveTarget(code, null)}
+                        className="text-muted hover:bg-surface-2 grid size-11 place-items-center rounded-full"
+                      >
+                        <RotateCcw aria-hidden className="size-4" />
+                      </button>
+                    )}
+                  </>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
     </Card>

@@ -17,6 +17,7 @@ import {
   type Profile,
 } from "@/lib/contracts/targets";
 import { WATER_GOAL_LIMITS_ML, waterGoalMl } from "@/lib/meals/hydration";
+import { moveGoalsFromRows } from "@/lib/move/goals";
 
 import { latestWeightOf } from "@/lib/integrations/store";
 
@@ -93,7 +94,7 @@ export const getTargets = async (
       basis: "custom",
     };
   }
-  return { fromProfile: base.fromProfile, targets, hydration };
+  return { fromProfile: base.fromProfile, targets, hydration, move: moveGoalsFromRows(custom) };
 };
 
 /** Sets the person's own water goal (ml from drinks a day); it stays until reset. */
@@ -147,7 +148,7 @@ export const setCustomTarget = async (
 
 export const resetTarget = async (
   userId: string,
-  code: NutrientCode | typeof HYDRATION_CODE,
+  code: NutrientCode | typeof HYDRATION_CODE | (string & {}),
   dbx: DbOrTx = defaultDb,
 ) => {
   await dbx

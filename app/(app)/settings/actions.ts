@@ -29,6 +29,7 @@ import { isNutrientCode } from "@/lib/contracts/nutrients";
 import type { DailyTargets, Profile } from "@/lib/contracts/targets";
 import { SETTINGS_WINDOWS, takeRateLimit } from "@/lib/rate-limit";
 import { HYDRATION_CODE } from "@/lib/contracts/targets";
+import { MoveGoalError, moveGoalKey, setMoveGoal } from "@/lib/move/goals";
 import { getTargets, resetTarget, setCustomTarget, setHydrationGoal } from "@/lib/targets/service";
 import { parseTheme, THEME_COOKIE } from "@/lib/ui/theme";
 
@@ -83,6 +84,18 @@ export const setTargetAction = async (
       return { ok: true, data: await getTargets(user.id) };
     } catch (error) {
       return failure(error, "The water goal was not saved.");
+    }
+  }
+  // So do the goals of a day's steps, active time and activity calories.
+  const goal = moveGoalKey(code);
+  if (goal) {
+    try {
+      if (target === null) await resetTarget(user.id, code);
+      else await setMoveGoal(user.id, goal, target);
+      return { ok: true, data: await getTargets(user.id) };
+    } catch (error) {
+      if (error instanceof MoveGoalError) return { ok: false, error: error.message };
+      return failure(error, "The goal was not saved.");
     }
   }
   if (!isNutrientCode(code)) return { ok: false, error: "Unknown nutrient." };

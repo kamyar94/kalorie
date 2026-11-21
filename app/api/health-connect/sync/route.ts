@@ -1,5 +1,6 @@
 // POST /api/health-connect/sync with `Authorization: Bearer <device token>`
-//   { tz, appVersion, steps, workouts, body, height, restingHeartRate, sleep, deleted }
+//   { tz, appVersion, steps, workouts, body, height, restingHeartRate, sleep, deleted,
+//     firstReadDays, dayTotals }
 //   -> { added, updated, removed, skipped }
 // A batch of Health Connect records from the Kal Android app (CONTRACT:
 // lib/contracts/health-connect.ts). Records are stored once per Health Connect id, so sending

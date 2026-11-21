@@ -9,6 +9,7 @@ import {
   HEALTH_CONNECT_LIMITS,
   SLEEP_STAGES,
   type HcBodyRecord,
+  type HcDayTotal,
   type HcRestingDay,
   type HcSleep,
   type HcStepsDay,
@@ -77,6 +78,26 @@ const sleep = z.object({
 
 const height = z.object({ cm: z.number().min(50).max(272), at: instant });
 
+/** A day's steps, active time (minutes of a local day, 25 hours on a clock change) and calories. */
+const dayTotal = z.object({
+  date: day,
+  steps: z.number().int().min(0).max(ACTIVITY_LIMITS.maxSteps).nullish(),
+  stepsApp: sourceApp,
+  activeMinutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(25 * 60)
+    .nullish(),
+  activeMethod: z
+    .string()
+    .regex(/^[a-z0-9.+_-]{1,40}$/)
+    .nullish(),
+  activeApp: sourceApp,
+  activeKcal: z.number().min(0).max(ACTIVITY_LIMITS.maxKcal).nullish(),
+  kcalApp: sourceApp,
+});
+
 const list = (max: number) => z.array(z.unknown()).max(max).optional();
 
 const batchShape = z.object({
@@ -90,6 +111,7 @@ const batchShape = z.object({
   sleep: list(HEALTH_CONNECT_LIMITS.batchRecords),
   deleted: z.array(recordId).max(HEALTH_CONNECT_LIMITS.deletedIds).optional(),
   firstReadDays: z.unknown().optional(),
+  dayTotals: list(HEALTH_CONNECT_LIMITS.batchRecords),
 });
 
 /** How many days a read of the whole window covered; anything else is read as "not said". */
@@ -108,6 +130,8 @@ export type CheckedBatch = {
   deleted: string[];
   /** Set on the batches of a read of the whole window (app 1.1 and newer). */
   firstReadDays: number | null;
+  /** Each day's steps, active time and activity calories (app 1.2 and newer). */
+  dayTotals: HcDayTotal[];
 };
 
 export type ParsedBatch = { batch: CheckedBatch; skipped: number };
@@ -120,7 +144,7 @@ const inWindow = (iso: string, now: number) => {
 
 const dayInWindow = (date: string, now: number) => inWindow(`${date}T12:00:00Z`, now);
 
-const LISTS = ["steps", "workouts", "body", "restingHeartRate", "sleep"] as const;
+const LISTS = ["steps", "workouts", "body", "restingHeartRate", "sleep", "dayTotals"] as const;
 
 /** Over the record limits: the answer is 413, not 400. */
 export const TOO_MANY_RECORDS = `Send at most ${HEALTH_CONNECT_LIMITS.batchRecords} records and ${HEALTH_CONNECT_LIMITS.deletedIds} deletions at a time.`;
@@ -174,6 +198,7 @@ export const parseSyncBatch = (
     const length = Date.parse(s.end) - Date.parse(s.start);
     return inWindow(s.end, now) && length > 0 && length <= DAY_MS;
   });
+  const dayTotals: HcDayTotal[] = keep(data.dayTotals, dayTotal, (d) => dayInWindow(d.date, now));
   let heightValue: CheckedBatch["height"] = null;
   if (data.height !== undefined && data.height !== null) {
     const parsed = height.safeParse(data.height);
@@ -193,6 +218,7 @@ export const parseSyncBatch = (
       sleep: sleepSessions,
       deleted: data.deleted ?? [],
       firstReadDays: firstReadDays.safeParse(data.firstReadDays).data ?? null,
+      dayTotals,
     },
     skipped,
   };

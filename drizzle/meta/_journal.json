@@ -92,6 +92,13 @@
       "when": 1795044982808,
       "tag": "0012_dismissed_hints",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795240706431,
+      "tag": "0013_day_totals",
+      "breakpoints": true
     }
   ]
 }

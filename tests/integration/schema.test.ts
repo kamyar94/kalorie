@@ -10,6 +10,7 @@ import { createFood } from "@/tests/helpers/factories";
 
 const TABLES = [
   "activities",
+  "activity_day_totals",
   "ai_keys",
   "ai_settings",
   "ai_usage",

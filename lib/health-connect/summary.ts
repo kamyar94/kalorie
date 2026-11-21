@@ -41,6 +41,11 @@ export const updateSummary = (u: HcUpdateCounts, sameDay: boolean): UpdateSummar
     });
   else if (u.stepDays > 0)
     parts.push({ emoji: "👟", text: count(u.stepDays, "day of steps", "days of steps") });
+  if (u.dayTotals > 0)
+    parts.push({
+      emoji: "⏱️",
+      text: `active time and calories for ${count(u.dayTotals, "day")}`,
+    });
   if (u.workouts > 0) parts.push({ emoji: "🏋️", text: count(u.workouts, "workout") });
   if (u.restingDays > 0)
     parts.push({

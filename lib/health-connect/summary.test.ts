@@ -22,6 +22,7 @@ const counts = (over: Partial<HcUpdateCounts> = {}): HcUpdateCounts => ({
   written: 0,
   removed: 0,
   empty: true,
+  dayTotals: 0,
   ...over,
 });
 
@@ -38,6 +39,16 @@ describe("updateSummary", () => {
     expect(summary.parts.map((p) => p.emoji)).toEqual(["👟", "🏋️", "⚖️"]);
     expect(summaryText(summary)).toBe("6,812 steps today · 1 workout · 1 weigh-in");
     expect(line({ stepDays: 1, stepsToday: 12_040 }, false)).toBe("12,040 steps that day");
+  });
+
+  it("says when the phone's day totals came along (app 1.2)", () => {
+    const summary = updateSummary(counts({ stepDays: 2, stepsToday: 7310, dayTotals: 2 }), true);
+    expect(summary.parts.map((p) => p.emoji)).toEqual(["👟", "⏱️"]);
+    expect(summaryText(summary)).toBe("7,310 steps today · active time and calories for 2 days");
+    expect(line({ dayTotals: 1 })).toBe("active time and calories for 1 day");
+    expect(line({ firstReadDays: 30, stepDays: 20, dayTotals: 24 })).toBe(
+      "First read, 30 days: 20 days of steps · active time and calories for 24 days",
+    );
   });
 
   it("counts days and nights when there is no step total for the day", () => {

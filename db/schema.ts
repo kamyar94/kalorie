@@ -896,11 +896,44 @@ export const healthConnectUpdates = pgTable(
     written: integer("written").notNull().default(0),
     removed: integer("removed").notNull().default(0),
     empty: boolean("empty").notNull(),
+    // Day totals with a number above 0 the batch held (app 1.2 and newer).
+    dayTotals: integer("day_totals").notNull().default(0),
   },
   (t) => [
     index("health_connect_updates_device_idx").on(t.deviceId, t.receivedAt),
     index("health_connect_updates_user_idx").on(t.userId, t.receivedAt),
   ],
+);
+
+// A day's steps, active time and activity calories as the phone counts them (Kal for Android 1.2,
+// lib/health-connect/day-totals.ts): one row per person, local day and source, with the app that
+// wrote most of each number and how the active time was counted (active_method). Shown as the
+// phone's numbers next to Kal's own workouts; Move's points and streak do not use them. The phone
+// that sent the row last is kept, so the row goes with its device (ON DELETE CASCADE), and Delete
+// my data removes them all. A day sent with every number at 0 is removed.
+export const activityDayTotals = pgTable(
+  "activity_day_totals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: userRef(),
+    deviceId: uuid("device_id")
+      .notNull()
+      .references(() => devices.id, { onDelete: "cascade" }),
+    localDate: date("local_date", { mode: "string" }).notNull(),
+    source: text("source", { enum: ACTIVITY_SOURCES }).notNull().default("health_connect"),
+    // The phone's time zone when it sent the day.
+    tz: text("tz").notNull(),
+    steps: integer("steps"),
+    stepsApp: text("steps_app"),
+    activeMinutes: integer("active_minutes"),
+    activeMethod: text("active_method"),
+    activeApp: text("active_app"),
+    activeKcal: real("active_kcal"),
+    kcalApp: text("kcal_app"),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [uniqueIndex("activity_day_totals_user_day_idx").on(t.userId, t.localDate, t.source)],
 );
 
 // One-time codes that link a phone: made by the signed-in page, traded once by the phone for a

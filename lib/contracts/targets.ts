@@ -5,6 +5,7 @@
 //   getTargets(userId)                     -> DailyTargets
 //   setCustomTarget(userId, code, target)  -> void   (stays fixed until reset)
 //   resetTarget(userId, code)              -> void
+import type { MoveGoalsTarget } from "./move";
 import type { NutrientCode } from "./nutrients";
 
 export type Sex = "female" | "male";
@@ -67,4 +68,6 @@ export type DailyTargets = {
   fromProfile: boolean;
   targets: Partial<Record<NutrientCode, NutrientTarget>>;
   hydration: HydrationTarget;
+  /** The goals of a day's steps, active time and activity calories (lib/move/goals.ts). */
+  move: MoveGoalsTarget;
 };

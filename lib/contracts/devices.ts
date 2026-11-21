@@ -18,7 +18,15 @@
 // DELETE /api/devices/:id, GET and DELETE /api/devices/self (device token).
 
 /** What a phone sends, as the "Your phones" list names it. */
-export const SEND_KINDS = ["steps", "workouts", "heart_rate", "sleep", "weight", "body"] as const;
+export const SEND_KINDS = [
+  "steps",
+  "workouts",
+  "heart_rate",
+  "sleep",
+  "weight",
+  "body",
+  "day_totals",
+] as const;
 export type SendKind = (typeof SEND_KINDS)[number];
 
 export const SEND_LABELS: Record<SendKind, string> = {
@@ -28,6 +36,7 @@ export const SEND_LABELS: Record<SendKind, string> = {
   sleep: "sleep",
   weight: "weight",
   body: "body composition",
+  day_totals: "active time and activity calories",
 };
 
 export const isSendKind = (value: unknown): value is SendKind =>
@@ -64,6 +73,14 @@ export type LinkCodeDto = {
 /** The intent URL that opens the native screen of the app `appId` with a one-time code. */
 export const linkIntentUrl = (code: string, appId: string) =>
   `intent://link?code=${encodeURIComponent(code)}#Intent;scheme=kal;package=${appId};end`;
+
+/** Whether an app version ("1.2 (3)") sends day totals: 1.2 and newer. */
+export const sendsDayTotals = (appVersion: string | null) => {
+  const m = /^(\d+)\.(\d+)/.exec(appVersion ?? "");
+  if (!m) return false;
+  const [major, minor] = [Number(m[1]), Number(m[2])];
+  return major > 1 || (major === 1 && minor >= 2);
+};
 
 /** "steps, workouts, heart rate" for a device's list line. */
 export const sendsLine = (sends: SendKind[]) =>

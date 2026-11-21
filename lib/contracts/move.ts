@@ -38,6 +38,70 @@ export const WEEKLY_TARGETS = {
   mobilityMinutes: 60,
 } as const;
 
+/** The goals of a day's steps, active time and activity calories (Settings, with the targets). */
+export type MoveGoals = { steps: number; activeMinutes: number; activeKcal: number };
+
+export const MOVE_GOAL_KEYS = ["steps", "activeMinutes", "activeKcal"] as const;
+export type MoveGoalKey = (typeof MOVE_GOAL_KEYS)[number];
+
+/** Steps: Move's 7,000 a day; an hour of active time; 500 kcal of activity calories. */
+export const DEFAULT_MOVE_GOALS: MoveGoals = {
+  steps: WEEKLY_TARGETS.stepsPerDay,
+  activeMinutes: 60,
+  activeKcal: 500,
+};
+
+/** The user_targets codes the goals are kept under, as custom rows (like the water goal). */
+export const MOVE_GOAL_CODES: Record<MoveGoalKey, string> = {
+  steps: "move_steps",
+  activeMinutes: "move_active_minutes",
+  activeKcal: "move_active_kcal",
+};
+
+/** What a goal may be set to. */
+export const MOVE_GOAL_LIMITS: Record<MoveGoalKey, { min: number; max: number }> = {
+  steps: { min: 500, max: 100_000 },
+  activeMinutes: { min: 5, max: 600 },
+  activeKcal: { min: 25, max: 5000 },
+};
+
+export const MOVE_GOAL_LABELS: Record<MoveGoalKey, { name: string; unit: string }> = {
+  steps: { name: "Steps", unit: "steps" },
+  activeMinutes: { name: "Active time", unit: "min" },
+  activeKcal: { name: "Activity calories", unit: "kcal" },
+};
+
+/** The goals with whether the person set each one (Settings shows Reset for those). */
+export type MoveGoalsTarget = Record<MoveGoalKey, { value: number; custom: boolean }>;
+
+export const isMoveGoalCode = (code: unknown): code is string =>
+  typeof code === "string" && Object.values(MOVE_GOAL_CODES).includes(code);
+
+/**
+ * A day's steps, active time and activity calories as the phone counts them (Kal for Android
+ * 1.2), with the app that wrote most of each (a package name) and when it last arrived. Null: the
+ * phone could not read that kind.
+ */
+export type DayTotalDto = {
+  date: string;
+  steps: number | null;
+  stepsApp: string | null;
+  activeMinutes: number | null;
+  /** How the phone counted the active time ("sessions+steps60"). */
+  activeMethod: string | null;
+  activeApp: string | null;
+  /** Rounded kcal. */
+  activeKcal: number | null;
+  kcalApp: string | null;
+  updatedAt: string;
+};
+
+/**
+ * The person's Kal for Android: none linked, a linked phone on an app older than 1.2 (it sends no
+ * day totals), or 1.2 and newer.
+ */
+export type PhoneApp = "none" | "old" | "current";
+
 export type BadgeCode =
   | "first_workout"
   | "streak_3"

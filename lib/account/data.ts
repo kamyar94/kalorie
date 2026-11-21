@@ -2,15 +2,17 @@
 // the person except secrets (no keys, no password hash, no integration tokens) and the photo
 // files themselves. Deleting removes every logged meal, photo file, item, personal food,
 // correction memory, medicine, medicine log and label photo, activity, badge, body measurement,
-// body photo (and its files), the health profile, heart rate and sleep record, linked phone
-// (their tokens stop working) with its update log, link code, key, integration, notification
-// subscription and custom target, and resets the profile; the account itself (name, username,
+// body photo (and its files), the health profile, heart rate and sleep record, the phone's day
+// totals, linked phone (their tokens stop working) with its update log, link code, key,
+// integration, notification subscription and custom target (Move's goals too), and resets the
+// profile; the account itself (name, username,
 // password, role) stays so the person can go on.
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import {
   activities,
+  activityDayTotals,
   aiKeys,
   bodyMeasurements,
   bodyPhotoSessions,
@@ -46,6 +48,8 @@ import type { ActivityDto } from "@/lib/contracts/activities";
 import type { MeasurementDto } from "@/lib/contracts/body";
 import type { BodySessionDto } from "@/lib/contracts/body-photos";
 import type { HcUpdateDto } from "@/lib/contracts/health-connect";
+import type { DayTotalDto } from "@/lib/contracts/move";
+import { allDayTotals } from "@/lib/health-connect/day-totals";
 import { allUpdates } from "@/lib/health-connect/log";
 import type { MealDto } from "@/lib/contracts/meals";
 import type { MedicineDto, MedicineLogDto } from "@/lib/contracts/medicines";
@@ -112,6 +116,11 @@ export type ExportData = {
     sourceApp: string | null;
   }[];
   /**
+   * Each day's steps, active time and activity calories as the phone counted them (Kal for
+   * Android 1.2), with the app that wrote most of each, oldest first.
+   */
+  dayTotals: DayTotalDto[];
+  /**
    * Phones linked through the Android app, unlinked ones too (never their tokens), each with its
    * update log of the last 30 days (counts only, oldest first).
    */
@@ -158,6 +167,7 @@ export const exportUserData = async (
     heartRows,
     sleepRows,
     updateRows,
+    dayTotalRows,
   ] = await Promise.all([
     ids.length ? dbx.select().from(mealPhotos).where(inArray(mealPhotos.mealId, ids)) : [],
     ids.length
@@ -212,6 +222,7 @@ export const exportUserData = async (
       .where(eq(sleepSessions.userId, userId))
       .orderBy(asc(sleepSessions.startedAt)),
     allUpdates(userId, dbx),
+    allDayTotals(userId, dbx),
   ]);
 
   return {
@@ -300,6 +311,7 @@ export const exportUserData = async (
       title: r.title,
       sourceApp: r.sourceApp,
     })),
+    dayTotals: dayTotalRows,
     devices: deviceRows.map((d) => ({
       name: d.name,
       platform: d.platform,
@@ -415,6 +427,7 @@ export const deleteUserData = async (userId: string, dbx: DbOrTx = defaultDb) =>
     await tx.delete(bodyPhotoSessions).where(eq(bodyPhotoSessions.userId, userId));
     await tx.delete(heartRates).where(eq(heartRates.userId, userId));
     await tx.delete(sleepSessions).where(eq(sleepSessions.userId, userId));
+    await tx.delete(activityDayTotals).where(eq(activityDayTotals.userId, userId));
     // Linked phones go too, with their update logs: their tokens stop working, the app says
     // "Unlinked. Link again."
     await tx.delete(healthConnectUpdates).where(eq(healthConnectUpdates.userId, userId));

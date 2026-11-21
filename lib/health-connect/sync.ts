@@ -1,8 +1,9 @@
 // Writes a checked batch from the Kal Android app (CONTRACT: lib/contracts/health-connect.ts) into
 // the person's tables: steps and workouts into activities, body values into body_measurements,
-// heart rate into heart_rates, sleep into sleep_sessions. Everything is keyed by (user, source
-// "health_connect", external id), so sending a record again updates it; deletions remove by
-// external id. Values are never logged; the phone's update log (./log.ts) keeps counts.
+// heart rate into heart_rates, sleep into sleep_sessions, each day's steps, active time and
+// activity calories into activity_day_totals (./day-totals.ts). Everything is keyed by (user,
+// source "health_connect", external id or day), so sending a record again updates it; deletions
+// remove by external id. Values are never logged; the phone's update log (./log.ts) keeps counts.
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
@@ -18,6 +19,7 @@ import { isUuid } from "@/lib/meals/service";
 import { localParts } from "@/lib/meals/time";
 import { fromLocalInputValue } from "@/lib/ui/format";
 
+import { writeDayTotals } from "./day-totals";
 import { recordUpdate } from "./log";
 import type { ParsedBatch } from "./parse";
 
@@ -330,6 +332,11 @@ export const applyHealthConnectBatch = async (
       ),
     );
 
+    // The phone's day totals (app 1.2): a day sent again replaces it, an empty one goes.
+    const days = await writeDayTotals(owner.device, tz, batch.dayTotals, tx);
+    count(days);
+    removed += days.removed;
+
     // Height only fills an empty profile height; what the person typed stays.
     if (batch.height)
       await tx
@@ -348,6 +355,7 @@ export const applyHealthConnectBatch = async (
   if (batch.sleep.length) sent.push("sleep");
   if (batch.body.some((b) => b.code === "weight")) sent.push("weight");
   if (batch.body.some((b) => b.code !== "weight") || batch.height) sent.push("body");
+  if (batch.dayTotals.length) sent.push("day_totals");
   await markDeviceSynced(owner.device, sent, batch.appVersion, dbx);
   const result = { ...counts, skipped };
   await recordUpdate(owner.device, batch, result, dbx);

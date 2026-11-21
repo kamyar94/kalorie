@@ -8,7 +8,14 @@ import { db as defaultDb, type DbOrTx } from "@/db";
 import { deviceLinkCodes, devices, users } from "@/db/schema";
 import { audit } from "@/lib/audit";
 import { sha256Hex } from "@/lib/crypto";
-import { DEVICE_LIMITS, isSendKind, SEND_KINDS, type DeviceDto } from "@/lib/contracts/devices";
+import {
+  DEVICE_LIMITS,
+  isSendKind,
+  SEND_KINDS,
+  sendsDayTotals,
+  type DeviceDto,
+} from "@/lib/contracts/devices";
+import type { PhoneApp } from "@/lib/contracts/move";
 import { removeUpdates } from "@/lib/health-connect/log";
 import { isUuid } from "@/lib/meals/service";
 
@@ -156,6 +163,16 @@ export const listDevices = async (userId: string, dbx: DbOrTx = defaultDb) => {
     .where(and(eq(devices.userId, userId), isNull(devices.revokedAt)))
     .orderBy(desc(devices.createdAt));
   return rows.map(toDeviceDto);
+};
+
+/**
+ * The person's Kal for Android: "current" when a linked phone runs 1.2 or newer, "old" when the
+ * linked phones run older versions, "none" without a linked phone.
+ */
+export const phoneAppOf = async (userId: string, dbx: DbOrTx = defaultDb): Promise<PhoneApp> => {
+  const phones = await listDevices(userId, dbx);
+  if (!phones.length) return "none";
+  return phones.some((p) => sendsDayTotals(p.appVersion)) ? "current" : "old";
 };
 
 /**
