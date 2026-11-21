@@ -40,8 +40,16 @@ test("move: + Activity, a Samsung Health zip imported twice, and a CSV with its 
   await expect(day).toContainText("Running");
   await expect(day).toContainText(/\d\d:\d\d · 30 min · typed in Kal/);
   await expect(day).toContainText("+60 points");
-  await expect(page.getByTestId("move-day-minutes")).toHaveText("Active minutes30 min");
-  await expect(page.getByTestId("move-day-energy")).toHaveText("Energy from activity320 kcal");
+  // Kal's own workouts next to the phone's numbers (no phone linked: the other two rings say so).
+  await expect(page.getByTestId("move-day-workouts")).toHaveText(
+    "Workouts in Kal1 · 30 min · 320 kcal",
+  );
+  await expect(
+    page.getByRole("img", { name: "Active time: no number from the phone" }),
+  ).toBeVisible();
+  await expect(page.getByTestId("move-day-no-totals")).toHaveText(
+    "Active time and activity calories come from Health Connect, through Kal for Android. Kal for Android",
+  );
   // The last six weeks are folded.
   const list = page.getByTestId("activity-list");
   await expect(list).toBeHidden();
@@ -181,7 +189,8 @@ test("move: level, streak, the week by category and badges; Today's Move card", 
   const card = page.getByTestId("move-card");
   await expect(card.getByTestId("move-minutes")).toHaveText("45 minStrength, openGym");
   await expect(card.getByTestId("move-steps")).toHaveText("6,240Steps · imported");
-  await expect(card.getByTestId("move-points")).toHaveText("+90Points today");
+  await expect(card.getByTestId("move-kcal")).toHaveText("–Activity kcal");
+  await expect(card.getByTestId("move-points")).toHaveText("+90 points today");
   // The water goal grows by an estimate for the 45 minutes of activity.
   const water = page.getByTestId("water-card");
   await expect(water.getByTestId("water-total")).toHaveText("0 of 2.2 L");

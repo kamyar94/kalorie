@@ -48,6 +48,8 @@ const TEXT_PAIRS: [string, string][] = [
   ["on-danger-soft", "danger-soft"],
   ["on-warning-soft", "warning-soft"],
   ["on-warning-soft", "surface"],
+  // Move's note that the phone's numbers are not the latest yet.
+  ["on-info-soft", "info-soft"],
   ["danger", "surface"],
   ["primary", "surface"],
   // "+250 ml water" on a meal card.

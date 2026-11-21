@@ -1,5 +1,4 @@
 import { cn } from "@/components/ui/cn";
-import { formatSteps } from "@/lib/contracts/activities";
 
 /**
  * A ring of a day's steps against the step goal: blue while under it, green once reached (the
@@ -57,21 +56,3 @@ export const Ring = ({
     </div>
   );
 };
-
-/** The day's steps, large, in a 150 px ring (board 36). */
-export const StepsRing = ({ steps, goal }: { steps: number; goal: number }) => (
-  <div
-    role="img"
-    aria-label={`Steps: ${formatSteps(steps)} of ${formatSteps(goal)}${steps >= goal ? ", goal reached" : ""}`}
-    data-testid="move-day-steps"
-  >
-    <Ring size={150} stroke={12} steps={steps} goal={goal}>
-      <span aria-hidden className="tabular text-[1.875rem] leading-none font-extrabold">
-        {formatSteps(steps)}
-      </span>
-      <span aria-hidden className="text-caption text-muted mt-1">
-        of {formatSteps(goal)} steps
-      </span>
-    </Ring>
-  </div>
-);

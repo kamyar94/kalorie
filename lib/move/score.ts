@@ -187,8 +187,12 @@ const strengthDays = (days: Map<string, ScoredActivity[]>, dates: string[]) =>
   dates.filter((d) => (days.get(d) ?? []).some((a) => timed(a) && a.category === "strength"))
     .length;
 
-/** The week of `monday` by category, against the weekly targets. */
-export const weekRows = (days: Map<string, ScoredActivity[]>, monday: string): WeekRowDto[] => {
+/** The week of `monday` by category, against the weekly targets (steps: the day's goal x 7). */
+export const weekRows = (
+  days: Map<string, ScoredActivity[]>,
+  monday: string,
+  stepGoal: number = WEEKLY_TARGETS.stepsPerDay,
+): WeekRowDto[] => {
   const dates = weekDays(monday);
   const week = dates.flatMap((d) => days.get(d) ?? []);
   const rows: WeekRowDto[] = [
@@ -207,7 +211,7 @@ export const weekRows = (days: Map<string, ScoredActivity[]>, monday: string): W
     {
       category: "walking",
       value: dates.reduce((sum, d) => sum + daySteps(days.get(d) ?? []), 0),
-      target: WEEKLY_TARGETS.stepsPerDay * 7,
+      target: stepGoal * 7,
       unit: "steps",
     },
     {

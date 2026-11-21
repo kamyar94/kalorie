@@ -44,6 +44,7 @@ import type {
   MedicineScanDto,
   NewMedicineLog,
 } from "@/lib/contracts/medicines";
+import type { EveryDayMonthDto } from "@/lib/contracts/move";
 import type { NutrientMap } from "@/lib/contracts/nutrients";
 import type { WaterEntryDto, WaterPatch } from "@/lib/contracts/water";
 
@@ -267,6 +268,9 @@ export const api = {
     request<{ activities: ActivityDto[] }>(`/api/activities?from=${id(from)}&to=${id(to)}`).then(
       (r) => r.activities,
     ),
+  /** A month of Move's "Every day" ("2026-10"). */
+  moveDays: (month: string) =>
+    request<EveryDayMonthDto>(`/api/move/days?month=${encodeURIComponent(month)}`),
   dismissHint: (hint: "phone-steps-only") =>
     request<{ ok: true }>("/api/hints", { method: "POST", body: { hint } }),
   createActivity: (input: ManualActivityInput) =>

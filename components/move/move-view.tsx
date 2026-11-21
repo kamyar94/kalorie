@@ -10,20 +10,24 @@ import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/client/api";
 import type { ActivityDto } from "@/lib/contracts/activities";
-import type { MoveDayViewDto } from "@/lib/contracts/move";
+import type { EveryDayMonthDto, MoveDayViewDto } from "@/lib/contracts/move";
 
 import { ActivityList } from "./activity-list";
 import { ActivitySheet } from "./activity-sheet";
 import { DayCard } from "./day-card";
+import { EveryDay } from "./every-day";
+import { StaleNote } from "./stale-note";
 import { StepsHint } from "./steps-hint";
 import { WeekStrip } from "./week-strip";
 
 export type OpenGymState = "unavailable" | "unpaired" | "paired";
 
 /**
- * Move for one day (boards 10 and 36): the week strip, the day's card, the hint about the phone's
- * step counter, the day's activities with "+ Activity on this day"; beside or below them the
- * level, the week and the badges, the last six weeks (folded) and where the data comes from.
+ * Move for one day (boards 10, 36, 39 and 40): the week strip, the day's card with the phone's
+ * steps, active time and activity calories, a note while the phone's last update is old, the hint
+ * about the phone's step counter, the day's activities with "+ Activity on this day", and every
+ * day of the month; beside or below them the level, the week and the badges, the last six weeks
+ * (folded) and where the data comes from.
  */
 export const MoveView = ({
   day,
@@ -34,6 +38,9 @@ export const MoveView = ({
   openGym,
   hint,
   updated,
+  stale,
+  appId,
+  everyDay,
   children,
 }: {
   day: MoveDayViewDto;
@@ -48,6 +55,12 @@ export const MoveView = ({
   hint: boolean;
   /** When a phone last sent, worded in the viewer's zone. */
   updated: string | null;
+  /** The phone's last update is more than two hours old for the shown day. */
+  stale: boolean;
+  /** The Android app's package, for the link to its Health Connect screen. */
+  appId: string | null;
+  /** The shown day's month for "Every day". */
+  everyDay: EveryDayMonthDto;
   /** The level, week and badges sections. */
   children?: React.ReactNode;
 }) => {
@@ -85,6 +98,9 @@ export const MoveView = ({
             label={weekLabel}
           />
           <DayCard day={day} updated={updated} />
+          {stale && updated && (
+            <StaleNote sent={updated} today={day.date === today} appId={appId} />
+          )}
           {hint && <StepsHint />}
           <Card
             as="section"
@@ -113,6 +129,7 @@ export const MoveView = ({
               <Plus aria-hidden className="size-4" /> Activity on this day
             </Button>
           </Card>
+          <EveryDay initial={everyDay} today={today} selected={day.date} goals={day.goals} />
         </div>
 
         <div className="flex flex-col gap-4">

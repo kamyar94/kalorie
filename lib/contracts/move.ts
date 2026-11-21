@@ -4,8 +4,11 @@
 // Server functions (lib/move/service.ts), scoped by user id:
 //   getMoveSummary(userId, today)   -> MoveSummaryDto   (also stores newly earned badges)
 //   getMoveDay(userId, localDate)   -> MoveDayDto
-//   getMoveDayView(userId, date, today) -> MoveDayViewDto   (Move for one day, board 36)
-// The rules are plain functions in lib/move/score.ts.
+//   getMoveDayView(userId, date, today) -> MoveDayViewDto   (Move for one day, boards 36 and 39)
+//   getEveryDayMonth(userId, month, today) -> EveryDayMonthDto (Move's "Every day", board 40)
+// The rules are plain functions in lib/move/score.ts. A day's steps, active time and activity
+// calories as the phone counts them (Kal for Android 1.2, DayTotalDto) are shown next to Kal's
+// own workouts; points, the streak and the WHO week keep counting Kal's activities.
 import type { ActivityCategory, ActivityDto, ActivitySource } from "./activities";
 
 /**
@@ -217,17 +220,28 @@ export type MoveDayDto = {
   points: number;
   /** Minutes of moderate or harder timed activity (the water estimate). */
   sweatMinutes: number;
+  /** Energy of the day's activities in Kal, kcal; null when none has one. */
+  energyKcal: number | null;
+  /** The phone's numbers for the day (app 1.2), or null. */
+  totals: DayTotalDto | null;
+  goals: MoveGoals;
 };
 
 /** One day of the week strip on Move: its steps; days still to come are drawn outlined. */
 export type MoveWeekDayDto = { date: string; steps: number; future: boolean };
 
-/** Move for one local day (board 36). */
+/** Move for one local day (boards 36 and 39). */
 export type MoveDayViewDto = {
   date: string;
   /** The day's steps as the rules count them (Health Connect's total wins). */
   steps: number;
+  /** The steps goal (goals.steps). */
   stepGoal: number;
+  goals: MoveGoals;
+  /** The phone's steps, active time and activity calories for the day, or null. */
+  totals: DayTotalDto | null;
+  /** Which Kal for Android the person has, for what a day without totals says. */
+  phone: PhoneApp;
   /** Minutes of timed activities. */
   activeMinutes: number;
   /** Energy of the day's activities, kcal (estimates and measured); null when none has one. */
@@ -240,4 +254,27 @@ export type MoveDayViewDto = {
   activities: (ActivityDto & { points: number })[];
   /** Monday to Sunday of the day's week. */
   week: MoveWeekDayDto[];
+};
+
+/**
+ * One day of Move's "Every day" (board 40): the phone's numbers when it sent them; without them
+ * the day's steps as Move counts them and no active time or calories. `fromPhone`: a day total.
+ */
+export type EveryDayRowDto = {
+  date: string;
+  steps: number | null;
+  activeMinutes: number | null;
+  activeKcal: number | null;
+  fromPhone: boolean;
+};
+
+/** A month of "Every day": its days newest first (up to today), and the month before, if any. */
+export type EveryDayMonthDto = {
+  /** "2026-11". */
+  month: string;
+  /** "November", or "November 2025" in another year. */
+  label: string;
+  days: EveryDayRowDto[];
+  /** The month before this one when anything is stored before it ("Earlier days"), else null. */
+  earlier: string | null;
 };

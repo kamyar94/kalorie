@@ -1,10 +1,10 @@
 // Move's summary and Today's Move card (CONTRACT: lib/contracts/move.ts), computed from the
 // person's activities with the rules in score.ts. Earned badges are stored once (user_badges), so
 // a badge stays earned when older data is later removed. Scoped by user id; values never logged.
-import { and, between, eq, isNull, type SQL } from "drizzle-orm";
+import { and, between, eq, isNull, sql, type SQL } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
-import { activities, foods, mealItems, meals, userBadges } from "@/db/schema";
+import { activities, activityDayTotals, foods, mealItems, meals, userBadges } from "@/db/schema";
 import {
   ACTIVITY_CATEGORY_LABELS,
   sourceLabel,
@@ -15,15 +15,21 @@ import {
   isBadgeCode,
   WEEKLY_TARGETS,
   type BadgeCode,
+  type EveryDayMonthDto,
+  type EveryDayRowDto,
   type MoveDayDto,
   type MoveDayViewDto,
   type MoveSummaryDto,
 } from "@/lib/contracts/move";
 import { listActivities } from "@/lib/activities/service";
+import { phoneAppOf } from "@/lib/devices/service";
+import { dayTotalOn, dayTotalsBetween } from "@/lib/health-connect/day-totals";
 import { isUuid } from "@/lib/meals/service";
 import { totalWaterMl } from "@/lib/meals/hydration";
 import { shiftLocalDate } from "@/lib/meals/time";
 import { getTargets } from "@/lib/targets/service";
+
+import { getMoveGoals } from "./goals";
 
 import {
   activeMinutes,
@@ -144,6 +150,7 @@ export const getMoveSummary = async (
         dbx.select().from(userBadges).where(eq(userBadges.userId, userId)),
       ])
     : [new Map<string, number>(), null, []];
+  const stepGoal = targets?.move.steps.value ?? WEEKLY_TARGETS.stepsPerDay;
   const base = targets?.hydration.goalMl ?? 0;
   const dates = new Set([...days.keys(), ...water.keys()]);
   const history: BadgeDay[] = [...dates]
@@ -179,20 +186,28 @@ export const getMoveSummary = async (
       days: currentStreak(days, today),
       activeToday: isActiveDay(days.get(today) ?? []),
     },
-    week: { start: weekStart(weekOf), rows: weekRows(days, weekStart(weekOf)) },
+    week: { start: weekStart(weekOf), rows: weekRows(days, weekStart(weekOf), stepGoal) },
     badges: BADGES.map((badge) => ({ ...badge, earnedOn: known.get(badge.code) ?? null })),
   };
 };
 
-/** Today's Move card for one local day. */
+/** Energy of activities, kcal; null when none has one. */
+const energyOf = (list: { energyKcal: number | null }[]) => {
+  const energies = list.filter((a) => a.energyKcal !== null && Number.isFinite(a.energyKcal));
+  return energies.length ? Math.round(energies.reduce((sum, a) => sum + a.energyKcal!, 0)) : null;
+};
+
+/** Today's Move card for one local day, with the phone's numbers when it sent them. */
 export const getMoveDay = async (
   userId: string,
   localDate: string,
   dbx: DbOrTx = defaultDb,
 ): Promise<MoveDayDto> => {
-  const rows = isUuid(userId)
-    ? await loadActivities(userId, dbx, eq(activities.localDate, localDate))
-    : [];
+  const [rows, totals, goals] = await Promise.all([
+    isUuid(userId) ? loadActivities(userId, dbx, eq(activities.localDate, localDate)) : [],
+    dayTotalOn(userId, localDate, dbx),
+    getMoveGoals(userId, dbx),
+  ]);
   const longest = rows
     .filter((r) => !r.stepsOnly && r.durationMin)
     .sort((a, b) => (b.durationMin ?? 0) - (a.durationMin ?? 0))[0];
@@ -218,6 +233,9 @@ export const getMoveDay = async (
     stepsFrom: stepsRow ? { source: stepsRow.source, sourceApp: stepsRow.sourceApp } : null,
     points: dayPoints(rows),
     sweatMinutes: sweatMinutes(rows),
+    energyKcal: energyOf(rows),
+    totals,
+    goals,
   };
 };
 
@@ -233,9 +251,12 @@ export const getMoveDayView = async (
   dbx: DbOrTx = defaultDb,
 ): Promise<MoveDayViewDto> => {
   const monday = weekStart(date);
-  const [list, week] = await Promise.all([
+  const [list, week, totals, goals, phone] = await Promise.all([
     listActivities(userId, { from: date, to: date, limit: 500 }, dbx),
     activitiesBetween(userId, monday, shiftLocalDate(monday, 6), dbx),
+    dayTotalOn(userId, date, dbx),
+    getMoveGoals(userId, dbx),
+    phoneAppOf(userId, dbx),
   ]);
   const scoredList = list.map((a) => ({ ...a, stepsOnly: isStepsOnly(a) }));
   const stepsRow = countedSteps(scoredList);
@@ -246,16 +267,16 @@ export const getMoveDayView = async (
       rank(a) - rank(b) || a.startedAt.localeCompare(b.startedAt) || a.id.localeCompare(b.id),
   );
   const points = pointsOfEach(ordered);
-  const energies = ordered.filter((a) => a.energyKcal !== null);
   const days = byDay(week);
   return {
     date,
     steps: daySteps(ordered),
-    stepGoal: WEEKLY_TARGETS.stepsPerDay,
+    stepGoal: goals.steps,
+    goals,
+    totals,
+    phone,
     activeMinutes: activeMinutes(ordered),
-    energyKcal: energies.length
-      ? Math.round(energies.reduce((sum, a) => sum + a.energyKcal!, 0))
-      : null,
+    energyKcal: energyOf(ordered),
     points: points.reduce((sum, p) => sum + p, 0),
     workouts: ordered.filter(isWorkout).length,
     stepsFrom: stepsRow ? { source: stepsRow.source, sourceApp: stepsRow.sourceApp } : null,
@@ -266,4 +287,72 @@ export const getMoveDayView = async (
       future: day > today,
     })),
   };
+};
+
+const monthName = (month: string, today: string) =>
+  new Date(`${month}-01T12:00:00Z`).toLocaleDateString("en-GB", {
+    month: "long",
+    ...(month.slice(0, 4) !== today.slice(0, 4) ? { year: "numeric" } : {}),
+    timeZone: "UTC",
+  });
+
+/** The month before "2026-11": "2026-10". */
+export const previousMonth = (month: string) => shiftLocalDate(`${month}-01`, -1).slice(0, 7);
+
+const daysInMonth = (month: string) => {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+};
+
+/** The first local day with an activity or a day total of the person, or null. */
+const firstMoveDay = async (userId: string, dbx: DbOrTx) => {
+  const result = await dbx.execute<{ first: string | null }>(sql`
+    select least(
+      (select min(local_date) from ${activities} where ${activities.userId} = ${userId}),
+      (select min(local_date) from ${activityDayTotals} where ${activityDayTotals.userId} = ${userId})
+    )::text as first`);
+  return result.rows[0]?.first ?? null;
+};
+
+/**
+ * Move's "Every day" for one month ("2026-11", board 40): each day up to today, newest first, with
+ * the phone's steps, active time and activity calories where it sent them; other days with Move's
+ * step count and no active time or calories. `earlier` is the month before when anything is
+ * stored before this one.
+ */
+export const getEveryDayMonth = async (
+  userId: string,
+  month: string,
+  today: string,
+  dbx: DbOrTx = defaultDb,
+): Promise<EveryDayMonthDto> => {
+  const first = `${month}-01`;
+  const last = `${month}-${String(daysInMonth(month)).padStart(2, "0")}`;
+  const end = last < today ? last : today;
+  const base = { month, label: monthName(month, today) };
+  if (!isUuid(userId) || first > end) return { ...base, days: [], earlier: null };
+  const [list, totals, firstDay] = await Promise.all([
+    activitiesBetween(userId, first, end, dbx),
+    dayTotalsBetween(userId, first, end, dbx),
+    firstMoveDay(userId, dbx),
+  ]);
+  const grouped = byDay(list);
+  const byDate = new Map(totals.map((t) => [t.date, t]));
+  const days: EveryDayRowDto[] = [];
+  for (let date = end; date >= first; date = shiftLocalDate(date, -1)) {
+    const total = byDate.get(date);
+    const steps = daySteps(grouped.get(date) ?? []);
+    days.push(
+      total
+        ? {
+            date,
+            steps: total.steps ?? (steps || null),
+            activeMinutes: total.activeMinutes,
+            activeKcal: total.activeKcal,
+            fromPhone: true,
+          }
+        : { date, steps: steps || null, activeMinutes: null, activeKcal: null, fromPhone: false },
+    );
+  }
+  return { ...base, days, earlier: firstDay && firstDay < first ? previousMonth(month) : null };
 };

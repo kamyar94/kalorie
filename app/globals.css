@@ -25,6 +25,8 @@
   --on-danger-soft: #8a1a12;
   --warning-soft: #fff4dc;
   --on-warning-soft: #7a4a00;
+  --info-soft: #e6f0fa;
+  --on-info-soft: #0f3d66;
   --focus: #1b64c8;
   --scrim: rgb(10 12 10 / 0.45);
   --energy: #d9480f;
@@ -77,6 +79,8 @@
     --on-danger-soft: #ffb4ab;
     --warning-soft: #33270f;
     --on-warning-soft: #ffd88a;
+    --info-soft: #12324a;
+    --on-info-soft: #d6e9fb;
     --focus: #7cb4ff;
     --scrim: rgb(0 0 0 / 0.6);
     --energy: #ff922b;
@@ -125,6 +129,8 @@
   --on-danger-soft: #ffb4ab;
   --warning-soft: #33270f;
   --on-warning-soft: #ffd88a;
+  --info-soft: #12324a;
+  --on-info-soft: #d6e9fb;
   --focus: #7cb4ff;
   --scrim: rgb(0 0 0 / 0.6);
   --energy: #ff922b;
@@ -172,6 +178,8 @@
   --color-on-danger-soft: var(--on-danger-soft);
   --color-warning-soft: var(--warning-soft);
   --color-on-warning-soft: var(--on-warning-soft);
+  --color-info-soft: var(--info-soft);
+  --color-on-info-soft: var(--on-info-soft);
   --color-focus: var(--focus);
   --color-scrim: var(--scrim);
   --color-energy: var(--energy);

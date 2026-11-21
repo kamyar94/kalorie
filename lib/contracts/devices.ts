@@ -74,6 +74,13 @@ export type LinkCodeDto = {
 export const linkIntentUrl = (code: string, appId: string) =>
   `intent://link?code=${encodeURIComponent(code)}#Intent;scheme=kal;package=${appId};end`;
 
+/**
+ * The intent URL that opens the app's Health Connect screen (kal://status, app 1.2 and newer);
+ * an older app, or none, goes to `fallback` instead.
+ */
+export const statusIntentUrl = (appId: string, fallback: string) =>
+  `intent://status#Intent;scheme=kal;package=${appId};S.browser_fallback_url=${encodeURIComponent(fallback)};end`;
+
 /** Whether an app version ("1.2 (3)") sends day totals: 1.2 and newer. */
 export const sendsDayTotals = (appVersion: string | null) => {
   const m = /^(\d+)\.(\d+)/.exec(appVersion ?? "");

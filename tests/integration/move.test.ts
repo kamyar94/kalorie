@@ -150,6 +150,9 @@ describe("Move", () => {
       stepsFrom: { source: "import", sourceApp: "samsung-health" },
       points: 45 + 15 + 7 + 30,
       sweatMinutes: 45,
+      energyKcal: null,
+      totals: null,
+      goals: { steps: 7000, activeMinutes: 60, activeKcal: 500 },
     });
     expect(await getMoveDay(user.id, day(5))).toEqual({
       activeMinutes: 0,
@@ -159,6 +162,9 @@ describe("Move", () => {
       stepsFrom: null,
       points: 0,
       sweatMinutes: 0,
+      energyKcal: null,
+      totals: null,
+      goals: { steps: 7000, activeMinutes: 60, activeKcal: 500 },
     });
   });
 

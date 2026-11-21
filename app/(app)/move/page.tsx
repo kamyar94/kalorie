@@ -6,6 +6,7 @@ import { BadgesSection, LevelCard, WeekCard } from "@/components/move/move-summa
 import { MoveView, type OpenGymState } from "@/components/move/move-view";
 import { DaySwipe } from "@/components/today/day-swipe";
 import { dismissedHints } from "@/lib/account/hints";
+import { androidConfig } from "@/lib/android/config";
 import { listActivities } from "@/lib/activities/service";
 import { requireUser } from "@/lib/auth/session";
 import { bodyWeightOn } from "@/lib/body/weight";
@@ -14,9 +15,9 @@ import { updatedWords } from "@/lib/health-connect/summary";
 import { getIntegrationStatuses } from "@/lib/integrations/day";
 import { openGymData } from "@/lib/integrations/opengym/service";
 import { isLocalDate, shiftLocalDate } from "@/lib/meals/time";
-import { getMoveDayView, getMoveSummary } from "@/lib/move/service";
+import { getEveryDayMonth, getMoveDayView, getMoveSummary } from "@/lib/move/service";
 import { moveHref, weekLabel, weekStart } from "@/lib/move/week";
-import { moveDayTitle } from "@/lib/move/words";
+import { isStale, moveDayTitle } from "@/lib/move/words";
 import { viewerTimeZone, viewerToday } from "@/lib/ui/viewer-time";
 
 export const metadata: Metadata = { title: "Move" };
@@ -29,8 +30,9 @@ const arrowClass =
 
 /**
  * Move for one day (`?date=YYYY-MM-DD`, today without it; days to come show today): the day
- * pager with the same swipe as Today, the week strip and the day (board 36), then the level, the
- * day's week and the badges (board 10).
+ * pager with the same swipe as Today, the week strip and the day with the phone's three numbers
+ * (boards 36 and 39), every day of its month (board 40), then the level, the day's week and the
+ * badges (board 10).
  */
 export default async function MovePage({
   searchParams,
@@ -44,7 +46,7 @@ export default async function MovePage({
   const date = isLocalDate(requested) && requested <= today ? requested : today;
   // A sync older than 10 minutes is read again first, so new openGym workouts show.
   await openGymData(user.id).catch(() => null);
-  const [day, recent, statuses, weightKg, summary, lastUpdate, zone, phoneOnly, closed] =
+  const [day, recent, statuses, weightKg, summary, lastUpdate, zone, phoneOnly, closed, everyDay] =
     await Promise.all([
       getMoveDayView(user.id, date, today),
       listActivities(user.id, { from: shiftLocalDate(today, -LIST_DAYS), to: today, limit: 200 }),
@@ -55,6 +57,7 @@ export default async function MovePage({
       viewerTimeZone(user.timeZone),
       stepsOnlyFromPhone(user.id),
       dismissedHints(user.id),
+      getEveryDayMonth(user.id, date.slice(0, 7), today),
     ]);
   const gym = statuses.find((s) => s.kind === "opengym");
   const openGym: OpenGymState = !gym?.available
@@ -96,6 +99,9 @@ export default async function MovePage({
         openGym={openGym}
         hint={phoneOnly && !closed.includes("phone-steps-only")}
         updated={lastUpdate ? updatedWords(lastUpdate, zone, today) : null}
+        stale={isStale({ lastUpdate, date, today, zone })}
+        appId={androidConfig().appId}
+        everyDay={everyDay}
       >
         <LevelCard summary={summary} />
         <WeekCard
