@@ -160,11 +160,14 @@ interactions.
 Activities in six categories (cardio, strength, walking, mobility, sports, other), typed in Kal,
 read from openGym, imported from a Samsung Health export (read on the device; only the records
 are sent to your server) or sent by Kal for Android from Health Connect. Move shows one day at
-a time: a week strip of steps, the day's steps against the goal, active minutes, energy and
-points, where the steps came from ("Phone", "Samsung Health") and the day's activities, with
-the previous and next day a swipe away. Points, levels, a streak (a day with 20 active minutes
-or 5,000 steps), weekly targets after the WHO guidance (150 minutes of moderate activity,
-strength on two days) with Kal's own steps and mobility targets, and eleven badges.
+a time: a week strip of steps; the day's steps, active time and activity calories in three
+rings against their goals, as your phone counts them (the numbers Samsung Health shows), with
+where they came from ("Samsung Health", "Phone") and when the phone last sent; Kal's own
+workouts and points next to them; the day's activities; and every day of the month with the
+same three numbers. The previous and next day are a swipe away. Points, levels, a streak (a
+day with 20 active minutes or 5,000 steps), weekly targets after the WHO guidance (150 minutes
+of moderate activity, strength on two days) with Kal's own steps and mobility targets, and
+eleven badges.
 
 ### Body
 
@@ -178,9 +181,10 @@ front, left, back and right photos are kept on your server for comparing over ti
 Daily targets come from your profile (Mifflin-St Jeor energy, protein by body weight, the US
 Dietary Reference Intakes for vitamins and minerals), and every target can be edited. Trends
 shows days, weeks and months: calories, protein, carbs and fat per day against the targets, the
-time of day you eat, every nutrient against its target, top foods, your activity (steps and
-active minutes per day, workouts, the WHO week, and what you ate next to what activity
-burned), and weight.
+time of day you eat, every nutrient against its target, top foods, your activity (steps, active
+time and activity calories per day against their goals, workouts, the WHO week, and what you
+ate next to what activity burned), and weight. The goals for steps, active time and activity
+calories are edited with the other targets.
 
 **Your year** is a calendar of the year, one square a day, coloured by how the day compares
 with its target: steps, active minutes or energy from activity, calories, any other nutrient
@@ -194,6 +198,11 @@ watch and Renpho keep steps, workouts, heart rate, sleep and weigh-ins, and send
 server. It is linked with a one-time code and can be unlinked at any time. It is built from
 [android/](android/README.md) and downloaded from your own server (More, then Kal for Android),
 not a store, and the page offers each newer version.
+
+From version 1.2 the app also sends each day's steps, active time and activity calories, and
+its Health Connect screen shows today's three numbers. Active time is not kept by Health
+Connect, so the app works it out: the minutes covered by workouts and by walking at 60 steps a
+minute or more, each minute once.
 
 The app's Health Connect screen lists what Health Connect holds for the last 30 days (days with
 steps, workouts, resting heart rate, sleep, weigh-ins) and which app wrote each, counted on the

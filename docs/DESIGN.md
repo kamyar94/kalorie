@@ -212,8 +212,10 @@ the day's openGym workouts.
   target as a ring, kcal left, protein, carbs, fat bars); the Water card (the day's water from
   drinks against its goal, the latest entries with Show all, + Glass, + Bottle and + Other
   amount, and a sheet that changes an entry's amount and time or removes it); the Move card
-  (active minutes, steps with where they came from, "Steps · Phone, updated 23:04", points; the
-  steps and Details open Move for the same day); the Medicines card (each medicine with Log now, or
+  (steps with where they came from, "Steps · Phone, updated 23:04", active time and activity
+  calories, the phone's when Kal for Android 1.2 sent them, else Kal's active minutes and the
+  energy of its activities, and the day's points; the steps and Details open Move for the same
+  day); the Medicines card (each medicine with Log now, or
   the time it was taken, which opens a sheet to change the time and amount); "Log a favorite
   again" chips; planned Mealie meals as tap-to-log chips; workouts from openGym with an energy
   estimate; the day's meals as a timeline of cards (the cover photo, or for a meal without a
@@ -241,17 +243,28 @@ the day's openGym workouts.
 - **Move:** one day at a time (`/move?date=`, today without it, no days to come), with the
   previous and next day and the same sideways swipe as Today; a Monday-to-Sunday strip with a
   small steps ring per day (green once the step goal is reached, days to come outlined); the
-  day's card (its steps in a ring against the goal, active minutes, energy from activity,
-  points, where the steps came from and when a phone last sent); "That day" with each
-  activity's time, length, distance, source and points, and + Activity on this day. Below: the
+  day's card with three rings against their goals, as the phone counts them (Kal for Android
+  1.2, section 14): steps, active time and activity calories, then where they came from by app
+  ("From Health Connect: Samsung Health") and "Last update from your phone 10:56; Samsung Health
+  may already show more until the next one", then Kal's own workouts and the day's points. A
+  day without the phone's numbers shows Move's steps and asks to update the app to 1.2 for the
+  other two (or names Kal for Android without a phone). When the last update is more than two
+  hours old for the shown day, a note says so, with "Open Kal's Health Connect screen" inside
+  the app (Send now is there) or "How to set it up" in a browser. "That day" lists each
+  activity's time, length, distance, source and points, with + Activity on this day; "Every day"
+  lists the shown day's month, newest first, with the three numbers and small bars against the
+  goals ("No data from the phone" for an empty day, "Earlier days" for the month before), and a
+  row opens its day. The phone's numbers are shown next to Kal's workouts and never added to
+  them: points, the streak and the WHO week count Kal's activities only. Below: the
   level and points, the streak (a day with 20 active minutes or 5,000 steps), the shown day's
   week by category against the weekly targets (WHO 2020: 150 minutes of moderate activity, a
-  vigorous minute counting twice, and strength on 2 days; Kal's own 7,000 steps a day and an
-  hour of mobility), eleven badges, and the last six weeks (folded). Points: 1 per moderate
-  minute, 2 per vigorous minute, 1 per 2 light minutes, 5 per 1,000 steps up to 15,000, and 15
-  per strength session (two a day). While a person's Health Connect steps come only from the
-  phone's own step counter and nothing from Samsung Health has arrived, a hint says that a
-  watch's steps come through Samsung Health and links to "How to fix it" on Kal for Android;
+  vigorous minute counting twice, and strength on 2 days; Kal's own steps goal, 7,000 a day
+  unless changed in Settings, and an hour of mobility), eleven badges, and the last six weeks
+  (folded). Points: 1 per moderate minute, 2 per vigorous minute, 1 per 2 light minutes, 5 per
+  1,000 steps up to 15,000, and 15 per strength session (two a day). While a person's Health
+  Connect steps come only from the phone's own step counter and nothing from Samsung Health has
+  arrived, a hint says that a watch's steps come through Samsung Health and links to "How to
+  fix it" on Kal for Android;
   closed once, it stays closed (`users.dismissed_hints`).
 - **Source names:** wherever a source shows, Android's step counter
   (`com.android.healthconnect.phone.*`) is "Phone", known apps go by name (Samsung Health,
@@ -266,14 +279,18 @@ the day's openGym workouts.
   CSV through a column-mapping step. The file is read on the device; only the records are sent.
 - **Trends:** day, week and month views: energy and macros per day against targets, time of
   day, nutrients against their targets (consistently below or above), top foods; then
-  Activity (steps a day, active minutes a day and workouts; steps per day against the step goal
-  and active minutes per day by category, each with a table; the WHO week line; days without
-  any activity record left out of the averages, not counted as zero) and "Eaten and burned"
-  (the average eaten next to the energy from activity); weight from Body
+  Activity (steps, active time and activity calories a day and workouts; steps, active time and
+  activity calories per day against their goals, and Kal's workout minutes per day by category,
+  each with a table; the phone's day totals where Kal for Android sent them, Move's rules on the
+  other days, with a caption that says how many days are the phone's; the WHO week line; days
+  without data left out of the averages, not counted as zero) and "Eaten and burned" (the
+  average eaten next to the activity calories); weight from Body
   (lib/trends/activity.ts). Above them, "Your year": a GitHub-style calendar of one calendar
   year (weeks as columns, Monday to Sunday as rows) for a measure of activity or a nutrient
   picked from a menu (Activity first: steps against the step goal, active minutes against a
-  seventh of the WHO week with vigorous minutes counting twice, and energy from activity; then
+  seventh of the WHO week with vigorous minutes counting twice, and energy from activity, both
+  taken from the phone's day totals where it sent them, active minutes then against the active
+  time goal; then
   the nutrients grouped like the catalogue, water from drinks under Other). Steps and active
   minutes are "more is better": under half the goal, under it, reached, one and a half times it
   or more, grey without data. Each day is coloured by its amount as a percent of
@@ -286,7 +303,8 @@ the day's openGym workouts.
 - **Kal for Android:** the app's version and size, the download, linking Health Connect from
   inside the app, and the linked phones with Unlink, each with its recent updates and a warning
   while nothing has arrived (section 14).
-- **Settings:** profile and targets (water goal included), units (metric default, imperial),
+- **Settings:** profile and targets (water goal included, and the goals of a day's steps,
+  7,000, active time, 60 min, and activity calories, 500 kcal), units (metric default, imperial),
   time zone, cuisines, meal windows, notifications, AI (keys per provider, provider and model
   per task, test button, usage), integrations (Mealie, openGym), appearance (light, dark or the
   device's), export (JSON with everything, CSV of the meals), delete my data, account.
@@ -353,16 +371,21 @@ Android.
   confidence, edited flag, nutrients JSON, nutrient source, components).
 - Food: foods (source, source id, owner, names in English and Persian, synonyms, category,
   brand, barcode, per-100 g nutrients JSON, density, search columns); food_portions;
-  dish_components; nutrients; dri_targets; user_targets (edited targets and the water goal);
+  dish_components; nutrients; dri_targets; user_targets (edited targets, the water goal and
+  Move's goals for steps, active time and activity calories);
   food_memory (user, normalised name, food, typical grams, count, last used).
 - Medicines: medicines (the person's list), medicine_scans (label photos and what was read),
   medicine_logs (what was taken and when, with name, strength and form copied at the time).
 - Move and Body: activities (category, type, time, duration, distance, steps, energy,
   intensity, source and external id); user_badges; body_measurements (code, unit, value,
   time, source and external id); health_profiles; body_photo_sessions and body_photos;
-  heart_rates and sleep_sessions (from Health Connect).
+  heart_rates and sleep_sessions (from Health Connect); activity_day_totals (each day's steps,
+  active time with how it was counted, and activity calories as the phone counts them, with the
+  app that wrote most of each; one row per person, day and source, removed with its device
+  row; unlinking keeps them like the other Health Connect records).
 - Devices: devices (linked phones, hashed token, what each has sent), device_link_codes and
-  health_connect_updates (each phone's update log: counts only, kept 30 days).
+  health_connect_updates (each phone's update log: counts only, day totals included, kept 30
+  days).
 - Other: integrations (user, kind, encrypted credential, settings, last sync, status);
   push_subscriptions; jobs.
 
@@ -443,6 +466,16 @@ Health, a Galaxy watch and Renpho keep their records.
   its Health Connect id, so sending it again updates it and a deletion on the phone removes it.
   Every sync sends at least one batch, and a read of the whole window (the first, or again after
   access changed) says how many days it covered.
+- **Day totals (app 1.2).** For every day a sync reads (each day of a first read; later the days
+  a change touched, today and yesterday) the phone also sends the day's steps (Health
+  Connect's aggregate), activity calories (the aggregate of active calories burned) and active
+  time, which Health Connect does not keep: the minutes of the day covered by exercise
+  sessions, joined with the minutes of step records walked at 60 steps a minute or more (a
+  record's steps spread evenly over its time), each minute once, within the phone's local day
+  (method `sessions+steps60`). Each number names the app that wrote most of it. The server keeps
+  one row per day (a day sent with every number at 0 is removed); apps 1.0 and 1.1 keep working
+  without them. The first sync after updating reads the whole window again, so earlier days
+  get their totals too. Move, Today, Trends and the year show them as the phone's numbers.
 - **Update log.** The server notes each accepted batch (`health_connect_updates`): when, the
   app's version, how many records of each kind it held, what was stored, and whether there was
   nothing to store; counts only (the one number kept is the phone's step total for that day).
@@ -452,7 +485,9 @@ Health, a Galaxy watch and Renpho keep their records.
   "Nothing has arrived yet", with how to make Samsung Health and Renpho share, while a phone has
   sent updates and no Health Connect record of the person is stored. The same steps are
   reachable at `/more/android#how-to-fix` at any time (Move's hint links there).
-- **On the phone.** The app's Health Connect screen counts what Health Connect holds for the
+- **On the phone.** The app's Health Connect screen shows today's steps, active time and
+  activity calories as last sent (app 1.2; Move's note opens it with `kal://status`), and counts
+  what Health Connect holds for the
   last 30 days (days with steps, workouts, days with resting heart rate, nights of sleep,
   weigh-ins) with the apps that wrote them; this list is never sent. When every kind it may read
   is empty it says "Health Connect has nothing to share yet", whether Samsung Health and Renpho
