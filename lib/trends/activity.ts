@@ -1,9 +1,16 @@
-// Trends "Activity" (board 37): a period's steps, active minutes by category and workouts per day,
-// averages that leave out days without data, the WHO week line Move counts, and the energy from
-// activity next to the energy eaten. The service (lib/trends/service.ts) loads the activities;
+// Trends "Activity" (boards 37 and 40): a period's steps, active time and activity calories per day
+// (the phone's day totals from Kal for Android 1.2 where it sent them, else Move's rules: the
+// timed minutes and the energy of Kal's activities), Kal's workout minutes by category, averages
+// that leave out days without data, the WHO week line Move counts, and the activity calories next
+// to the energy eaten. The service (lib/trends/service.ts) loads the activities and day totals;
 // the rules are Move's (lib/move/score.ts). Plain functions, safe for client components.
 import { ACTIVITY_CATEGORIES, type ActivityCategory } from "@/lib/contracts/activities";
-import { WEEKLY_TARGETS } from "@/lib/contracts/move";
+import {
+  DEFAULT_MOVE_GOALS,
+  WEEKLY_TARGETS,
+  type DayTotalDto,
+  type MoveGoals,
+} from "@/lib/contracts/move";
 import { shiftLocalDate } from "@/lib/meals/time";
 import {
   activeMinutes,
@@ -22,17 +29,25 @@ export type TrendActivity = ScoredActivity & { energyKcal: number | null };
 
 export type ActivityDay = {
   date: string;
-  /** Any activity record that day: a step count, a workout. */
+  /** Any activity record or day total that day: a step count, a workout, the phone's numbers. */
   logged: boolean;
-  /** The day's steps (Move's count); null without a step count. */
+  /** The phone's day total arrived for the day (its numbers win below). */
+  fromPhone: boolean;
+  /** The day's steps (Move's count, else the phone's); null without a step count. */
   steps: number | null;
-  /** All timed minutes; null on a day without any activity record. */
+  /**
+   * Active time: the phone's when it sent one, else all timed minutes in Kal; null on a day
+   * without any of them.
+   */
   activeMinutes: number | null;
-  /** Timed minutes by category. */
+  /** Kal's timed minutes by category. */
   minutes: Record<ActivityCategory, number>;
   /** Timed activities (not step counts). */
   workouts: number;
-  /** Energy of the day's activities, kcal; null when none has one. */
+  /**
+   * Activity calories: the phone's when it sent them, else the energy of the day's activities in
+   * Kal; null when there is none.
+   */
   energyKcal: number | null;
 };
 
@@ -63,6 +78,10 @@ export type WhoLine =
 export type ActivityTrends = {
   days: ActivityDay[];
   stepGoal: number;
+  /** The goals of the three numbers (Settings). */
+  goals: MoveGoals;
+  /** Days with the phone's day total. */
+  phoneDays: number;
   /** Days with a step count, with any activity record, and with energy from activity. */
   stepDays: number;
   loggedDays: number;
@@ -90,22 +109,33 @@ const timedMinutes = (list: ScoredActivity[], category: ActivityCategory) =>
       .reduce((sum, a) => sum + a.durationMin!, 0),
   );
 
-/** One day's numbers; a day without any record is "no data", not zero. */
-export const activityDay = (date: string, list: TrendActivity[]): ActivityDay => {
-  const steps = daySteps(list);
+/**
+ * One day's numbers; a day without any record is "no data", not zero. The phone's day total wins
+ * for active time and activity calories when it has them; Move's steps win for steps (they come
+ * from the same Health Connect total).
+ */
+export const activityDay = (
+  date: string,
+  list: TrendActivity[],
+  total: DayTotalDto | null = null,
+): ActivityDay => {
+  const steps = daySteps(list) || total?.steps || 0;
   const energies = list.filter((a) => a.energyKcal !== null && Number.isFinite(a.energyKcal));
+  const kalEnergy = energies.length
+    ? Math.round(energies.reduce((sum, a) => sum + a.energyKcal!, 0))
+    : null;
   const minutes = noMinutes();
   for (const category of ACTIVITY_CATEGORIES) minutes[category] = timedMinutes(list, category);
+  const kalMinutes = list.length ? activeMinutes(list) : null;
   return {
     date,
-    logged: list.length > 0,
+    logged: list.length > 0 || total !== null,
+    fromPhone: total !== null,
     steps: steps > 0 ? steps : null,
-    activeMinutes: list.length ? activeMinutes(list) : null,
+    activeMinutes: total?.activeMinutes ?? kalMinutes,
     minutes,
     workouts: list.filter(isWorkout).length,
-    energyKcal: energies.length
-      ? Math.round(energies.reduce((sum, a) => sum + a.energyKcal!, 0))
-      : null,
+    energyKcal: total?.activeKcal ?? kalEnergy,
   };
 };
 
@@ -169,12 +199,18 @@ export const computeActivityTrends = (input: {
   range: TrendRange;
   end: string;
   activities: TrendActivity[];
-  stepGoal?: number;
+  /** The phone's day totals of the period. */
+  dayTotals?: DayTotalDto[];
+  goals?: MoveGoals;
 }): ActivityTrends => {
-  const stepGoal = input.stepGoal ?? WEEKLY_TARGETS.stepsPerDay;
+  const goals = input.goals ?? DEFAULT_MOVE_GOALS;
+  const stepGoal = goals.steps;
   const dates = rangeDates(input.range, input.end);
   const grouped = byDay(input.activities);
-  const days = dates.map((date) => activityDay(date, grouped.get(date) ?? []));
+  const totals = new Map((input.dayTotals ?? []).map((t) => [t.date, t]));
+  const days = dates.map((date) =>
+    activityDay(date, grouped.get(date) ?? [], totals.get(date) ?? null),
+  );
   const steps = days.flatMap((d) => (d.steps === null ? [] : [d.steps]));
   const minutesOf = days.flatMap((d) => (d.activeMinutes === null ? [] : [d.activeMinutes]));
   const energy = days.flatMap((d) => (d.energyKcal === null ? [] : [d.energyKcal]));
@@ -184,6 +220,8 @@ export const computeActivityTrends = (input: {
   return {
     days,
     stepGoal,
+    goals,
+    phoneDays: days.filter((d) => d.fromPhone).length,
     stepDays: steps.length,
     loggedDays: minutesOf.length,
     energyDays: energy.length,
@@ -211,13 +249,33 @@ export const whoText = (line: WhoLine) => {
 };
 
 /**
- * What the averages count: "Averages leave out days without data: steps from 5 of 7 days, active
- * minutes from 6." Null when every day has both.
+ * What the averages count: "Averages leave out days without data, rather than count them as zero:
+ * steps from 5 of 7 days, active time from 6, activity calories from 4." Null when every day has
+ * all three.
  */
 export const averagesCaption = (trends: ActivityTrends) => {
   const total = trends.days.length;
-  if (total === 1 || (trends.stepDays === total && trends.loggedDays === total)) return null;
-  return `Averages leave out days without data, rather than count them as zero: steps from ${trends.stepDays} of ${total} days, active minutes from ${trends.loggedDays}.`;
+  if (
+    total === 1 ||
+    (trends.stepDays === total && trends.loggedDays === total && trends.energyDays === total)
+  )
+    return null;
+  return `Averages leave out days without data, rather than count them as zero: steps from ${trends.stepDays} of ${total} days, active time from ${trends.loggedDays}, activity calories from ${trends.energyDays}.`;
+};
+
+/**
+ * Where the numbers come from: "Active time and activity calories are the phone's on 5 of 7 days
+ * (Kal for Android); on the others they come from your activities in Kal." Null without any day
+ * total, or when every day has one.
+ */
+export const phoneCaption = (trends: ActivityTrends) => {
+  const total = trends.days.length;
+  if (!trends.phoneDays) return null;
+  if (trends.phoneDays === total)
+    return total === 1
+      ? "Active time and activity calories are the phone's (Kal for Android)."
+      : "Active time and activity calories are the phone's on every day (Kal for Android).";
+  return `Active time and activity calories are the phone's on ${trends.phoneDays} of ${total} days (Kal for Android); on the others they come from your activities in Kal.`;
 };
 
 /**
@@ -233,9 +291,7 @@ export const eatenBurnedText = (input: {
   const lead = input.range === "day" ? "The day" : "Daily average";
   const eaten = input.eaten === null ? "no meals logged" : `eaten ${n(input.eaten)} kcal`;
   const burned =
-    input.burned === null
-      ? "no energy from activity"
-      : `burned in activity ${n(input.burned)} kcal`;
+    input.burned === null ? "no activity calories" : `burned in activity ${n(input.burned)} kcal`;
   const target = input.target ? `, target ${n(input.target)} + activity` : "";
   return `${lead}: ${eaten}, ${burned}${target}.`;
 };

@@ -38,12 +38,15 @@ export const YearMetricMenu = ({
   targets,
   waterGoalMl,
   stepGoal,
+  activeGoal,
   onChange,
 }: {
   value: YearMetric;
   targets: Partial<Record<NutrientCode, NutrientTarget>>;
   waterGoalMl: number;
   stepGoal: number;
+  /** What active minutes are compared with (YearData.activeGoal). */
+  activeGoal?: number;
   onChange: (metric: YearMetric) => void;
 }) => {
   const id = useId();
@@ -57,11 +60,11 @@ export const YearMetricMenu = ({
     () =>
       YEAR_METRIC_GROUPS.flatMap((group) =>
         group.codes.map((code) => {
-          const target = yearTarget(code, targets, waterGoalMl, stepGoal);
+          const target = yearTarget(code, targets, waterGoalMl, stepGoal, activeGoal);
           return { code, group: group.label, label: metricLabel(code), target };
         }),
       ),
-    [targets, waterGoalMl, stepGoal],
+    [targets, waterGoalMl, stepGoal, activeGoal],
   );
   const optionId = (code: string) => `${id}-${code}`;
   const current = options.find((o) => o.code === value) ?? options[0]!;

@@ -9,6 +9,8 @@ import type { NutrientTarget } from "@/lib/contracts/targets";
 import type { WeightPointDto } from "@/lib/contracts/integrations";
 import { localParts, shiftLocalDate } from "@/lib/meals/time";
 
+import type { DayTotalDto, MoveGoals } from "@/lib/contracts/move";
+
 import { computeActivityTrends, type ActivityTrends, type TrendActivity } from "./activity";
 
 export const TREND_RANGES = ["day", "week", "month"] as const;
@@ -101,6 +103,9 @@ export const computeTrends = (input: {
   weight?: WeightPointDto[];
   /** The period's activities (and the rest of a day's week, for its WHO line). */
   activities?: TrendActivity[];
+  /** The phone's day totals of the period (Kal for Android 1.2). */
+  dayTotals?: DayTotalDto[];
+  goals?: MoveGoals;
 }): TrendsData => {
   const dates = rangeDates(input.range, input.end);
   const inRange = new Set(dates);
@@ -208,6 +213,8 @@ export const computeTrends = (input: {
       range: input.range,
       end: input.end,
       activities: input.activities ?? [],
+      dayTotals: input.dayTotals ?? [],
+      goals: input.goals,
     }),
   };
 };

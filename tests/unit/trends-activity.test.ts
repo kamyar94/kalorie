@@ -109,7 +109,7 @@ describe("a week of activity", () => {
     expect(trends.averageEnergy).toBe((413 + 187) / 2);
     expect(trends.minutes).toMatchObject({ cardio: 30, strength: 60, mobility: 25, walking: 60 });
     expect(averagesCaption(trends)).toBe(
-      "Averages leave out days without data, rather than count them as zero: steps from 4 of 7 days, active minutes from 5.",
+      "Averages leave out days without data, rather than count them as zero: steps from 4 of 7 days, active time from 5, activity calories from 2.",
     );
   });
 
@@ -203,7 +203,7 @@ describe("eaten and burned", () => {
       "Daily average: eaten 1,903 kcal, burned in activity 214 kcal, target 1,859 + activity.",
     );
     expect(eatenBurnedText({ range: "day", eaten: null, burned: null, target: null })).toBe(
-      "The day: no meals logged, no energy from activity.",
+      "The day: no meals logged, no activity calories.",
     );
   });
 });

@@ -25,7 +25,9 @@ import type { TrendRange } from "./compute";
  * Activity (board 38): steps against Move's step goal; active minutes, the moderate-equivalent
  * minutes Move counts for the WHO week (walks, cardio and sports at moderate effort or harder, a
  * vigorous minute counting twice), against a seventh of the WHO week's 150; and the energy of
- * the day's activities, without a target.
+ * the day's activities, without a target. Where the phone sent a day total (Kal for Android
+ * 1.2), active minutes are its active time and the energy its activity calories, and a year with
+ * any such day compares active minutes with the active time goal (Settings) instead.
  */
 export const ACTIVITY_METRICS = ["steps", "active_minutes", "activity_energy"] as const;
 export type ActivityMetric = (typeof ACTIVITY_METRICS)[number];
@@ -91,18 +93,20 @@ export const ACTIVE_MINUTES_A_DAY = WEEKLY_TARGETS.cardioMinutes / 7;
 /**
  * The metric's target from getTargets, or null when it has none (the single-hue scale is used).
  * Water from drinks is compared with the water goal; drinking more than it is fine ("min").
- * Steps are compared with the step goal and active minutes with a seventh of the WHO week; the
- * energy of activity has no target.
+ * Steps are compared with the step goal and active minutes with `activeGoal` (a seventh of the
+ * WHO week, or the active time goal in a year with the phone's day totals); the energy of
+ * activity has no target.
  */
 export const yearTarget = (
   code: YearMetric,
   targets: Partial<Record<NutrientCode, NutrientTarget>>,
   waterGoalMl: number,
   stepGoal: number = WEEKLY_TARGETS.stepsPerDay,
+  activeGoal: number = ACTIVE_MINUTES_A_DAY,
 ): YearTarget | null => {
   if (code === "steps")
     return stepGoal > 0 ? { kind: "more", target: stepGoal, upper: null } : null;
-  if (code === "active_minutes") return { kind: "more", target: ACTIVE_MINUTES_A_DAY, upper: null };
+  if (code === "active_minutes") return { kind: "more", target: activeGoal, upper: null };
   if (code === "activity_energy") return null;
   if (code === "water")
     return waterGoalMl > 0 ? { kind: "min", target: waterGoalMl, upper: null } : null;
@@ -339,6 +343,10 @@ export type YearDay = {
   workouts: number;
   /** Energy of the day's activities, kcal; null when none has one. */
   activityEnergy: number | null;
+  /** The phone's active time for the day (Kal for Android 1.2), null without. */
+  phoneMinutes: number | null;
+  /** The phone's activity calories for the day, null without. */
+  phoneKcal: number | null;
 };
 
 export type YearData = {
@@ -351,6 +359,11 @@ export type YearData = {
   days: YearDay[];
   /** Move's step goal. */
   stepGoal: number;
+  /**
+   * What active minutes are compared with: the active time goal when the year has the phone's
+   * active time on any day, else a seventh of the WHO week.
+   */
+  activeGoal: { minutes: number; fromPhone: boolean };
   /** The first day of the year with steps from Health Connect, null without. */
   stepsSince: string | null;
   targets: Partial<Record<NutrientCode, NutrientTarget>>;
@@ -398,9 +411,9 @@ export const amountOf = (day: YearDay, metric: YearMetric) => {
     case "steps":
       return day.steps;
     case "active_minutes":
-      return day.whoMinutes;
+      return day.phoneMinutes ?? day.whoMinutes;
     case "activity_energy":
-      return day.activityEnergy;
+      return day.phoneKcal ?? day.activityEnergy;
     default:
       return day.value;
   }

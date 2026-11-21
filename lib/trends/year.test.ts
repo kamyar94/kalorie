@@ -55,6 +55,8 @@ const day = (date: string, over: Partial<YearDay> = {}): YearDay => ({
   whoMinutes: 0,
   workouts: 0,
   activityEnergy: null,
+  phoneMinutes: null,
+  phoneKcal: null,
   ...over,
 });
 

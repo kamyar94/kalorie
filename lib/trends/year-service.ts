@@ -3,13 +3,13 @@
 // (countedMeal: deleted meals and failed ones without items left out); only the four macros and
 // the chosen nutrient are read from each meal's totals. Water comes from drinks as on Today's Water
 // card; steps, active minutes, workouts, the energy of activity and the activity part of the
-// water goal from Move. Nothing is sent for days without meals, water or activity. Scoped by user
-// id; values are never logged.
+// water goal from Move, and the phone's active time and activity calories where Kal for Android
+// 1.2 sent a day total. Nothing is sent for days without meals, water or activity. Scoped by
+// user id; values are never logged.
 import { and, between, eq, ilike, like, or, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { activities, foods, mealItems, meals } from "@/db/schema";
-import { WEEKLY_TARGETS } from "@/lib/contracts/move";
 import type { NutrientMap } from "@/lib/contracts/nutrients";
 import { itemWaterMl } from "@/lib/meals/hydration";
 import { isUuid } from "@/lib/meals/service";
@@ -22,12 +22,14 @@ import {
   isWorkout,
   sweatMinutes,
 } from "@/lib/move/score";
+import { dayTotalsBetween, firstDayTotal } from "@/lib/health-connect/day-totals";
 import { activitiesBetween } from "@/lib/move/service";
 import { dayWaterGoalMl } from "@/lib/move/water";
 import { getTargets } from "@/lib/targets/service";
 
 import { countedMeal } from "./service";
 import {
+  ACTIVE_MINUTES_A_DAY,
   clampYear,
   DEFAULT_YEAR_METRIC,
   isActivityMetric,
@@ -76,12 +78,18 @@ export const getYear = async (
 ): Promise<YearData> => {
   const currentYear = Number(input.today.slice(0, 4));
   const metric: YearMetric = isYearMetric(input.metric) ? input.metric : DEFAULT_YEAR_METRIC;
-  const [firstMeal, firstActivity, { targets, hydration }] = await Promise.all([
+  const [firstMeal, firstActivity, firstTotal, { targets, hydration, move }] = await Promise.all([
     firstMealYear(userId, dbx),
     firstActivityYear(userId, dbx),
+    firstDayTotal(userId, dbx),
     getTargets(userId, dbx),
   ]);
-  const firstYear = Math.min(firstMeal ?? currentYear, firstActivity ?? currentYear, currentYear);
+  const firstYear = Math.min(
+    firstMeal ?? currentYear,
+    firstActivity ?? currentYear,
+    firstTotal ? Number(firstTotal.slice(0, 4)) : currentYear,
+    currentYear,
+  );
   const year = clampYear(input.year ?? String(currentYear), firstYear, currentYear);
   const start = yearStart(year);
   const end = lastDayOf(year, input.today);
@@ -92,7 +100,8 @@ export const getYear = async (
     firstYear,
     targets,
     waterGoalMl: hydration.goalMl,
-    stepGoal: WEEKLY_TARGETS.stepsPerDay,
+    stepGoal: move.steps.value,
+    activeGoal: { minutes: ACTIVE_MINUTES_A_DAY, fromPhone: false },
     currentTargets: true as const,
   };
   if (!isUuid(userId) || start > end) return { ...base, days: [], stepsSince: null };
@@ -106,7 +115,7 @@ export const getYear = async (
   // Water added on its own (a manual or copied meal with one plain water and no photo) is not a
   // meal of the day; only these can be one, so only their items and photos are counted.
   const maybeWater = sql`${meals.source} in ('manual', 'duplicate')`;
-  const [mealRows, drinkRows, activityRows] = await Promise.all([
+  const [mealRows, drinkRows, activityRows, dayTotals] = await Promise.all([
     dbx
       .select({
         id: meals.id,
@@ -154,6 +163,7 @@ export const getYear = async (
         ),
       ),
     activitiesBetween(userId, start, end, dbx),
+    dayTotalsBetween(userId, start, end, dbx),
   ]);
 
   const drinks = drinkRows.map((row) => {
@@ -186,6 +196,8 @@ export const getYear = async (
         whoMinutes: 0,
         workouts: 0,
         activityEnergy: null,
+        phoneMinutes: null,
+        phoneKcal: null,
       };
       days.set(date, day);
     }
@@ -234,8 +246,21 @@ export const getYear = async (
       stepsSince = date;
   }
 
+  // The phone's numbers: active time and activity calories win where it sent them.
+  for (const total of dayTotals) {
+    const day = dayOf(total.date);
+    day.activity = true;
+    if (!day.steps && total.steps) day.steps = total.steps;
+    day.phoneMinutes = total.activeMinutes;
+    day.phoneKcal = total.activeKcal;
+  }
+  const fromPhone = dayTotals.some((t) => t.activeMinutes !== null);
+
   return {
     ...base,
+    activeGoal: fromPhone
+      ? { minutes: move.activeMinutes.value, fromPhone: true }
+      : base.activeGoal,
     stepsSince,
     days: [...days.values()].sort((a, b) => a.date.localeCompare(b.date)),
   };

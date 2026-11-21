@@ -77,12 +77,20 @@ const dayMonth = (date: string) =>
   });
 
 /** The line under the legend of an activity metric: what the day is compared with. */
-const activityCompared = (metric: YearMetric, stepGoal: number) =>
+const activityCompared = (
+  metric: YearMetric,
+  stepGoal: number,
+  activeGoal: YearData["activeGoal"],
+) =>
   metric === "steps"
     ? `Compared with Move's step goal of ${stepGoal.toLocaleString("en-US")} a day.`
     : metric === "active_minutes"
-      ? "Compared with a seventh of WHO's 150 minutes a week: walks, cardio and sports at moderate effort or harder, a vigorous minute counting twice, as on Move."
-      : null;
+      ? activeGoal.fromPhone
+        ? `Compared with your active time goal of ${activeGoal.minutes.toLocaleString("en-US")} min a day: the phone's active time where Kal for Android sent it, else walks, cardio and sports in Kal at moderate effort or harder, a vigorous minute counting twice.`
+        : "Compared with a seventh of WHO's 150 minutes a week: walks, cardio and sports at moderate effort or harder, a vigorous minute counting twice, as on Move."
+      : metric === "activity_energy" && activeGoal.fromPhone
+        ? "The phone's activity calories where Kal for Android sent them, else the energy of your activities in Kal."
+        : null;
 
 /**
  * "Your year" at the top of Trends (boards 30 to 33): one square per day of a calendar year,
@@ -106,8 +114,9 @@ export const YearCard = ({ data, hrefFor }: { data: YearData; hrefFor: YearHref 
   const grid = useMemo(() => yearGrid(year), [year]);
   const byDate = useMemo(() => new Map(data.days.map((d) => [d.date, d])), [data.days]);
   const target = useMemo(
-    () => yearTarget(metric, data.targets, data.waterGoalMl, data.stepGoal),
-    [metric, data.targets, data.waterGoalMl, data.stepGoal],
+    () =>
+      yearTarget(metric, data.targets, data.waterGoalMl, data.stepGoal, data.activeGoal.minutes),
+    [metric, data.targets, data.waterGoalMl, data.stepGoal, data.activeGoal.minutes],
   );
   const activity = isActivityMetric(metric);
   const looks = useMemo(() => {
@@ -229,6 +238,7 @@ export const YearCard = ({ data, hrefFor }: { data: YearData; hrefFor: YearHref 
             targets={data.targets}
             waterGoalMl={data.waterGoalMl}
             stepGoal={data.stepGoal}
+            activeGoal={data.activeGoal.minutes}
             onChange={(next) => go({ metric: next })}
           />
         </div>
@@ -373,8 +383,10 @@ export const YearCard = ({ data, hrefFor }: { data: YearData; hrefFor: YearHref 
           {countRest && <span className="text-muted font-normal"> · {countRest}</span>}
         </p>
       </div>
-      {activity && activityCompared(metric, data.stepGoal) && (
-        <p className="text-caption text-muted -mt-1">{activityCompared(metric, data.stepGoal)}</p>
+      {activity && activityCompared(metric, data.stepGoal, data.activeGoal) && (
+        <p className="text-caption text-muted -mt-1">
+          {activityCompared(metric, data.stepGoal, data.activeGoal)}
+        </p>
       )}
       {target && !activity && (
         <p className="text-caption text-muted -mt-1">

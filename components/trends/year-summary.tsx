@@ -242,7 +242,9 @@ export const YearDaySummary = ({
 
           {activity && metric === "active_minutes" && (
             <p className="text-caption text-muted -mt-1">
-              Walks, cardio and sports at moderate effort or harder; a vigorous minute counts twice.
+              {day?.phoneMinutes != null
+                ? "The phone's active time: workouts and brisk walking, each minute once."
+                : "Walks, cardio and sports at moderate effort or harder; a vigorous minute counts twice."}
             </p>
           )}
 
@@ -251,13 +253,20 @@ export const YearDaySummary = ({
               {(
                 [
                   ["Steps", day && day.steps > 0 ? formatSteps(day.steps) : "–"],
-                  ["Active minutes", day?.activity ? formatMinutes(day.activeMinutes) : "–"],
+                  [
+                    "Active minutes",
+                    day?.phoneMinutes != null
+                      ? formatMinutes(day.phoneMinutes)
+                      : day?.activity
+                        ? formatMinutes(day.activeMinutes)
+                        : "–",
+                  ],
                   ["Workouts", String(day?.workouts ?? 0)],
                   [
                     "Energy from activity",
-                    day?.activityEnergy == null
+                    (day?.phoneKcal ?? day?.activityEnergy) == null
                       ? "–"
-                      : `${day.activityEnergy.toLocaleString("en-US")} kcal`,
+                      : `${(day!.phoneKcal ?? day!.activityEnergy)!.toLocaleString("en-US")} kcal`,
                   ],
                 ] as const
               ).map(([term, value]) => (

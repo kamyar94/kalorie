@@ -4,9 +4,11 @@ import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
 
 import { db as defaultDb, type DbOrTx } from "@/db";
 import { foods, mealItems, meals } from "@/db/schema";
+import { dayTotalsBetween } from "@/lib/health-connect/day-totals";
 import { getWeightHistory } from "@/lib/integrations/day";
 import { isUuid } from "@/lib/meals/service";
 import { shiftLocalDate } from "@/lib/meals/time";
+import { getMoveGoals } from "@/lib/move/goals";
 import { activitiesBetween } from "@/lib/move/service";
 import { weekStart } from "@/lib/move/week";
 import { getTargets } from "@/lib/targets/service";
@@ -42,38 +44,41 @@ export const getTrends = async (
     : undefined;
   // A day's view also reads the rest of its Monday-to-Sunday week, for the WHO line.
   const monday = weekStart(end);
-  const [mealRows, itemRows, { targets }, weight, activityRows] = await Promise.all([
-    inPeriod
-      ? dbx
-          .select({
-            localDate: meals.localDate,
-            eatenAt: meals.eatenAt,
-            tz: meals.tz,
-            slot: meals.slot,
-            totals: meals.totals,
-          })
-          .from(meals)
-          .where(inPeriod)
-      : [],
-    inPeriod
-      ? dbx
-          .select({
-            name: mealItems.name,
-            foodId: mealItems.foodId,
-            foodName: foods.nameEn,
-            nutrients: mealItems.nutrients,
-          })
-          .from(mealItems)
-          .innerJoin(meals, eq(meals.id, mealItems.mealId))
-          .leftJoin(foods, eq(foods.id, mealItems.foodId))
-          .where(and(inPeriod, eq(mealItems.userId, userId)))
-      : [],
-    getTargets(userId, dbx),
-    getWeightHistory(userId, start, end, dbx),
-    range === "day"
-      ? activitiesBetween(userId, monday, shiftLocalDate(monday, 6), dbx)
-      : activitiesBetween(userId, start, end, dbx),
-  ]);
+  const [mealRows, itemRows, { targets }, weight, activityRows, dayTotals, goals] =
+    await Promise.all([
+      inPeriod
+        ? dbx
+            .select({
+              localDate: meals.localDate,
+              eatenAt: meals.eatenAt,
+              tz: meals.tz,
+              slot: meals.slot,
+              totals: meals.totals,
+            })
+            .from(meals)
+            .where(inPeriod)
+        : [],
+      inPeriod
+        ? dbx
+            .select({
+              name: mealItems.name,
+              foodId: mealItems.foodId,
+              foodName: foods.nameEn,
+              nutrients: mealItems.nutrients,
+            })
+            .from(mealItems)
+            .innerJoin(meals, eq(meals.id, mealItems.mealId))
+            .leftJoin(foods, eq(foods.id, mealItems.foodId))
+            .where(and(inPeriod, eq(mealItems.userId, userId)))
+        : [],
+      getTargets(userId, dbx),
+      getWeightHistory(userId, start, end, dbx),
+      range === "day"
+        ? activitiesBetween(userId, monday, shiftLocalDate(monday, 6), dbx)
+        : activitiesBetween(userId, start, end, dbx),
+      dayTotalsBetween(userId, start, end, dbx),
+      getMoveGoals(userId, dbx),
+    ]);
   return computeTrends({
     range,
     end,
@@ -87,5 +92,7 @@ export const getTrends = async (
     targets,
     weight,
     activities: activityRows,
+    dayTotals,
+    goals,
   });
 };
