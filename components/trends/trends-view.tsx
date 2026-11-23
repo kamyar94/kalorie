@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { NutrientBar } from "@/components/ui/nutrient-bar";
 import type { NutrientColor } from "@/components/ui/nutrient-ring";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import type { BalanceRankingsDto } from "@/lib/contracts/balance";
 import { MEAL_SLOT_LABELS, type MealSlot } from "@/lib/contracts/meals";
 import { formatNutrient, type NutrientCode } from "@/lib/contracts/nutrients";
 import { shiftLocalDate } from "@/lib/meals/time";
@@ -29,6 +30,7 @@ import { trendsHref, type YearData } from "@/lib/trends/year";
 import { dayTitle, formatKcal, shortDate, weekdayLetter } from "@/lib/ui/format";
 
 import { ActivitySection } from "./activity-section";
+import { BalanceSection } from "./balance-section";
 import { BarChart, ChartTable, LineChart, type BarDatum } from "./charts";
 import { YearCard } from "./year-card";
 
@@ -53,16 +55,18 @@ const Section = ({
 );
 
 /**
- * Trends (docs/DESIGN.md section 7): the year card, then day, week and month views: the food
- * sections, then activity and "Eaten and burned".
+ * Trends (docs/DESIGN.md section 7): the year card, then day, week and month views: the most and
+ * least nutritious meals, the food sections, then activity and "Eaten and burned".
  */
 export const TrendsView = ({
   data,
   year,
+  balance,
   today,
 }: {
   data: TrendsData;
   year: YearData;
+  balance: BalanceRankingsDto;
   today: string;
 }) => {
   const router = useRouter();
@@ -101,6 +105,19 @@ export const TrendsView = ({
   const flagged = data.nutrients.filter((n) => n.verdict !== "ok");
   const enoughDays = data.loggedDays >= Math.min(MIN_DAYS_FOR_PATTERN, days);
   const maxSlot = Math.max(1, ...data.bySlot.map((s) => s.energy));
+  const balanceSection = (
+    <BalanceSection
+      balance={balance}
+      today={today}
+      periodName={
+        data.range === "day"
+          ? data.end === today
+            ? "today"
+            : "on this day"
+          : `in this ${data.range}`
+      }
+    />
+  );
 
   return (
     <>
@@ -168,11 +185,13 @@ export const TrendsView = ({
             body="Log meals and Kal shows your energy, protein and other nutrients against your targets here."
           />
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
+            {balanceSection}
             <ActivitySection data={data} today={today} />
           </div>
         </>
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 md:items-start">
+          {balanceSection}
           <Section title={data.range === "day" ? "The day" : "Daily average"}>
             <div className="flex items-end gap-3">
               <p className="tabular text-display" data-testid="average-energy">

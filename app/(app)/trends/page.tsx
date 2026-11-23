@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 
 import { TrendsView } from "@/components/trends/trends-view";
 import { requireUser } from "@/lib/auth/session";
+import { getBalanceRankings } from "@/lib/balance/service";
 import { isLocalDate } from "@/lib/meals/time";
-import { TREND_RANGES, type TrendRange } from "@/lib/trends/compute";
+import { rangeDates, TREND_RANGES, type TrendRange } from "@/lib/trends/compute";
 import { getTrends } from "@/lib/trends/service";
 import { getYear } from "@/lib/trends/year-service";
 import { viewerToday } from "@/lib/ui/viewer-time";
@@ -31,9 +32,10 @@ export default async function TrendsPage({
     : "week";
   const endParam = first(params.end);
   const end = isLocalDate(endParam) && endParam <= today ? endParam : today;
-  const [data, year] = await Promise.all([
+  const [data, year, balance] = await Promise.all([
     getTrends(user.id, range, end),
     getYear(user.id, { year: first(params.year), metric: first(params.metric), today }),
+    getBalanceRankings(user.id, { from: rangeDates(range, end)[0]!, to: end }),
   ]);
-  return <TrendsView data={data} year={year} today={today} />;
+  return <TrendsView data={data} year={year} balance={balance} today={today} />;
 }

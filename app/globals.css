@@ -55,6 +55,10 @@
   --year-more-under: #3a7fd5;
   --year-more-met: #2a9259;
   --year-more-high: #17663c;
+  /* The balance score's ring (Trends, the meal page): good, fair and low. */
+  --balance-good: #2a9259;
+  --balance-fair: #a88300;
+  --balance-low: #c42b2b;
   --shadow-color: 30 30 20;
   color-scheme: light;
 }
@@ -105,6 +109,9 @@
     --year-more-under: #6aa6ee;
     --year-more-met: #3fb37a;
     --year-more-high: #2a8a57;
+    --balance-good: #3fb37a;
+    --balance-fair: #e3c443;
+    --balance-low: #e95a4f;
     --shadow-color: 0 0 0;
     color-scheme: dark;
   }
@@ -155,6 +162,9 @@
   --year-more-under: #6aa6ee;
   --year-more-met: #3fb37a;
   --year-more-high: #2a8a57;
+  --balance-good: #3fb37a;
+  --balance-fair: #e3c443;
+  --balance-low: #e95a4f;
   --shadow-color: 0 0 0;
   color-scheme: dark;
 }
@@ -204,6 +214,9 @@
   --color-year-more-under: var(--year-more-under);
   --color-year-more-met: var(--year-more-met);
   --color-year-more-high: var(--year-more-high);
+  --color-balance-good: var(--balance-good);
+  --color-balance-fair: var(--balance-fair);
+  --color-balance-low: var(--balance-low);
 }
 
 @theme {

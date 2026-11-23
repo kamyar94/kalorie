@@ -95,6 +95,11 @@ GRAPHIC_PAIRS.push(
   ].map((c): [string, string] => [`year-${c}`, "surface"]),
 );
 
+// The balance score's ring (Trends, the meal page), on the card.
+GRAPHIC_PAIRS.push(
+  ...["good", "fair", "low"].map((c): [string, string] => [`balance-${c}`, "surface"]),
+);
+
 describe.each(Object.entries(themes))("%s theme", (_name, tokens) => {
   it.each(TEXT_PAIRS)("%s on %s reaches 4.5:1", (fg, bg) => {
     expect(contrast(tokens[fg]!, tokens[bg]!)).toBeGreaterThanOrEqual(4.5);

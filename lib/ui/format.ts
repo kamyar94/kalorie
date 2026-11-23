@@ -63,6 +63,22 @@ export const shortDate = (date: string) =>
     timeZone: "UTC",
   });
 
+/**
+ * A meal's day in a list: "Today", "Yesterday", "Thu, Nov 12", or "Thu, Nov 12, 2025" in another
+ * year.
+ */
+export const mealDay = (date: string, today: string) => {
+  if (date === today) return "Today";
+  if (date === shiftLocalDate(today, -1)) return "Yesterday";
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    ...(today.slice(0, 4) !== date.slice(0, 4) ? { year: "numeric" } : {}),
+    timeZone: "UTC",
+  });
+};
+
 /** "Mo" for chart axes. */
 export const weekdayLetter = (date: string) =>
   new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });

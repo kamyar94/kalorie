@@ -36,6 +36,7 @@ import { dayTitle, formatItemAmount, formatKcal, type Units } from "@/lib/ui/for
 import { totalsOf } from "@/lib/ui/item-preview";
 
 import { AgainSheet } from "./again-sheet";
+import { BalanceCard } from "./balance-card";
 import { DetailsSheet } from "./details-sheet";
 import { FixSentence } from "./fix-sentence";
 import { ItemSheet } from "./item-sheet";
@@ -451,6 +452,14 @@ export const MealView = ({
               </p>
             </details>
           </Card>
+
+          <BalanceCard
+            totals={totals}
+            slot={meal.slot}
+            status={meal.status}
+            drinksOnly={meal.items.length > 0 && meal.items.every((i) => i.kind === "drink")}
+            targets={targets}
+          />
 
           <div className="grid grid-cols-2 gap-2">
             <Button variant="secondary" size="lg" onClick={() => setAgain(true)}>
