@@ -118,6 +118,11 @@ follow your light or dark theme.
   a nutrition label, lists your recent and frequent foods, and keeps foods you make yourself.
 - **Favorites.** Star a meal and log it again from Today with one tap; "I ate this again"
   copies a meal to another day.
+- **What should I eat?** On Today and on the camera: what is left of today's energy, protein
+  and fiber and the room under sodium, the meal you usually have at this hour and how big, and
+  the three meals you have had that fit best now (favorites and the last 90 days, never more
+  than what is left, recent ones spaced out), each logged again with one tap. With your own AI
+  key, "Something new" asks it for one idea that fits the same numbers.
 
 ### What Kal works out
 
@@ -185,6 +190,12 @@ time of day you eat, every nutrient against its target, top foods, your activity
 time and activity calories per day against their goals, workouts, the WHO week, and what you
 ate next to what activity burned), and weight. The goals for steps, active time and activity
 calories are edited with the other targets.
+
+**Most and least nutritious** lists the meals of the period, or of all time, with the highest
+and lowest balance score: 0 to 100 for how nutritious a meal is for its size (nine nutrients to
+encourage and three to limit against your targets, after the Nutrient Rich Foods index NRF9.3)
+and how well its size fits that kind of meal. Each meal's page shows its score with every
+nutrient against the meal's share of your day.
 
 **Your year** is a calendar of the year, one square a day, coloured by how the day compares
 with its target: steps, active minutes or energy from activity, calories, any other nutrient

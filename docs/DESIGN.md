@@ -59,7 +59,9 @@ capture="environment">`) and the gallery instead.
 
 **Meal.** Each tap adds a photo to a strip of up to three thumbnails (tap a thumbnail to delete
 it). Buttons on that screen: shutter, gallery (pick existing photos), hold-to-talk note, the
-When chip, Type, Send, close.
+When chip, Type, Send, close, and "What should I eat?" (section 7) in place of the photo count
+until the first photo is taken, and under the text box of a meal in words. A suggestion logged
+from there closes the camera; an AI idea's "Type it" fills the text box.
 
 **Type.** Switches to a meal in words: the camera stops and a large text box ("What did you
 eat?") takes its place, with dictation where the browser has speech recognition. The meal is
@@ -208,7 +210,8 @@ the day's openGym workouts.
 - **Navigation:** phones have a bottom bar (Today, Move, the camera, Body, More); wide screens
   a rail with the same items. More lists Trends, Add food, Favorites, Medicines, Plan meals
   (when Mealie is connected), Kal for Android, Settings and, for admins, Admin.
-- **Today:** the date with swipe to the previous and next day; a summary (calories eaten of
+- **Today:** the date with swipe to the previous and next day; "What should I eat?" under the
+  date on today (below); a summary (calories eaten of
   target as a ring, kcal left, protein, carbs, fat bars); the Water card (the day's water from
   drinks against its goal, the latest entries with Show all, + Glass, + Bottle and + Other
   amount, and a sheet that changes an entry's amount and time or removes it); the Move card
@@ -227,8 +230,11 @@ the day's openGym workouts.
   (Time, and Edit for the title, time and meal name); "What you wrote" for a meal in words;
   open questions as answer chips or the person's own words; "Fix with a sentence" (with "Also
   replace the changes I made by hand"); items list (emoji, name, amount, kcal); totals with a
-  full nutrient table; the favorite star; "I ate this again" (now, or another day and time);
-  delete meal.
+  full nutrient table; under them the balance card (board 43): the balance score with its reason
+  and size ("Right size for a lunch (30% of your day)."), each of the twelve nutrients with its
+  amount against this meal's share or limit and how it did ("met", "67%", "within", "1.1×"),
+  the ones not known, and the sentence that explains the shares; a meal that is not judged says
+  why; the favorite star; "I ate this again" (now, or another day and time); delete meal.
 - **Item sheet:** grams slider over the model's low to high range plus free entry, portion
   buttons from the food's portions, count stepper, the matched food with "change" (search),
   the item's nutrients, delete. Changes save themselves.
@@ -277,8 +283,17 @@ the day's openGym workouts.
   day.
 - **Import a file:** a Samsung Health export (the zip or its CSV files), a Renpho CSV, or any
   CSV through a column-mapping step. The file is read on the device; only the records are sent.
-- **Trends:** day, week and month views: energy and macros per day against targets, time of
-  day, nutrients against their targets (consistently below or above), top foods; then
+- **Trends:** day, week and month views. First "Most and least nutritious" (board 41): the three
+  meals with the highest and the three with the lowest balance score (below) of the period, or
+  of all time with the switch, each with its photo or food emoji, title, day, meal name, energy,
+  score in a ring and reason; a row opens the meal; "How it is worked out" explains the score in
+  plain words; with fewer than six judged meals the better half is "most" and the rest "least",
+  and the count of judged meals and of those left out is shown. It is worked out from the stored
+  meal totals on each visit (one query that reads only the score's thirteen values from each
+  meal, then the covers of the six shown), with no AI and nothing stored, so a changed target or
+  meal shows at once; in the tests four thousand meals took about a third of a second. Then:
+  energy and macros per day against targets, time of day, nutrients against their targets
+  (consistently below or above), top foods; then
   Activity (steps, active time and activity calories a day and workouts; steps, active time and
   activity calories per day against their goals, and Kal's workout minutes per day by category,
   each with a table; the phone's day totals where Kal for Android sent them, Move's rules on the
@@ -299,6 +314,60 @@ the day's openGym workouts.
   without a target is shaded against the year's highest day. A square opens the day's summary
   (words follow the kind of target: a minimum, a limit, a range). `?year=` and `?metric=` keep
   its state in the address (lib/trends/year.ts).
+- **Balance score** (`lib/balance/score.ts`, every number in its `BALANCE`): 0 to 100 per meal,
+  from the meal's totals and the person's targets. Density follows the Nutrient Rich Foods index
+  NRF9.3 (Drewnowski and Fulgoni: Fulgoni, Keast and Drewnowski, J Nutr 2009; Drewnowski and
+  Fulgoni, Am J Clin Nutr 2014): nine nutrients to encourage (protein, fiber, vitamins A, C and
+  E, calcium, iron, potassium, magnesium) and three to limit (saturated fat, added sugars,
+  sodium), each against the person's own target for the meal's share of the day. The share is
+  the meal's energy over the day's energy target (2,000 kcal without one), at least 5 % so a
+  small snack is not held to almost nothing. Each nutrient to encourage scores its amount over
+  (target x share), capped at 1, so one very rich nutrient cannot hide the others; the average
+  is over the known ones. Each limit is penalised for the part above (limit x share): 0 within
+  it, rising to 1 at twice it; an unknown limit counts as within. Density = encouraged average x
+  (1 - mean of the three penalties). Portion fit compares the share with the usual band of the
+  meal's name: breakfast 20 to 30 %, brunch, lunch and dinner 25 to 35 %, supper 15 to 30 %,
+  snack, dessert and drink 5 to 15 %; 1 inside, falling linearly to 0 at no energy below and at
+  twice the band's top above. Score = round(100 x (0.7 x density + 0.3 x portion fit)); 70 and
+  up is "well balanced" (green ring), 40 to 69 "fairly" (amber), under 40 "poorly" (red), always
+  with the number and the words. Not judged ("not enough to judge"): meals still being worked
+  out, failed meals, drinks on their own (every item a drink) and meals with too few known
+  nutrients (under 20 kcal, or fewer than 5 of the 9 to encourage, as with an AI estimate
+  alone). The reason names what stands out, at most two parts: what the meal brings plenty of
+  and the limits ("Plenty of protein, fiber and potassium; little sodium"), or a limit far over
+  its share, the size and what is short ("Added sugar 3× its share; almost no protein or
+  fiber", "Sodium 2.4× its share; twice a usual dinner"). Targets are today's (no target history
+  is kept), as on the year card.
+- **What should I eat?** (board 42; `lib/suggest/compute.ts`, every number in its `SUGGEST`;
+  `GET /api/suggestions?tz=`): a sheet for now, in the device's time zone. "Left today": energy,
+  protein and fiber still open against today's targets after what was eaten (water on its own
+  is not a meal), and the room left under sodium (and, for the ranking, saturated fat and added
+  sugars); meals still being worked out are said not to be counted yet. "Pattern": the 28 days
+  before today; the meals with food within 90 minutes either side of now give the usual meal
+  name (the most common) and size (the median of each day's energy in that window), and "after
+  this hour" is the mean energy eaten from now to the end of the day over the days with meals
+  ("It is 13:05. You usually have lunch now, about 600 kcal, and eat about 1,400 kcal more after
+  this hour."). Under three days with meals is too little to call a pattern, and it says so. The
+  size that suits now is the usual size (without a pattern, the middle of the band of this
+  hour's meal name times the energy target), scaled down when what is left is less than it plus
+  what usually comes after the window, and never more than what is left. Candidates are the
+  favorites and the distinct meals with food of the last 90 days (the same foods in any order
+  are one meal, had N times; a favorite is logged as the favorite); one with more energy than
+  is left is never suggested. They are ranked by 0.30 x fit to the size + 0.25 x how much of the
+  open protein and fiber they bring for their part of what is left (size / left) + 0.15 x how
+  well they stay within that part of the room under the limits (a limit the meal alone would
+  take over today counts fully) + 0.20 x the balance score + 0.08 for a favorite + 0.02 for each
+  time beyond the first (at most 0.08) - 0.25 when had in the last 48 hours. The top three show
+  with their photo or emoji, energy, a label ("Best fit", "Favorite", "Had 3 times") and a
+  one-line reason ("Covers 34 g of the 52 g protein you still need; fits your usual 600 kcal
+  lunch."), Log this (a copy at now through the favorite or "I ate this again" route, with
+  Undo) and Details (the past meal). Nothing to suggest yet: a balanced idea from the targets
+  (the size with its part of the open protein, fiber and sodium, and the plate method as an
+  example). "Something new (asks your AI)" shows only when an AI key is saved: one idea from the
+  person's own provider with the analysis task's settings (`POST /api/suggestions/idea`, the
+  numbers, preferred cuisines, and allergies only when the health profile allows its use in
+  analysis), shown as text with the AI's rough nutrients and "Type it", which opens a meal in
+  words with its foods; nothing is saved. Everything else needs no AI.
 - **Plan meals:** meal plan suggestions from Mealie recipes (section 8).
 - **Kal for Android:** the app's version and size, the download, linking Health Connect from
   inside the app, and the linked phones with Unlink, each with its recent updates and a warning
@@ -433,6 +502,8 @@ androidbrowserhelper (Trusted Web Activity), the Health Connect client and WorkM
   scroll on every screen): invite, sign-in, capture three photos, a meal in words with When,
   offline queue, analysis by the mock provider, edit an item, answer a question, barcode add,
   meal photos, favorites, medicines (label, Log as a medicine, changing a log), water entries,
+  the most and least nutritious meals and a meal's balance card, "What should I eat?" from
+  Today and the camera with Log this and Undo,
   Move and file imports, Body and body photos, the year calendar, Kal for Android, Mealie log
   and plan (mock Mealie), openGym pairing (mock openGym), push.
 - The README's screenshots come from a separate Playwright configuration
