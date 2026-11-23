@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { AutoRefresh } from "@/components/app/auto-refresh";
 import { FavoriteChips } from "@/components/favorites/favorite-chips";
+import { SuggestButton } from "@/components/suggest/suggest-button";
 import { DayPlanSection } from "@/components/today/day-plan";
 import { DaySwipe } from "@/components/today/day-swipe";
 import { MedicinesCard } from "@/components/today/medicines-card";
@@ -92,6 +93,13 @@ export default async function TodayPage({
           <span aria-hidden className="size-11" />
         )}
       </header>
+
+      {/* "What should I eat?" for now: on today only. */}
+      {date === today && (
+        <div className="mt-3 flex justify-center md:justify-end">
+          <SuggestButton />
+        </div>
+      )}
 
       {/* The day's water: the Water card's entries and its sheet, also opened from the timeline. */}
       <WaterDayProvider entries={water} date={date} today={today}>

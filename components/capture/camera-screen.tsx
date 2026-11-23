@@ -13,12 +13,14 @@ import {
   Pill,
   RefreshCcw,
   Timer,
+  Utensils,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { PoseGuide } from "@/components/body/pose-guide";
 import { MedicineCapture } from "@/components/medicines/medicine-capture";
+import { SuggestSheet } from "@/components/suggest/suggest-sheet";
 import { cn } from "@/components/ui/cn";
 import { api } from "@/lib/client/api";
 import { startDictation, speechSupported, type Dictation } from "@/lib/client/speech";
@@ -176,26 +178,39 @@ const sideButton =
  * Body (board 8) guides four photos, Front, Left, Back and Right, with a pose outline and a
  * self-timer (off, 3 or 10 s); each is uploaded at full size as soon as it is taken (never to an
  * AI), and Skip moves on.
+ *
+ * "What should I eat?" (board 42) opens the suggestions above the camera: in place of the photo
+ * count before the first photo, and under the text box of a meal in words. A logged suggestion
+ * closes the camera; the AI's idea ("Type it") goes into the text box.
  */
 export const CameraScreen = ({
   open,
   mode,
+  initialText,
   onClose,
   onSend,
   onMedicineSaved,
   onBodyDone,
+  onSuggestionLogged,
+  onOpenMeal,
 }: {
   open: boolean;
   /**
    * label: a package photo for the Add screen (no tabs); medicine and body open on their tabs.
    */
   mode: "meal" | "label" | "medicine" | "body";
+  /** Opens as a meal in words with this text ("Type it" on an AI idea from Today). */
+  initialText?: string;
   onClose: () => void;
   /** at: the time chosen with the When chip, null for the photo's own time (or now). */
   onSend: (shots: Shot[], note: string, at: Date | null) => void;
   onMedicineSaved: (logged: LoggedMedicine) => void;
   /** The body photos are done (all four poses, or the camera was closed after some). */
   onBodyDone: (result: BodyCaptureResult) => void;
+  /** A suggestion from "What should I eat?" was logged: the camera closes. */
+  onSuggestionLogged: () => void;
+  /** "Details" on a suggestion: the camera closes and the past meal opens. */
+  onOpenMeal: (mealId: string) => void;
 }) => {
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -223,6 +238,7 @@ export const CameraScreen = ({
   const [flash, setFlash] = useState(0);
   const [announcement, setAnnouncement] = useState("");
   const [kind, setKind] = useState<CaptureKind>(kindOf(mode));
+  const [suggestOpen, setSuggestOpen] = useState(false);
   // Body photos: the pose to take, how each went, the self-timer and its countdown.
   const [bodyStep, setBodyStep] = useState(0);
   const [bodyMarks, setBodyMarks] = useState<Partial<Record<BodyPose, BodyMark>>>({});
@@ -254,7 +270,13 @@ export const CameraScreen = ({
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setKind(kindOf(mode));
+    if (open) {
+      setKind(kindOf(mode));
+      if (initialText) {
+        setTextMode(true);
+        setNote(initialText);
+      }
+    }
   }
 
   // A new video element (each time the dialog opens) shows the running stream at once.
@@ -497,6 +519,7 @@ export const CameraScreen = ({
     setTextMode(false);
     setWhen(null);
     setWhenOpen(false);
+    setSuggestOpen(false);
     setListening(false);
     setHeard("");
     setAnnouncement("");
@@ -955,6 +978,16 @@ export const CameraScreen = ({
                   </p>
                 </div>
               )}
+              <div>
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  onClick={() => setSuggestOpen(true)}
+                  className="text-label bg-surface-2 hover:bg-surface-3 inline-flex min-h-11 items-center gap-1.5 rounded-full px-3.5"
+                >
+                  <Utensils aria-hidden className="size-4" /> What should I eat?
+                </button>
+              </div>
             </div>
           ) : (
             // Middle, photo mode: the viewfinder, or what to do without one.
@@ -1062,9 +1095,24 @@ export const CameraScreen = ({
               {!textMode && mealKind && (
                 <div className="flex items-center gap-2.5">
                   {thumbnails}
-                  <p className="text-caption min-w-0 flex-1 text-white/80">
-                    {shots.length} of {MAX} photos
-                  </p>
+                  {shots.length === 0 && !label ? (
+                    // Before the first photo: "What should I eat?" in place of the count.
+                    <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        aria-haspopup="dialog"
+                        onClick={() => setSuggestOpen(true)}
+                        className="text-label inline-flex min-h-11 max-w-full items-center gap-1.5 rounded-full bg-white/15 px-3.5 text-white"
+                      >
+                        <Utensils aria-hidden className="size-4 shrink-0" />
+                        <span className="truncate">What should I eat?</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-caption min-w-0 flex-1 text-white/80">
+                      {shots.length} of {MAX} photos
+                    </p>
+                  )}
                   <button
                     type="button"
                     aria-label={
@@ -1320,6 +1368,26 @@ export const CameraScreen = ({
               else void addPhotos(files, null);
             }}
           />
+
+          {!label && (
+            <SuggestSheet
+              open={suggestOpen}
+              onOpenChange={setSuggestOpen}
+              elevated
+              onLogged={() => {
+                reset(true);
+                onSuggestionLogged();
+              }}
+              onDetails={(mealId) => {
+                reset(true);
+                onOpenMeal(mealId);
+              }}
+              onTypeIt={(text) => {
+                setNote(text);
+                switchToText();
+              }}
+            />
+          )}
 
           {!label && (
             <WhenSheet

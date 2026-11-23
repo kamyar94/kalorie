@@ -53,7 +53,8 @@ type CaptureContextValue = {
   /** Meals uploaded in this page view, until the server list includes them. */
   uploaded: ReadonlyMap<string, MealSummaryDto>;
   online: boolean;
-  openCamera: (mode?: CaptureMode) => void;
+  /** text: open the Meal tab as a meal in words, with this text in it ("Type it"). */
+  openCamera: (mode?: CaptureMode, options?: { text?: string }) => void;
   retry: (clientId: string) => Promise<void>;
   discard: (clientId: string) => Promise<void>;
   /** A meal that was removed (logged as a medicine): it leaves `uploaded` at once. */
@@ -88,7 +89,7 @@ export const CaptureProvider = ({
   const [uploading, setUploading] = useState<ReadonlySet<string>>(new Set());
   const [uploaded, setUploaded] = useState<ReadonlyMap<string, MealSummaryDto>>(new Map());
   const online = useOnline();
-  const [camera, setCamera] = useState<{ open: boolean; mode: CaptureMode }>({
+  const [camera, setCamera] = useState<{ open: boolean; mode: CaptureMode; text?: string }>({
     open: false,
     mode: "meal",
   });
@@ -304,9 +305,25 @@ export const CaptureProvider = ({
     [pathname, router, show],
   );
 
-  const openCamera = useCallback((mode: CaptureMode = "meal") => {
-    setCamera({ open: true, mode });
+  const openCamera = useCallback((mode: CaptureMode = "meal", options?: { text?: string }) => {
+    setCamera({ open: true, mode, text: options?.text });
   }, []);
+
+  // "What should I eat?" on the camera: a suggestion was logged (Today shows it), or a past meal
+  // is opened.
+  const suggestionLogged = useCallback(() => {
+    setCamera((c) => ({ ...c, open: false }));
+    if (pathname === "/today") router.refresh();
+    else router.push("/today");
+  }, [pathname, router]);
+
+  const openMeal = useCallback(
+    (mealId: string) => {
+      setCamera((c) => ({ ...c, open: false }));
+      router.push(`/meals/${mealId}`);
+    },
+    [router],
+  );
 
   const forgetMeal = useCallback((mealId: string) => {
     setUploaded((m) => {
@@ -350,7 +367,10 @@ export const CaptureProvider = ({
       <CameraScreen
         open={camera.open}
         mode={camera.mode}
+        initialText={camera.text}
         onClose={() => setCamera((c) => ({ ...c, open: false }))}
+        onSuggestionLogged={suggestionLogged}
+        onOpenMeal={openMeal}
         onMedicineSaved={medicineSaved}
         onBodyDone={bodyDone}
         onSend={(shots, note, at) => {

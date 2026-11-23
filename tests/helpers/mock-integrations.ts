@@ -4,7 +4,8 @@
 //                 controller_mealplan.py, routes/recipe/recipe_crud_routes.py; camelCase JSON)
 //   /opengym/...  openGym's API (api/openapi.yaml 1.4.3: /api/pair/redeem, /api/me, /api/data)
 //   /push/...     a Web Push service: records the encrypted messages, answers 201 or 410
-//   /google/...   Gemini generateContent for the photo analysis in end-to-end runs
+//   /google/...   Gemini generateContent for the photo analysis in end-to-end runs (and the
+//                 label reading and the meal idea of "What should I eat?")
 //   /off/...      Open Food Facts: knows no product
 //   /__control/   JSON control for tests that run in another process (Playwright)
 //
@@ -603,6 +604,19 @@ export const E2E_MEDICINE = {
   active_ingredients: [{ name: "Ibuprofen", strength: "200 mg" }],
 };
 
+/** "Something new (asks your AI)" on "What should I eat?": one meal idea (made up). */
+export const E2E_IDEA = {
+  idea_name: "Chickpea and spinach stew",
+  foods:
+    "1 cup chickpeas, 2 handfuls spinach, half a tomato, 1 tsp olive oil, 1 slice wholegrain bread",
+  energy_kcal: 520,
+  protein_g: 24,
+  carbs_g: 68,
+  fat_g: 14,
+  fiber_g: 16,
+  sodium_mg: 450,
+};
+
 /** A plate whose items match the FoodData Central fixture foods and the seeded doogh. */
 export const E2E_MEAL = {
   is_food: true,
@@ -705,6 +719,8 @@ const handleGoogle = (mock: GoogleMock, body: unknown): Reply => {
   );
   // A medicine label asks for the label schema (is_medicine) with its photo.
   if (schema.includes('"is_medicine"')) return googleReply(E2E_MEDICINE);
+  // "What should I eat?" asks for one meal idea (the idea schema).
+  if (schema.includes('"idea_name"')) return googleReply(E2E_IDEA);
   if (parts.some((p) => p.inlineData) || schema.includes('"is_food"'))
     return googleReply(mock.analyses.shift() ?? E2E_MEAL);
   const prompt = parts.find((p) => typeof p.text === "string")?.text ?? "";

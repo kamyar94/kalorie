@@ -46,6 +46,7 @@ import type {
 } from "@/lib/contracts/medicines";
 import type { EveryDayMonthDto } from "@/lib/contracts/move";
 import type { NutrientMap } from "@/lib/contracts/nutrients";
+import type { MealIdeaDto, SuggestionsDto } from "@/lib/contracts/suggest";
 import type { WaterEntryDto, WaterPatch } from "@/lib/contracts/water";
 
 export class ApiError extends Error {
@@ -271,6 +272,14 @@ export const api = {
   /** A month of Move's "Every day" ("2026-10"). */
   moveDays: (month: string) =>
     request<EveryDayMonthDto>(`/api/move/days?month=${encodeURIComponent(month)}`),
+  /** "What should I eat?" for now, in the device's time zone. */
+  suggestions: (tz: string, signal?: AbortSignal) =>
+    request<SuggestionsDto>(`/api/suggestions?tz=${encodeURIComponent(tz)}`, { signal }),
+  /** "Something new": one idea from the person's own AI. */
+  mealIdea: (tz: string) =>
+    request<{ idea: MealIdeaDto }>("/api/suggestions/idea", { method: "POST", body: { tz } }).then(
+      (r) => r.idea,
+    ),
   dismissHint: (hint: "phone-steps-only") =>
     request<{ ok: true }>("/api/hints", { method: "POST", body: { hint } }),
   createActivity: (input: ManualActivityInput) =>
