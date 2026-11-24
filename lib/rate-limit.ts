@@ -112,9 +112,13 @@ export const uploadWindows = (): RateWindow[] => [
   { name: "day", windowMs: 86_400_000, max: fromEnv("UPLOAD_RATE_PER_DAY", 300) },
 ];
 
-/** AI requests per account: AI_RATE_PER_MINUTE (default 10) and AI_RATE_PER_DAY (default 300). */
+/**
+ * AI requests per account: AI_RATE_PER_MINUTE (default 30) and AI_RATE_PER_DAY (default 300).
+ * A photo meal takes up to two (the analysis and the matching); "Add photos" can send ten meals
+ * or more within a minute, and the worker runs two at a time.
+ */
 export const aiWindows = (): RateWindow[] => [
-  { name: "min", windowMs: 60_000, max: fromEnv("AI_RATE_PER_MINUTE", 10) },
+  { name: "min", windowMs: 60_000, max: fromEnv("AI_RATE_PER_MINUTE", 30) },
   { name: "day", windowMs: 86_400_000, max: fromEnv("AI_RATE_PER_DAY", 300) },
 ];
 

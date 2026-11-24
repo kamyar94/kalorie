@@ -193,6 +193,27 @@ describe("POST /api/meals", () => {
   });
 });
 
+describe("a batch from Add photos", () => {
+  it("takes ten meals in a row with the default limits, each queued for one analysis", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const photos = await Promise.all(Array.from({ length: (i % 3) + 1 }, () => jpeg(320, 240)));
+      const response = await post(
+        form(photos, { eatenAt: new Date(Date.now() - (12 - i) * 3_600_000).toISOString() }),
+      );
+      expect(response.status).toBe(201);
+      ids.push(((await response.json()) as CreateMealResponse).meal.id);
+    }
+    expect(new Set(ids).size).toBe(10);
+    const jobs = await db.execute<{ id: string; n: number }>(
+      sql`select payload->>'mealId' as id, count(*)::int as n from jobs
+           where kind = 'analyze-meal' group by 1`,
+    );
+    const counts = new Map(jobs.rows.map((row) => [row.id, Number(row.n)]));
+    expect(ids.map((id) => counts.get(id))).toEqual(new Array(10).fill(1));
+  });
+});
+
 describe("reading meals and photos", () => {
   it("serves photos and meals to their owner only", async () => {
     const created = (await (

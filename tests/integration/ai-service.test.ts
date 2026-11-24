@@ -16,6 +16,7 @@ import {
   runAiTask,
   saveProviderKey,
   saveTaskSetting,
+  takeAiRequest,
   testProviderKey,
 } from "@/lib/ai/service";
 import {
@@ -169,6 +170,19 @@ describe("tasks", () => {
     } finally {
       if (saved === undefined) delete process.env.AI_RATE_PER_MINUTE;
       else process.env.AI_RATE_PER_MINUTE = saved;
+    }
+  });
+
+  it("let ten photo meals from Add photos through in one minute (two requests each)", async () => {
+    const saved = process.env.AI_RATE_PER_MINUTE;
+    delete process.env.AI_RATE_PER_MINUTE;
+    try {
+      for (let i = 0; i < 20; i++) await takeAiRequest(ann);
+      // The default leaves room for half as many again, then stops.
+      for (let i = 0; i < 10; i++) await takeAiRequest(ann);
+      expect((await failure(takeAiRequest(ann))).kind).toBe("local-rate-limit");
+    } finally {
+      if (saved !== undefined) process.env.AI_RATE_PER_MINUTE = saved;
     }
   });
 

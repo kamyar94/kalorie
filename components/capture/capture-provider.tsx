@@ -12,7 +12,9 @@ import {
   type ReactNode,
 } from "react";
 
+import { BulkScreen, type BulkMealToAdd, type BulkRequest } from "@/components/bulk/bulk-screen";
 import { useToast } from "@/components/ui/toast";
+import { fallbackTime } from "@/lib/bulk/times";
 import { api } from "@/lib/client/api";
 import type { MealSummaryDto } from "@/lib/contracts/meals";
 import { formatDose, medicineTitle, type LoggedMedicine } from "@/lib/contracts/medicines";
@@ -55,6 +57,11 @@ type CaptureContextValue = {
   online: boolean;
   /** text: open the Meal tab as a meal in words, with this text in it ("Type it"). */
   openCamera: (mode?: CaptureMode, options?: { text?: string }) => void;
+  /**
+   * "Add photos": sorts many photos into meals. day: the earlier day Today shows (photos with no
+   * time taken start at 12:00 of it); null or today: they start now.
+   */
+  openBulk: (files: Blob[], options?: { day?: string | null }) => void;
   retry: (clientId: string) => Promise<void>;
   discard: (clientId: string) => Promise<void>;
   /** A meal that was removed (logged as a medicine): it leaves `uploaded` at once. */
@@ -93,6 +100,8 @@ export const CaptureProvider = ({
     open: false,
     mode: "meal",
   });
+  const [bulk, setBulk] = useState<BulkRequest | null>(null);
+  const bulkKey = useRef(0);
   const previewsRef = useRef(new Map<string, string>());
   const [previews, setPreviews] = useState<ReadonlyMap<string, string>>(new Map());
   const flushing = useRef(false);
@@ -187,50 +196,69 @@ export const CaptureProvider = ({
     };
   }, [flush, reload, router]);
 
+  /**
+   * Stores meals on the device and starts sending them, oldest first (the queue sends them in the
+   * order they are stored). Shows them on their day: Today, or the earlier day when they are all
+   * on one. Resolves to their client ids.
+   */
+  const enqueue = useCallback(
+    async (meals: BulkMealToAdd[]) => {
+      const tz = deviceTimeZone();
+      const createdAt = Date.now();
+      const ids: string[] = [];
+      for (const [i, item] of meals.entries()) {
+        const photos = await Promise.all(
+          item.photos.map(async (photo) => ({
+            type: photo.blob.type || "image/jpeg",
+            data: await photo.blob.arrayBuffer(),
+            width: photo.width,
+            height: photo.height,
+          })),
+        );
+        const meal: QueuedMeal = {
+          clientId: newClientId(),
+          userId,
+          createdAt: createdAt + i,
+          eatenAt: item.eatenAt.toISOString(),
+          tz,
+          note: item.note,
+          photos,
+          state: "waiting",
+          attempts: 0,
+          error: null,
+          nextAttemptAt: 0,
+        };
+        await putQueued(meal);
+        ids.push(meal.clientId);
+      }
+      await reload();
+      if (!(await queueIsPersistent()))
+        show({
+          title: `Keep Kal open until the ${meals.length === 1 ? "meal is" : "meals are"} sent`,
+          body: "This browser cannot store meals for later.",
+          tone: "neutral",
+        });
+      const today = localParts(new Date(), tz).date;
+      const days = new Set(meals.map((meal) => localParts(meal.eatenAt, tz).date));
+      const day = days.size === 1 ? [...days][0]! : today;
+      const target = day === today ? "/today" : `/today?date=${day}`;
+      if (`${pathname}${window.location.search}` !== target) router.push(target);
+      void requestBackgroundSync();
+      void flush();
+      return ids;
+    },
+    [flush, pathname, reload, router, show, userId],
+  );
+
   const send = useCallback(
     async (shots: Shot[], note: string, mode: CaptureMode, chosenAt: Date | null) => {
       // Photos, or a meal described in words (a label photo always needs its photo).
       if (!shots.length && (mode === "label" || !note.trim())) return;
-      const photos = await Promise.all(
-        shots.map(async (shot) => ({
-          type: shot.blob.type || "image/jpeg",
-          data: await shot.blob.arrayBuffer(),
-          width: shot.width,
-          height: shot.height,
-        })),
-      );
       const text = [mode === "label" ? LABEL_NOTE : "", note.trim()].filter(Boolean).join(" ");
-      const tz = deviceTimeZone();
       const eatenAt = mealTime(chosenAt, shots[0]?.capturedAt ?? null, new Date());
-      const meal: QueuedMeal = {
-        clientId: newClientId(),
-        userId,
-        createdAt: Date.now(),
-        eatenAt: eatenAt.toISOString(),
-        tz,
-        note: text,
-        photos,
-        state: "waiting",
-        attempts: 0,
-        error: null,
-        nextAttemptAt: 0,
-      };
-      await putQueued(meal);
-      await reload();
-      if (!(await queueIsPersistent()))
-        show({
-          title: "Keep Kal open until the meal is sent",
-          body: "This browser cannot store meals for later.",
-          tone: "neutral",
-        });
-      // Show the new card on its day: Today, or the earlier day it was eaten on.
-      const day = localParts(eatenAt, tz).date;
-      const target = day === localParts(new Date(), tz).date ? "/today" : `/today?date=${day}`;
-      if (`${pathname}${window.location.search}` !== target) router.push(target);
-      void requestBackgroundSync();
-      void flush();
+      await enqueue([{ photos: shots, eatenAt, note: text }]);
     },
-    [flush, pathname, reload, router, show, userId],
+    [enqueue],
   );
 
   const retry = useCallback(
@@ -309,6 +337,40 @@ export const CaptureProvider = ({
     setCamera({ open: true, mode, text: options?.text });
   }, []);
 
+  const openBulk = useCallback(
+    (files: Blob[], options?: { day?: string | null; shots?: Shot[]; at?: Date | null }) => {
+      if (!files.length && !options?.shots?.length) return;
+      const now = new Date();
+      const day = options?.at ? null : (options?.day ?? null);
+      const fallbackAt = options?.at ?? fallbackTime(day, now, deviceTimeZone());
+      bulkKey.current += 1;
+      setBulk({
+        key: bulkKey.current,
+        files,
+        shots: (options?.shots ?? []).map((shot) => ({
+          blob: shot.blob,
+          capturedAt: shot.capturedAt,
+        })),
+        openedAt: now,
+        fallbackAt,
+        earlierDay: fallbackAt !== now && !options?.at,
+      });
+    },
+    [],
+  );
+
+  const bulkDone = useCallback(
+    (count: number) => {
+      setBulk(null);
+      show({
+        title: `${count} ${count === 1 ? "meal" : "meals"} sent`,
+        body: "Each one is analysed on its day.",
+        tone: "success",
+      });
+    },
+    [show],
+  );
+
   // "What should I eat?" on the camera: a suggestion was logged (Today shows it), or a past meal
   // is opened.
   const suggestionLogged = useCallback(() => {
@@ -342,6 +404,7 @@ export const CaptureProvider = ({
       uploaded,
       online,
       openCamera,
+      openBulk,
       retry,
       discard,
       forgetMeal,
@@ -355,6 +418,7 @@ export const CaptureProvider = ({
       uploaded,
       online,
       openCamera,
+      openBulk,
       retry,
       discard,
       forgetMeal,
@@ -373,6 +437,10 @@ export const CaptureProvider = ({
         onOpenMeal={openMeal}
         onMedicineSaved={medicineSaved}
         onBodyDone={bodyDone}
+        onSortIntoMeals={(files, shots, at) => {
+          setCamera((c) => ({ ...c, open: false }));
+          openBulk(files, { shots, at });
+        }}
         onSend={(shots, note, at) => {
           const mode = camera.mode;
           setCamera((c) => ({ ...c, open: false }));
@@ -385,6 +453,17 @@ export const CaptureProvider = ({
             }),
           );
         }}
+      />
+      <BulkScreen
+        request={bulk}
+        tz={deviceTimeZone()}
+        mealWindows={mealWindows}
+        queue={queue}
+        uploading={uploading}
+        online={online}
+        onAdd={enqueue}
+        onClose={() => setBulk(null)}
+        onDone={bulkDone}
       />
     </CaptureContext.Provider>
   );

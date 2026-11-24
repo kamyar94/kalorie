@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { AutoRefresh } from "@/components/app/auto-refresh";
+import { AddPhotosButton } from "@/components/bulk/add-photos-button";
 import { FavoriteChips } from "@/components/favorites/favorite-chips";
 import { SuggestButton } from "@/components/suggest/suggest-button";
 import { DayPlanSection } from "@/components/today/day-plan";
@@ -94,12 +95,11 @@ export default async function TodayPage({
         )}
       </header>
 
-      {/* "What should I eat?" for now: on today only. */}
-      {date === today && (
-        <div className="mt-3 flex justify-center md:justify-end">
-          <SuggestButton />
-        </div>
-      )}
+      {/* "What should I eat?" for now: on today only. "Add photos" on any day. */}
+      <div className="mt-3 flex flex-wrap justify-center gap-2 md:justify-end">
+        {date === today && <SuggestButton />}
+        <AddPhotosButton date={date} today={today} />
+      </div>
 
       {/* The day's water: the Water card's entries and its sheet, also opened from the timeline. */}
       <WaterDayProvider entries={water} date={date} today={today}>

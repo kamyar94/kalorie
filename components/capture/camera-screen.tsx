@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Clock,
   ImageIcon,
+  Images,
   Mic,
   Pill,
   RefreshCcw,
@@ -193,6 +194,7 @@ export const CameraScreen = ({
   onBodyDone,
   onSuggestionLogged,
   onOpenMeal,
+  onSortIntoMeals,
 }: {
   open: boolean;
   /**
@@ -211,6 +213,11 @@ export const CameraScreen = ({
   onSuggestionLogged: () => void;
   /** "Details" on a suggestion: the camera closes and the past meal opens. */
   onOpenMeal: (mealId: string) => void;
+  /**
+   * More than three photos picked in Gallery, and "Sort them into meals": the camera closes and
+   * "Add photos" opens with them and the photos already taken (at: the When chip's time).
+   */
+  onSortIntoMeals: (files: Blob[], shots: Shot[], at: Date | null) => void;
 }) => {
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -239,6 +246,9 @@ export const CameraScreen = ({
   const [announcement, setAnnouncement] = useState("");
   const [kind, setKind] = useState<CaptureKind>(kindOf(mode));
   const [suggestOpen, setSuggestOpen] = useState(false);
+  /** More photos picked in Gallery than one meal holds: sort them into meals, or pick again. */
+  const [tooMany, setTooMany] = useState<File[] | null>(null);
+  const sortButton = useRef<HTMLButtonElement>(null);
   // Body photos: the pose to take, how each went, the self-timer and its countdown.
   const [bodyStep, setBodyStep] = useState(0);
   const [bodyMarks, setBodyMarks] = useState<Partial<Record<BodyPose, BodyMark>>>({});
@@ -265,6 +275,7 @@ export const CameraScreen = ({
   const mealTextHelpId = useId();
   const tabsId = useId();
   const panelId = useId();
+  const tooManyId = useId();
 
   // Each opening starts on the tab it was opened for.
   const [wasOpen, setWasOpen] = useState(open);
@@ -520,6 +531,7 @@ export const CameraScreen = ({
     setWhen(null);
     setWhenOpen(false);
     setSuggestOpen(false);
+    setTooMany(null);
     setListening(false);
     setHeard("");
     setAnnouncement("");
@@ -729,6 +741,21 @@ export const CameraScreen = ({
   useEffect(() => {
     if (typing) noteField.current?.focus();
   }, [typing]);
+
+  useEffect(() => {
+    if (tooMany) sortButton.current?.focus();
+  }, [tooMany]);
+
+  const sortIntoMeals = () => {
+    if (!tooMany) return;
+    onSortIntoMeals(tooMany, shots, when);
+    reset(true);
+  };
+
+  const pickAgain = () => {
+    setTooMany(null);
+    gallery.current?.click();
+  };
 
   useEffect(() => {
     if (open && textMode) mealText.current?.focus();
@@ -1064,6 +1091,46 @@ export const CameraScreen = ({
                 !textMode && "bg-black/72",
               )}
             >
+              {tooMany && mealKind && !label && (
+                <div
+                  role="group"
+                  aria-labelledby={tooManyId}
+                  data-testid="too-many-photos"
+                  className={cn(
+                    "rounded-2xl p-3",
+                    textMode ? "bg-surface-2 text-text" : "bg-white/12 backdrop-blur-md",
+                  )}
+                >
+                  <p id={tooManyId} className="text-body">
+                    You picked {tooMany.length} photos. Sort them into meals, or pick up to {MAX}{" "}
+                    for this meal.
+                  </p>
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    <button
+                      ref={sortButton}
+                      type="button"
+                      onClick={sortIntoMeals}
+                      className={cn(
+                        "text-label inline-flex min-h-11 items-center gap-1.5 rounded-full px-4",
+                        textMode ? "bg-primary text-on-primary" : "bg-white text-black",
+                      )}
+                    >
+                      <Images aria-hidden className="size-4" /> Sort them into meals
+                    </button>
+                    <button
+                      type="button"
+                      onClick={pickAgain}
+                      className={cn(
+                        "text-label inline-flex min-h-11 items-center rounded-full px-4",
+                        textMode ? "bg-surface hover:bg-surface-3" : "bg-white/15 text-white",
+                      )}
+                    >
+                      Pick up to {MAX}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {!textMode && mealKind && typing && (
                 <div className="rounded-2xl bg-white/12 p-2 backdrop-blur-md">
                   <label htmlFor={noteId} className="sr-only">
@@ -1365,7 +1432,13 @@ export const CameraScreen = ({
               event.target.value = "";
               if (medicineKind) void takeMedicinePhoto(files[0]);
               else if (bodyKind) void bodyFromFile(files[0], "gallery");
-              else void addPhotos(files, null);
+              else if (!label && files.length > MAX) {
+                // More than one meal holds: offer "Add photos" instead of keeping three.
+                setTooMany(files);
+                setAnnouncement(
+                  `You picked ${files.length} photos. Sort them into meals, or pick up to ${MAX} for this meal.`,
+                );
+              } else void addPhotos(files, null);
             }}
           />
 
