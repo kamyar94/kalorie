@@ -102,6 +102,62 @@ the Today screen shows "waiting to upload" and the queue is sent when the app is
 online (iOS has no Background Sync for web apps; it is used on browsers that have it). After
 Send the camera closes at once and the new meal card appears with an "analysing" state.
 
+**Add photos (boards 44 to 47).** Many photos at once, for example a day of meals, sorted into
+meals on the device (`components/bulk`, `lib/bulk`). Two ways in: "Add photos" at the top of
+Today on any day of the pager (a gallery picker for many photos), and the camera's Gallery when
+more than three photos are picked ("Sort them into meals", or pick up to three; three or fewer
+work as before). Nothing is sent until "Add".
+
+- **Reading.** First the EXIF time taken of every picked file (only the date tags), then each
+  photo through the same canvas as any meal photo (2048 px, JPEG 0.85, no metadata), two at a
+  time so a phone keeps its memory ("Reading 9 photos…" with a progress bar). Each also gets a
+  256 px preview for the screen and a visual signature from tiny copies: a colour histogram of a
+  32 x 32 copy (64 bins, 4 levels of red, green and blue) and a 64-bit difference hash of a 9 x 8
+  grey copy (`lib/bulk/signature.ts`). Likeness = 0.6 x the histogram intersection + 0.4 x the
+  share of hash bits in common above the half that unrelated pictures share (0 nothing alike, 1
+  the same picture). Signatures and previews stay in memory while the screen is open: never sent,
+  never stored. No location or camera details are read.
+- **Grouping** (`lib/bulk/group.ts`, a pure function, the same meals for the same photos; every
+  number in `BULK`, `lib/bulk/rules.ts`). A batch holds at most 30 photos (`maxPhotos`); with more,
+  the first 30 by time taken are kept and the screen says so. Photos with a time, oldest first
+  (ties in the order picked): a new meal starts at a gap of more than 30 minutes
+  (`mealGapMinutes`) and at a new local day; inside such a group, between neighbours that look
+  clearly different (likeness under 0.45, `differentBelow`) and were taken more than 5 minutes
+  apart (`lookSplitMinutes`). A meal never holds more than 3 photos (`perMeal`, the upload's
+  limit): a bigger group is cut, in time order, into as few meals as fit, where neighbours look
+  least alike, then where they are furthest apart. Photos with no time, in the order picked, join
+  the meal with room that has the photo most like them when the likeness is 0.8 or more
+  (`noTimeJoinAt`), else start a meal of their own (which later ones can join).
+- **The meals found.** A full-screen layer like the camera: "Add 11 photos", "5 meals found",
+  a heading per day, and a card per meal: "Meal 1", "2 of 3 photos" ("3 of 3 photos · full"),
+  its photos (toggle buttons with the time taken, or "No time"), the time chip "08:12 · Breakfast"
+  that opens the When sheet (the meal name follows the time through `classifyMeal`, as for any
+  new meal), a note for the AI sent like the camera's note, and More (Change the time, Select its
+  photos, Remove this meal). A meal's time is its earliest photo's until the person sets one; with
+  no time on any photo it is when they were picked (from an earlier day of Today, 12:00 of that
+  day) and the card says "No time on this photo" and asks to check it. A time still to come or
+  more than a year back must be changed before Add. After the last meal, "New meal: drop photos
+  here"; at the bottom, "Add 5 meals".
+- **Moving photos** (`lib/bulk/moves.ts`, a pure reducer). A tap toggles a photo's selection; the
+  selection bar has "n selected", Move to…, New meal, Remove and clear. Dragging uses pointer
+  events (no library): touch and hold 350 ms lifts a photo on a touch screen, so a tap still
+  selects and a swipe still scrolls; the mouse drags at once; Shift or Ctrl adds to the selection.
+  A selected photo carries the whole selection (its count on the lifted photo). The meal cards
+  and the New meal zone are the targets ("Drop to move 2 photos here"); a drop that would put
+  more than 3 photos in a meal is refused ("Meal 4 already has 3 photos. Drop on another meal or
+  on New meal."); holding near the top or bottom of the list scrolls it; Escape puts the photos
+  back. "Move to…" lists every meal with its photos, time and room (a meal without room is shown
+  but cannot be picked) and "A new meal": the same without dragging, for the keyboard and screen
+  readers. A meal left with no photos goes away and the others renumber; meals stay in time order.
+- **Adding.** Each meal goes into the device's upload queue as a normal photo meal (its photos,
+  time and zone, note, its own client id), oldest first; the queue sends them one after another
+  with the same offline wait, retries and Try again as any meal, and each is analysed once. The
+  screen lists them (sent, sending, waiting, not sent) and can be left at any time; once all are
+  sent it closes on Today, or on the meals' day when they are all on one earlier day.
+- **Limits.** Uploads per account (60 an hour, 300 a day) take a batch of 30 meals. A photo
+  meal makes up to two AI requests (the analysis and the matching), so the AI limit per account
+  is 30 requests a minute (`AI_RATE_PER_MINUTE`, 10 before "Add photos") and 300 a day.
+
 ## 4. Analysis (server worker)
 
 A separate worker process (same image, different command) takes jobs from a Postgres queue
@@ -210,8 +266,8 @@ the day's openGym workouts.
 - **Navigation:** phones have a bottom bar (Today, Move, the camera, Body, More); wide screens
   a rail with the same items. More lists Trends, Add food, Favorites, Medicines, Plan meals
   (when Mealie is connected), Kal for Android, Settings and, for admins, Admin.
-- **Today:** the date with swipe to the previous and next day; "What should I eat?" under the
-  date on today (below); a summary (calories eaten of
+- **Today:** the date with swipe to the previous and next day; under it "What should I eat?"
+  on today (below) and "Add photos" on every day (section 3); a summary (calories eaten of
   target as a ring, kcal left, protein, carbs, fat bars); the Water card (the day's water from
   drinks against its goal, the latest entries with Show all, + Glass, + Bottle and + Other
   amount, and a sheet that changes an entry's amount and time or removes it); the Move card
@@ -490,11 +546,13 @@ androidbrowserhelper (Trusted Web Activity), the Health Connect client and WorkM
 
 - Unit: nutrient math, portion scaling, density, target formulas, matching ranks, meal names
   and the brunch rule, food emoji, water goals, Move points, streak and badges, body changes,
-  file parsers, the year calendar (bins, grid, keyboard), design token contrast.
+  file parsers, the year calendar (bins, grid, keyboard), design token contrast, and for Add
+  photos the grouping (time gaps, looks, the cap of 3, photos with no time, days, the 30-photo
+  limit, the same meals for the same photos), the photo signature and the move reducer.
 - Integration with Postgres: job queue (concurrency, retries), per-user isolation for every
   route, invite and lockout flows, importers on small fixture files, medicines and labels,
   favorites, meal photos, water, Move, Body, devices, Health Connect batches and the update
-  log, the year, export.
+  log, the year, export, ten meal uploads in a row with the default limits.
 - AI: the mock provider server replays recorded replies for all three providers, including
   errors, refusals, malformed JSON and timeouts.
 - End to end (Playwright on Microsoft Edge in three projects: phone, desktop and phone in the
@@ -503,7 +561,10 @@ androidbrowserhelper (Trusted Web Activity), the Health Connect client and WorkM
   offline queue, analysis by the mock provider, edit an item, answer a question, barcode add,
   meal photos, favorites, medicines (label, Log as a medicine, changing a log), water entries,
   the most and least nutritious meals and a meal's balance card, "What should I eat?" from
-  Today and the camera with Log this and Undo,
+  Today and the camera with Log this and Undo, Add photos (script-made photos with made-up times
+  grouped into meals, a note, a changed time, Move to, a refused drop on a full meal, a drag to
+  New meal with the mouse and with touch and hold, the meals on their day, and the camera's
+  Gallery with more than three photos),
   Move and file imports, Body and body photos, the year calendar, Kal for Android, Mealie log
   and plan (mock Mealie), openGym pairing (mock openGym), push.
 - The README's screenshots come from a separate Playwright configuration

@@ -111,6 +111,12 @@ follow your light or dark theme.
   per meal, with the time taken from the photo. **Type** turns the camera into a text box for a
   meal in words ("two boiled eggs, a tomato and a cup of tea"), and the microphone dictates. An
   offline queue sends meals when the device is back online.
+- **Add photos.** Pick many photos at once, for example a whole day of meals, from Today (or
+  more than three in the camera's Gallery). On the device Kal reads when each was taken and
+  compares how they look, then sorts them into meals of up to three photos. Check each meal's
+  time and add a note, move photos between meals by dragging them (touch and hold on a phone) or
+  with "Move to…", then add them all; each goes through the upload queue and is analysed like any
+  photo meal.
 - **When.** The chip at the top of the camera says when you ate: now, half an hour or a few
   hours ago, this morning, yesterday, or any day and time in the last year. A meal's **Time**
   button changes it afterwards.
@@ -243,7 +249,9 @@ usage. Saving a key retries the recent meals that stopped for want of one.
 - Accounts are by invitation, and each person sees only their own data. Admins see usage
   totals, never anyone's meals, photos or health data.
 - Photos are resized on the device, which drops their metadata (no location leaves the phone).
-  They stay on your server except for the analysis call to the AI provider you chose.
+  They stay on your server except for the analysis call to the AI provider you chose. Sorting
+  many photos into meals (Add photos) compares their look on the device; that comparison is
+  never sent or stored.
 - Body photos are never sent to an AI. The health profile is private and goes with meal
   analyses only when you turn on "Use in meal analysis".
 - Settings exports your data (everything as JSON, the meals as CSV), and "Delete my data"
