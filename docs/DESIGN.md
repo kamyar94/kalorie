@@ -102,7 +102,7 @@ the Today screen shows "waiting to upload" and the queue is sent when the app is
 online (iOS has no Background Sync for web apps; it is used on browsers that have it). After
 Send the camera closes at once and the new meal card appears with an "analysing" state.
 
-**Add photos (boards 44 to 47).** Many photos at once, for example a day of meals, sorted into
+**Add photos (boards 44 to 50).** Many photos at once, for example a day of meals, sorted into
 meals on the device (`components/bulk`, `lib/bulk`). Two ways in: "Add photos" at the top of
 Today on any day of the pager (a gallery picker for many photos), and the camera's Gallery when
 more than three photos are picked ("Sort them into meals", or pick up to three; three or fewer
@@ -128,20 +128,46 @@ work as before). Nothing is sent until "Add".
   least alike, then where they are furthest apart. Photos with no time, in the order picked, join
   the meal with room that has the photo most like them when the likeness is 0.8 or more
   (`noTimeJoinAt`), else start a meal of their own (which later ones can join).
-- **The meals found.** A full-screen layer like the camera: "Add 11 photos", "5 meals found",
-  a heading per day, and a card per meal: "Meal 1", "2 of 3 photos" ("3 of 3 photos · full"),
-  its photos (toggle buttons with the time taken, or "No time"), the time chip "08:12 · Breakfast"
-  that opens the When sheet (the meal name follows the time through `classifyMeal`, as for any
-  new meal), a note for the AI sent like the camera's note, and More (Change the time, Select its
+- **The meals found.** A full-screen layer like the camera: "Add 11 photos", "5 meals found ·
+  11 of 30 photos" with "More photos" beside them, a heading per day, and a card per meal:
+  "Meal 1", "2 of 3 photos" ("3 of 3 photos · full"), its photos (each with the time taken, or
+  "No time"; the first is the meal's cover, marked "Cover" and sent first), "+ Add" while the meal
+  has room, the time chip "08:12 · Breakfast" that opens the When sheet (the meal name follows
+  the time through `classifyMeal`, as for any new meal), a note for the AI sent like the
+  camera's note, and More (Change the time, Select its
   photos, Remove this meal). A meal's time is its earliest photo's until the person sets one; with
   no time on any photo it is when they were picked (from an earlier day of Today, 12:00 of that
   day) and the card says "No time on this photo" and asks to check it. A time still to come or
   more than a year back must be changed before Add. After the last meal, "New meal: drop photos
   here"; at the bottom, "Add 5 meals".
-- **Moving photos** (`lib/bulk/moves.ts`, a pure reducer). A tap toggles a photo's selection; the
-  selection bar has "n selected", Move to…, New meal, Remove and clear. Dragging uses pointer
-  events (no library): touch and hold 350 ms lifts a photo on a touch screen, so a tap still
-  selects and a swipe still scrolls; the mouse drags at once; Shift or Ctrl adds to the selection.
+- **A photo: tap, hold, select** (boards 49 and 50). A tap opens the photo larger in the viewer
+  (below); touch and hold it (press and hold with the mouse) and the ring on it fills in 450 ms
+  (`HOLD.ms`, `lib/ui/hold.ts`); letting go then without moving makes it the meal's cover
+  ("Cover changed" with Undo; the cover comes first in the meal, is sent first and is the photo
+  Today shows), moving instead drags it. A finger that moves more than 10 px before the ring is
+  full is scrolling (a mouse 6 px: it drags at once). Selecting is the circle on the photo's corner
+  (its own 44 px button, "Select photo 2"); Shift or Ctrl with a click on the photo adds to the
+  selection on a computer. Keyboard and screen readers: the photo is a button ("Photo 2, taken
+  12:48: open it larger"), and the viewer's "Make it the cover" is the way without a gesture.
+- **More photos while sorting** (board 48, `lib/bulk/add.ts`, pure). After the first reading the
+  screen never locks: "+ Add" on a meal picks more photos from the gallery for that meal (read like
+  the others: time taken, preview, look, one reading after another) and puts them in up to its
+  room, oldest first; the ones that do not fit start new meals right after it, grouped among
+  themselves by the same rules (with no time taken such a meal takes the time of the meal it came
+  from), and a line over Add says so ("1 photo added to Meal 3 (16:09). 2 did not fit, so they
+  start a new meal after it: Meal 4."). "More photos" in the header sorts new photos into the whole
+  batch: a photo whose closest neighbour by time (with no time: the most alike photo, 0.8 or more)
+  is in a meal the person edited (moved photos in or out, a note, a time, a cover) joins that meal
+  when it has room and the rules keep them together; the other new photos are grouped again with
+  the photos of the meals nobody edited, so an edited meal is never regrouped or reordered, only
+  added to. A meal's time follows its earliest photo unless it was set by hand. The 30-photo
+  limit counts the whole batch (the first by time taken are kept, the rest are named as left
+  out). While photos are read the card shows "1 of 2" on its + Add tile (the header for More
+  photos) and everything else can be used; only Add waits for the reading to end.
+- **Moving photos** (`lib/bulk/moves.ts`, a pure reducer). The selection bar has "n selected",
+  Move to…, New meal, Remove and clear. Dragging uses pointer events (no library): the hold above
+  lifts a photo on a touch screen, so a tap still opens it and a swipe still scrolls; the mouse
+  drags once it moves; Shift or Ctrl adds to the selection.
   A selected photo carries the whole selection (its count on the lifted photo). The meal cards
   and the New meal zone are the targets ("Drop to move 2 photos here"); a drop that would put
   more than 3 photos in a meal is refused ("Meal 4 already has 3 photos. Drop on another meal or
@@ -149,6 +175,13 @@ work as before). Nothing is sent until "Add".
   back. "Move to…" lists every meal with its photos, time and room (a meal without room is shown
   but cannot be picked) and "A new meal": the same without dragging, for the keyboard and screen
   readers. A meal left with no photos goes away and the others renumber; meals stay in time order.
+- **The viewer** (`components/ui/photo-viewer.tsx`, board 49), the same on the meal page: the
+  photo as large as the screen allows on black, "Photo 2 of 3" and the meal ("Lunch · taken
+  12:48"), previous and next (the arrows, a swipe, the arrow keys), pinch, a double tap or the
+  mouse wheel to zoom, closed with ✕, Escape or a swipe down; focus stays inside and goes back to
+  the photo. Its buttons: on the meal page "Make it the cover" (not on the cover) and "Remove
+  photo" (the usual question), loading the full photo; while sorting "Make it the cover" and
+  "Select". A line in it says "Cover changed" with Undo.
 - **Adding.** Each meal goes into the device's upload queue as a normal photo meal (its photos,
   time and zone, note, its own client id), oldest first; the queue sends them one after another
   with the same offline wait, retries and Try again as any meal, and each is analysed once. The
@@ -282,9 +315,11 @@ the day's openGym workouts.
   emoji; kcal; state: uploading, analysing, needs answer, ready, or failed with Try again and,
   for a medicine, Log as a medicine).
 - **Meal:** photos (swipe, pinch to zoom, full screen); Photos to add up to three, remove one
-  or choose the cover, with "Update items from the photos" (off by default); time and meal name
-  (Time, and Edit for the title, time and meal name); "What you wrote" for a meal in words;
-  open questions as answer chips or the person's own words; "Fix with a sentence" (with "Also
+  or choose the cover (a tap opens a photo larger in the viewer, touch and hold, or press and
+  hold with the mouse, for 450 ms makes it the cover with "Cover changed" and Undo, a short buzz
+  where the device has one; "tap to see larger, hold to make the cover"), with "Update items from
+  the photos" (off by default); time and meal name (Time, and Edit for the title, time and meal
+  name); "What you wrote" for a meal in words; open questions as answer chips or the person's own words; "Fix with a sentence" (with "Also
   replace the changes I made by hand"); items list (emoji, name, amount, kcal); totals with a
   full nutrient table; under them the balance card (board 43): the balance score with its reason
   and size ("Right size for a lunch (30% of your day)."), each of the twelve nutrients with its
@@ -548,7 +583,10 @@ androidbrowserhelper (Trusted Web Activity), the Health Connect client and WorkM
   and the brunch rule, food emoji, water goals, Move points, streak and badges, body changes,
   file parsers, the year calendar (bins, grid, keyboard), design token contrast, and for Add
   photos the grouping (time gaps, looks, the cap of 3, photos with no time, days, the 30-photo
-  limit, the same meals for the same photos), the photo signature and the move reducer.
+  limit, the same meals for the same photos), the photo signature, the move reducer (with the
+  cover first), adding more photos (into a meal with room, the rest to a new meal after it; into
+  meals nobody edited and the ones the person edited; the 30-photo limit across adds), and the
+  hold's timing and cancelling (`lib/ui/hold.ts`).
 - Integration with Postgres: job queue (concurrency, retries), per-user isolation for every
   route, invite and lockout flows, importers on small fixture files, medicines and labels,
   favorites, meal photos, water, Move, Body, devices, Health Connect batches and the update
@@ -564,7 +602,10 @@ androidbrowserhelper (Trusted Web Activity), the Health Connect client and WorkM
   Today and the camera with Log this and Undo, Add photos (script-made photos with made-up times
   grouped into meals, a note, a changed time, Move to, a refused drop on a full meal, a drag to
   New meal with the mouse and with touch and hold, the meals on their day, and the camera's
-  Gallery with more than three photos),
+  Gallery with more than three photos; "+ Add" on a meal with photos that start a new meal, More
+  photos with an edited meal, a tap opening the viewer, a hold making the cover with Undo and
+  the cover sent first, the circle and the viewer's Select), meal photos (a hold for the cover
+  with Undo, the viewer with Make it the cover, Undo and Remove photo, a swipe down closing it),
   Move and file imports, Body and body photos, the year calendar, Kal for Android, Mealie log
   and plan (mock Mealie), openGym pairing (mock openGym), push.
 - The README's screenshots come from a separate Playwright configuration

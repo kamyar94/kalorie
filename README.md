@@ -115,7 +115,8 @@ follow your light or dark theme.
   more than three in the camera's Gallery). On the device Kal reads when each was taken and
   compares how they look, then sorts them into meals of up to three photos. Check each meal's
   time and add a note, move photos between meals by dragging them (touch and hold on a phone) or
-  with "Move to…", then add them all; each goes through the upload queue and is analysed like any
+  with "Move to…", add more photos to a meal ("+ Add") or to the whole batch ("More photos")
+  while sorting, then add them all; each goes through the upload queue and is analysed like any
   photo meal.
 - **When.** The chip at the top of the camera says when you ate: now, half an hour or a few
   hours ago, this morning, yesterday, or any day and time in the last year. A meal's **Time**
@@ -146,7 +147,8 @@ follow your light or dark theme.
   plate of its foods.
 - **Meal names.** Breakfast, brunch, lunch, dinner, supper, snack, drink or dessert, from the
   time of day (your meal windows), the food and your own words; a name you pick by hand stays.
-- **Meal photos.** Add or remove photos later and choose the cover. "Update items from the
+- **Meal photos.** Add or remove photos later. Tap a photo to see it larger (swipe through,
+  pinch to zoom); touch and hold one to make it the cover, with Undo. "Update items from the
   photos" (off unless you turn it on) analyses the meal again with the new photos.
 
 ### Water
