@@ -171,6 +171,12 @@ export const api = {
       method: "PATCH",
       body: { cover: photoId, reanalyse },
     }),
+  /** Puts the meal's photos in this order (the first is the cover): Undo after a cover change. */
+  setMealPhotoOrder: (mealId: string, order: string[], reanalyse: boolean) =>
+    request<MealPhotosChange>(`/api/meals/${id(mealId)}/photos`, {
+      method: "PATCH",
+      body: { order, reanalyse },
+    }),
   addItem: (mealId: string, input: ItemInput) =>
     request<MealItemDto>(`/api/meals/${id(mealId)}/items`, { method: "POST", body: input }),
   patchItem: (itemId: string, patch: ItemPatch) =>

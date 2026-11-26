@@ -2,7 +2,7 @@
 // database pool, an account through an invite, browser errors that fail a test, no sideways
 // scroll, and axe WCAG 2.1 AA once animations have finished.
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import pg from "pg";
 
 import { shiftLocalDate } from "../../lib/meals/time";
@@ -102,3 +102,56 @@ export const localDay = (offset = 0) =>
     }).format(new Date()),
     offset,
   );
+
+/**
+ * Touch and hold on the phones (real touches through CDP) or press and hold with the mouse on
+ * the desktop, `ms` long, at a point of the target (fractions of its box); `during` runs just
+ * before letting go.
+ */
+export const holdOn = async (
+  page: Page,
+  project: string,
+  target: Locator,
+  options: { ms?: number; at?: [number, number]; during?: () => Promise<void> } = {},
+) => {
+  const { ms = 700, at = [0.35, 0.6], during } = options;
+  await target.scrollIntoViewIfNeeded();
+  const box = (await target.boundingBox())!;
+  const x = Math.round(box.x + box.width * at[0]);
+  const y = Math.round(box.y + box.height * at[1]);
+  if (project === "desktop") {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.waitForTimeout(ms);
+    await during?.();
+    await page.mouse.up();
+    return;
+  }
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  await page.waitForTimeout(ms);
+  await during?.();
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+};
+
+/** A swipe with one finger through CDP touches (the phones). */
+export const swipe = async (
+  page: Page,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+) => {
+  const cdp = await page.context().newCDPSession(page);
+  const point = (p: { x: number; y: number }) => [{ x: Math.round(p.x), y: Math.round(p.y) }];
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: point(from) });
+  for (let i = 1; i <= 8; i++)
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: point({
+        x: from.x + ((to.x - from.x) * i) / 8,
+        y: from.y + ((to.y - from.y) * i) / 8,
+      }),
+    });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+};

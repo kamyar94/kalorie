@@ -2,24 +2,29 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
+import type { PressView } from "@/components/ui/use-hold-press";
+import { endHold, HOLD, startHold, stepHold, type Hold } from "@/lib/ui/hold";
+
 /**
- * Dragging photos between meals on "Add photos" (board 46), with pointer events only:
- * - touch (and pen): touch and hold DRAG.holdMs to lift a photo, so a short tap still selects
- *   and a swipe still scrolls (a finger that moves first is scrolling, and the hold is off);
- * - mouse: the photo lifts once it moves DRAG.mouseSlop px with the button down.
- * While a photo is lifted the page does not scroll under the finger; holding near the top or
- * bottom of the list scrolls it, Escape puts the photos back. Drop targets carry `data-drop`
- * (a meal's id, or "new"); the click that ends a drag does not also toggle the photo.
+ * Holding and dragging photos on "Add photos" (boards 46 and 50), with pointer events only:
+ * - touch and hold (press and hold with the mouse) HOLD.ms without moving: the ring fills and the
+ *   photo is held; letting go then makes it the meal's cover (onHold), moving drags it;
+ * - a finger that moves before that is scrolling (the hold is off); a mouse that moves
+ *   DRAG.mouseSlop px with the button down drags at once;
+ * - a short press is a click (the screen opens the photo larger).
+ * While a photo is held or lifted the page does not scroll under the finger; holding near the top
+ * or bottom of the list scrolls it, Escape puts the photos back. Drop targets carry `data-drop`
+ * (a meal's id, or "new"); the click that ends a hold or a drag is ignored (ignoreClick).
  */
 export const DRAG = {
-  holdMs: 350,
-  touchSlop: 10,
-  mouseSlop: 6,
+  holdMs: HOLD.ms,
+  touchSlop: HOLD.touchSlop,
+  mouseSlop: HOLD.mouseSlop,
   /** Holding this close (px) to the top or bottom of the list scrolls it... */
   edge: 72,
   /** ...by up to this many px a frame. */
   scrollStep: 16,
-  /** A click this soon (ms) after a drop belongs to the drop. */
+  /** A click this soon (ms) after a hold or a drop belongs to it. */
   quietClickMs: 400,
 } as const;
 
@@ -37,10 +42,11 @@ export type DragView = {
 type Gesture = {
   pointerId: number;
   photoId: string;
-  touch: boolean;
   additive: boolean;
-  startX: number;
-  startY: number;
+  hold: Hold;
+  startedAt: number;
+  /** Whether this press can become a hold (Shift or Ctrl with a mouse is for selecting). */
+  holds: boolean;
   x: number;
   y: number;
   timer: number | null;
@@ -58,12 +64,15 @@ export const usePhotoDrag = (options: {
   scroller: RefObject<HTMLElement | null>;
   /** The photos a drag of this photo carries; additive is Shift or Ctrl held. */
   liftIds: (photoId: string, additive: boolean) => string[];
+  /** Held and let go without moving: make it the cover. */
+  onHold: (photoId: string) => void;
   onLift?: (ids: string[]) => void;
   onDrop: (ids: string[], target: string) => void;
   /** Let go away from a target, Escape, or a cancelled pointer. */
   onCancel?: (ids: string[]) => void;
 }) => {
   const [view, setView] = useState<DragView | null>(null);
+  const [press, setPress] = useState<PressView | null>(null);
   const gesture = useRef<Gesture | null>(null);
   const quietUntil = useRef(0);
   const latest = useRef(options);
@@ -71,11 +80,12 @@ export const usePhotoDrag = (options: {
     latest.current = options;
   });
 
-  // A lifted photo holds the page still: the finger moves the photo, not the list. (A listener
-  // that is not passive, so the browser waits for it before it scrolls.)
+  // A held or lifted photo holds the page still: the finger moves the photo, not the list. (A
+  // listener that is not passive, so the browser waits for it before it scrolls.)
   useEffect(() => {
     const hold = (event: TouchEvent) => {
-      if (gesture.current?.ids && event.cancelable) event.preventDefault();
+      const g = gesture.current;
+      if (g && (g.ids || g.hold.phase === "held") && event.cancelable) event.preventDefault();
     };
     window.addEventListener("touchmove", hold, { passive: false });
     return () => {
@@ -87,13 +97,15 @@ export const usePhotoDrag = (options: {
   const onPointerDown = useCallback((photoId: string, event: React.PointerEvent) => {
     if (gesture.current) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
+    const touch = event.pointerType !== "mouse";
+    const additive = event.shiftKey || event.ctrlKey || event.metaKey;
     const g: Gesture = {
       pointerId: event.pointerId,
       photoId,
-      touch: event.pointerType !== "mouse",
-      additive: event.shiftKey || event.ctrlKey || event.metaKey,
-      startX: event.clientX,
-      startY: event.clientY,
+      additive,
+      hold: startHold(event.clientX, event.clientY, touch),
+      startedAt: performance.now(),
+      holds: touch || !additive,
       x: event.clientX,
       y: event.clientY,
       timer: null,
@@ -132,8 +144,21 @@ export const usePhotoDrag = (options: {
       g.frame = requestAnimationFrame(tick);
     };
 
-    const lift = () => {
+    const arm = () => {
       g.timer = null;
+      g.hold = stepHold(g.hold, {
+        type: "time",
+        elapsed: Math.max(HOLD.ms, performance.now() - g.startedAt),
+      });
+      if (g.hold.phase !== "held") return;
+      navigator.vibrate?.(HOLD.vibrateMs);
+      setPress({ id: g.photoId, startedAt: g.startedAt, held: true });
+    };
+
+    const lift = () => {
+      if (g.timer !== null) window.clearTimeout(g.timer);
+      g.timer = null;
+      setPress(null);
       const ids = latest.current.liftIds(g.photoId, g.additive);
       if (!ids.length) return finish();
       g.ids = ids;
@@ -151,26 +176,32 @@ export const usePhotoDrag = (options: {
       if (e.pointerId !== g.pointerId) return;
       g.x = e.clientX;
       g.y = e.clientY;
-      if (!g.ids) {
-        const distance = Math.hypot(g.x - g.startX, g.y - g.startY);
-        if (g.touch) {
-          if (distance > DRAG.touchSlop) finish();
-        } else if (distance > DRAG.mouseSlop) lift();
+      if (g.ids) {
+        g.over = targetAt(g.x, g.y);
+        show();
         return;
       }
-      g.over = targetAt(g.x, g.y);
-      show();
+      g.hold = stepHold(g.hold, { type: "move", x: g.x, y: g.y });
+      if (g.hold.phase !== "moved") return;
+      // A finger that moves before the hold is scrolling; after it, and with a mouse, it drags.
+      if (g.hold.touch && !g.hold.heldBeforeMove) finish();
+      else lift();
     };
 
     const up = (e: PointerEvent) => {
       if (e.pointerId !== g.pointerId) return;
       const ids = g.ids;
+      const outcome = endHold(g.hold);
       finish();
-      if (!ids) return;
-      quietClick();
-      const target = targetAt(e.clientX, e.clientY);
-      if (target) latest.current.onDrop(ids, target);
-      else latest.current.onCancel?.(ids);
+      if (ids) {
+        quietClick();
+        const target = targetAt(e.clientX, e.clientY);
+        if (target) latest.current.onDrop(ids, target);
+        else latest.current.onCancel?.(ids);
+      } else if (outcome === "hold") {
+        quietClick();
+        latest.current.onHold(g.photoId);
+      }
     };
 
     const cancel = (e: PointerEvent) => {
@@ -182,17 +213,18 @@ export const usePhotoDrag = (options: {
 
     // Capture on window: runs before the dialog's own Escape (which would close the screen).
     const key = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || !g.ids) return;
+      if (e.key !== "Escape" || (!g.ids && g.hold.phase !== "held")) return;
       e.preventDefault();
       e.stopPropagation();
       const ids = g.ids;
       quietClick();
       finish();
-      latest.current.onCancel?.(ids);
+      if (ids) latest.current.onCancel?.(ids);
     };
 
     const finish = () => {
       if (g.timer !== null) window.clearTimeout(g.timer);
+      g.timer = null;
       cancelAnimationFrame(g.frame);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -202,6 +234,7 @@ export const usePhotoDrag = (options: {
       const wasLifted = g.ids !== null;
       g.ids = null;
       if (wasLifted) setView(null);
+      setPress(null);
     };
 
     g.stop = finish;
@@ -210,11 +243,21 @@ export const usePhotoDrag = (options: {
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
     window.addEventListener("keydown", key, true);
-    if (g.touch) g.timer = window.setTimeout(lift, DRAG.holdMs);
+    if (g.holds) {
+      g.timer = window.setTimeout(arm, HOLD.ms);
+      setPress({ id: photoId, startedAt: g.startedAt, held: false });
+    }
   }, []);
 
-  /** Whether a click belongs to a drop that just ended (and should not toggle the photo). */
-  const ignoreClick = useCallback(() => performance.now() < quietUntil.current, []);
+  /**
+   * Whether a click belongs to a hold or a drop that just ended (and should not open the photo):
+   * the first click within DRAG.quietClickMs does, later ones are the person's own.
+   */
+  const ignoreClick = useCallback(() => {
+    if (performance.now() >= quietUntil.current) return false;
+    quietUntil.current = 0;
+    return true;
+  }, []);
 
-  return { view, onPointerDown, ignoreClick };
+  return { view, press, onPointerDown, ignoreClick };
 };

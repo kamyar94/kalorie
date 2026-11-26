@@ -6,8 +6,11 @@ import { useRef, useState } from "react";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { HoldRing } from "@/components/ui/hold-ring";
+import { PhotoViewer, viewerButton, type ViewerStatus } from "@/components/ui/photo-viewer";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
+import { useHoldPress } from "@/components/ui/use-hold-press";
 import { api, type MealPhotosChange } from "@/lib/client/api";
 import { UPLOAD_LIMITS, type MealDto, type MealPhotoDto } from "@/lib/contracts/meals";
 import { preparePhoto } from "@/lib/photos/client";
@@ -20,47 +23,75 @@ export const PHOTOS_SWITCH_HINT = {
   on: "On: after a change Kal analyses the meal again from its photos; items you changed by hand stay.",
 } as const;
 
+const errorText = (error: unknown) => (error instanceof Error ? error.message : undefined);
+
 /**
- * The meal's photos as tiles (the meal page): tap one to make it the cover (the photo the timeline
- * card and the page header show), remove one, or add one from the camera or the gallery. Any meal
- * can get photos. "Update items from the photos" is off by default: then only the photos change;
- * on, the meal is analysed again from its photos after each change. These changes need a
- * connection.
+ * The meal's photos as tiles (the meal page, boards 49 and 50): tap one to see it larger in the
+ * viewer (with "Make it the cover" and "Remove photo"); touch and hold one (press and hold with
+ * the mouse) to make it the cover (the photo the timeline card and the page header show), with
+ * Undo; remove one, or add one from the camera or the gallery. Any meal can get photos. "Update
+ * items from the photos" is off by default: then only the photos change; on, the meal is
+ * analysed again from its photos after each change. These changes need a connection.
  */
 export const MealPhotos = ({
   meal,
+  subtitle,
   onChange,
 }: {
   meal: Pick<MealDto, "id" | "photos">;
+  /** "Rice plate · 12:48", under "Photo n of k" in the viewer. */
+  subtitle?: string;
   onChange: (change: MealPhotosChange) => void;
 }) => {
   const { show } = useToast();
   const online = useOnline();
   const camera = useRef<HTMLInputElement>(null);
   const gallery = useRef<HTMLInputElement>(null);
+  const addButton = useRef<HTMLButtonElement>(null);
+  const viewerRemove = useRef<HTMLButtonElement>(null);
+  /** Where focus goes when the viewer or the remove sheet closes, when not back to its opener. */
+  const focusAfter = useRef<HTMLElement | null>(null);
+  const opener = useRef<HTMLElement | null>(null);
   const [reanalyse, setReanalyse] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<{ photo: MealPhotoDto; number: number } | null>(null);
+  /** The photo open larger (its id), and the viewer's own line. */
+  const [viewing, setViewing] = useState<string | null>(null);
+  const [viewerStatus, setViewerStatus] = useState<ViewerStatus>(null);
 
   const photos = meal.photos;
   const full = photos.length >= MAX;
   const locked = busy !== null || !online;
+  const viewedIndex = viewing ? photos.findIndex((photo) => photo.id === viewing) : -1;
+  const viewed = viewedIndex >= 0 ? photos[viewedIndex] : undefined;
 
-  const settle = (change: MealPhotosChange, title: string) => {
+  const settle = (
+    change: MealPhotosChange,
+    title: string,
+    action?: { label: string; onClick: () => void },
+  ) => {
     onChange(change);
     if (change.notice)
-      show({ title: `${title}. The items were not updated`, body: change.notice, tone: "neutral" });
+      show({
+        title: `${title}. The items were not updated`,
+        body: change.notice,
+        tone: "neutral",
+        action,
+        duration: action ? 8000 : undefined,
+      });
     else
       show({
         title,
         body: change.reanalysed ? "Kal is updating the items from the photos." : undefined,
         tone: "success",
+        action,
+        duration: action ? 8000 : undefined,
       });
   };
 
   const fail = (title: string, error: unknown) =>
-    show({ title, body: error instanceof Error ? error.message : undefined, tone: "error" });
+    show({ title, body: errorText(error), tone: "error" });
 
   const add = async (files: File[]) => {
     const room = MAX - photos.length;
@@ -79,21 +110,74 @@ export const MealPhotos = ({
     }
   };
 
-  const makeCover = async (photo: MealPhotoDto) => {
-    setBusy(`cover:${photo.id}`);
+  /** Puts the photos back in the order they had: Undo after a cover change. */
+  const restore = async (order: string[], inViewer: boolean) => {
+    setBusy("cover:undo");
     try {
-      settle(await api.setMealCover(meal.id, photo.id, reanalyse), "Cover changed");
+      const change = await api.setMealPhotoOrder(meal.id, order, reanalyse);
+      if (inViewer) {
+        onChange(change);
+        setViewerStatus({ text: "The cover is as it was." });
+      } else settle(change, "The cover is as it was");
     } catch (error) {
-      fail("The cover was not changed", error);
+      if (inViewer)
+        setViewerStatus({ text: `The cover was not changed back. ${errorText(error) ?? ""}` });
+      else fail("The cover was not changed back", error);
     } finally {
       setBusy(null);
     }
   };
 
+  /** A hold or the viewer's button: the photo becomes the cover, with Undo. */
+  const makeCover = async (photo: MealPhotoDto, inViewer: boolean) => {
+    const before = photos.map((p) => p.id);
+    setBusy(`cover:${photo.id}`);
+    try {
+      const change = await api.setMealCover(meal.id, photo.id, reanalyse);
+      const undo = () => void restore(before, inViewer);
+      if (inViewer) {
+        onChange(change);
+        setViewerStatus({
+          text: change.notice
+            ? `Cover changed. The items were not updated: ${change.notice}`
+            : change.reanalysed
+              ? "Cover changed. Kal is updating the items from the photos."
+              : "Cover changed.",
+          onUndo: undo,
+        });
+        // The button goes (this photo is the cover now): focus the next one.
+        requestAnimationFrame(() => viewerRemove.current?.focus());
+      } else settle(change, "Cover changed", { label: "Undo", onClick: undo });
+    } catch (error) {
+      if (inViewer)
+        setViewerStatus({ text: `The cover was not changed. ${errorText(error) ?? ""}` });
+      else fail("The cover was not changed", error);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const hold = useHoldPress({
+    canHold: (id) => !locked && photos.length > 1 && photos[0]?.id !== id,
+    onHold: (id) => {
+      const photo = photos.find((p) => p.id === id);
+      if (photo) void makeCover(photo, false);
+    },
+  });
+
   const remove = async (photo: MealPhotoDto) => {
     setBusy(`remove:${photo.id}`);
     try {
-      settle(await api.removeMealPhoto(meal.id, photo.id, reanalyse), "Photo removed");
+      const change = await api.removeMealPhoto(meal.id, photo.id, reanalyse);
+      settle(change, "Photo removed");
+      if (viewing === photo.id) {
+        // The viewer shows the photo that took its place, or closes after the last one.
+        const left = change.meal.photos;
+        const next = left[Math.min(viewedIndex, left.length - 1)];
+        setViewerStatus(null);
+        setViewing(next?.id ?? null);
+        if (!next) focusAfter.current = addButton.current;
+      } else focusAfter.current = addButton.current;
       setRemoving(null);
     } catch (error) {
       fail("The photo was not removed", error);
@@ -108,41 +192,66 @@ export const MealPhotos = ({
     setAdding(false);
   };
 
+  /** Sends focus to focusAfter instead of the element that opened the layer, when set. */
+  const focusInstead = (event: Event) => {
+    const target = focusAfter.current;
+    if (!target) return;
+    focusAfter.current = null;
+    event.preventDefault();
+    requestAnimationFrame(() => target.focus());
+  };
+
+  /** The viewer gives the focus back to the photo it was opened from (a tap may not focus it). */
+  const viewerClosed = (event: Event) => {
+    if (!focusAfter.current && opener.current?.isConnected) focusAfter.current = opener.current;
+    opener.current = null;
+    focusInstead(event);
+  };
+
   return (
     <section aria-labelledby="meal-photos-heading" className="flex flex-col gap-2.5">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="meal-photos-heading" className="text-body font-semibold">
           Photos
         </h2>
-        <p className="text-caption text-muted" data-testid="photo-count">
+        <p className="text-caption text-muted text-right" data-testid="photo-count">
           {photos.length} of {MAX}
-          {photos.length > 1 && " · tap to choose the cover"}
+          {photos.length > 1
+            ? " · tap to see larger, hold to make the cover"
+            : photos.length === 1 && " · tap to see larger"}
         </p>
       </div>
       <ul aria-labelledby="meal-photos-heading" className="grid grid-cols-4 gap-2">
         {photos.map((photo, index) => {
           const cover = index === 0;
           const number = index + 1;
+          const press = hold.press?.id === photo.id ? hold.press : null;
           return (
             <li key={photo.id} className="relative" data-photo-id={photo.id}>
               <button
                 type="button"
-                aria-pressed={cover}
-                aria-label={
-                  cover ? `Photo ${number}, the cover` : `Photo ${number}, make it the cover`
-                }
-                disabled={!cover && locked}
-                onClick={() => !cover && void makeCover(photo)}
+                aria-label={`Photo ${number}${cover ? ", the cover" : ""}: open it larger`}
+                aria-haspopup="dialog"
+                onPointerDown={(event) => hold.onPointerDown(photo.id, event)}
+                onClick={(event) => {
+                  if (hold.ignoreClick()) return;
+                  opener.current = event.currentTarget;
+                  setViewerStatus(null);
+                  setViewing(photo.id);
+                }}
+                onContextMenu={(event) => event.preventDefault()}
                 className={cn(
-                  "bg-surface-2 block aspect-square w-full overflow-hidden rounded-[0.875rem] p-0 disabled:cursor-not-allowed",
-                  cover ? "border-primary border-3" : "border-border border",
+                  "bg-surface-2 block aspect-square w-full overflow-hidden rounded-[0.875rem] p-0 transition-transform select-none [-webkit-touch-callout:none]",
+                  cover || press?.held ? "border-primary border-3" : "border-border border",
+                  press?.held && "scale-[1.06]",
                 )}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- authenticated same-origin photo */}
                 <img
                   src={photo.urls.thumb}
                   alt=""
-                  className="size-full object-cover"
+                  draggable={false}
+                  className="pointer-events-none size-full object-cover"
                   loading="lazy"
                   decoding="async"
                 />
@@ -154,6 +263,13 @@ export const MealPhotos = ({
                 >
                   Cover
                 </span>
+              )}
+              {press && (
+                <HoldRing
+                  startedAt={press.startedAt}
+                  held={press.held}
+                  className={press.held ? "scale-[1.06]" : undefined}
+                />
               )}
               {busy === `cover:${photo.id}` && (
                 <span className="pointer-events-none absolute inset-0 grid place-items-center rounded-[0.875rem] bg-black/35">
@@ -180,6 +296,7 @@ export const MealPhotos = ({
         })}
         <li>
           <button
+            ref={addButton}
             type="button"
             aria-label={full ? `Add a photo (${MAX} is the most for one meal)` : "Add a photo"}
             aria-haspopup="dialog"
@@ -241,6 +358,61 @@ export const MealPhotos = ({
         }}
       />
 
+      <PhotoViewer
+        photos={photos.map((photo, i) => ({
+          id: photo.id,
+          src: photo.urls.original,
+          alt: `Photo ${i + 1} of ${photos.length}`,
+        }))}
+        index={viewed ? viewedIndex : null}
+        onIndexChange={(index) => {
+          const next = photos[index];
+          if (!next) return;
+          setViewerStatus(null);
+          setViewing(next.id);
+        }}
+        onClose={() => {
+          setViewing(null);
+          setViewerStatus(null);
+        }}
+        onCloseAutoFocus={viewerClosed}
+        subtitle={subtitle}
+        status={viewerStatus}
+        actions={
+          viewed && (
+            <>
+              {viewedIndex > 0 && (
+                <button
+                  type="button"
+                  disabled={locked}
+                  aria-busy={busy === `cover:${viewed.id}` || undefined}
+                  onClick={() => void makeCover(viewed, true)}
+                  className={viewerButton(true)}
+                >
+                  {busy === `cover:${viewed.id}` && (
+                    <Loader2
+                      aria-hidden
+                      className="size-4 animate-spin motion-reduce:animate-none"
+                    />
+                  )}
+                  Make it the cover
+                </button>
+              )}
+              <button
+                ref={viewerRemove}
+                type="button"
+                aria-haspopup="dialog"
+                disabled={locked}
+                onClick={() => setRemoving({ photo: viewed, number: viewedIndex + 1 })}
+                className={viewerButton(false)}
+              >
+                Remove photo
+              </button>
+            </>
+          )
+        }
+      />
+
       <BottomSheet
         open={adding}
         onOpenChange={setAdding}
@@ -265,6 +437,8 @@ export const MealPhotos = ({
             ? "The photo is deleted, and Kal analyses the meal again from the photos left."
             : "The photo is deleted. Items and calories stay as they are."
         }
+        elevated={viewing !== null}
+        onCloseAutoFocus={focusInstead}
         footer={
           <div className="grid grid-cols-2 gap-2">
             <Button variant="secondary" size="lg" onClick={() => setRemoving(null)}>

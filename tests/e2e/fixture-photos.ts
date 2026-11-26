@@ -10,24 +10,30 @@ export type FixturePhoto = {
   shape?: "disc" | "bar" | "ring";
   /** EXIF time taken, "YYYY:MM:DD HH:MM:SS" (exifTime); none for a photo with no time. */
   takenAt?: string;
+  /** 480 x 640 instead of 640 x 480, so the stored photo can be told apart by its size. */
+  portrait?: boolean;
 };
 
 /** EXIF date text for a local day (YYYY-MM-DD) and time (HH:MM), read in the device's zone. */
 export const exifTime = (day: string, time: string) => `${day.replaceAll("-", ":")} ${time}:00`;
 
 const SHAPES = {
-  disc: (fg: string) => `<circle cx="320" cy="240" r="150" fill="${fg}"/>`,
-  bar: (fg: string) => `<rect x="80" y="170" width="480" height="140" rx="30" fill="${fg}"/>`,
-  ring: (fg: string) =>
-    `<circle cx="320" cy="240" r="140" fill="none" stroke="${fg}" stroke-width="60"/>`,
+  disc: (fg: string, w: number, h: number) =>
+    `<circle cx="${w / 2}" cy="${h / 2}" r="150" fill="${fg}"/>`,
+  bar: (fg: string, w: number, h: number) =>
+    `<rect x="80" y="${h / 2 - 70}" width="${w - 160}" height="140" rx="30" fill="${fg}"/>`,
+  ring: (fg: string, w: number, h: number) =>
+    `<circle cx="${w / 2}" cy="${h / 2}" r="140" fill="none" stroke="${fg}" stroke-width="60"/>`,
 };
 
 export const fixturePhoto = async ({
   colours: [bg, fg],
   shape = "disc",
   takenAt,
+  portrait = false,
 }: FixturePhoto) => {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="${bg}"/>${SHAPES[shape](fg)}</svg>`;
+  const [w, h] = portrait ? [480, 640] : [640, 480];
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="${bg}"/>${SHAPES[shape](fg, w, h)}</svg>`;
   const image = sharp(Buffer.from(svg)).jpeg({ quality: 85 });
   return (takenAt ? image.withExif({ IFD2: { DateTimeOriginal: takenAt } }) : image).toBuffer();
 };

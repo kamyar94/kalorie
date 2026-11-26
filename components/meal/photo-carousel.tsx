@@ -4,12 +4,20 @@ import { Expand } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { cn } from "@/components/ui/cn";
+import { PhotoViewer } from "@/components/ui/photo-viewer";
 import type { MealPhotoDto } from "@/lib/contracts/meals";
 
-import { PhotoViewer } from "./photo-viewer";
-
 /** The meal's photos side by side: swipe between them, tap one to open it full screen. */
-export const PhotoCarousel = ({ photos, title }: { photos: MealPhotoDto[]; title: string }) => {
+export const PhotoCarousel = ({
+  photos,
+  title,
+  subtitle,
+}: {
+  photos: MealPhotoDto[];
+  title: string;
+  /** "Rice plate · 12:48", under "Photo n of k" in the viewer. */
+  subtitle?: string;
+}) => {
   const strip = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useState(0);
   const [viewer, setViewer] = useState<number | null>(null);
@@ -79,7 +87,12 @@ export const PhotoCarousel = ({ photos, title }: { photos: MealPhotoDto[]; title
         </div>
       )}
       <PhotoViewer
-        photos={photos}
+        photos={photos.map((photo, i) => ({
+          id: photo.id,
+          src: photo.urls.original,
+          alt: `Photo ${i + 1} of ${photos.length}`,
+        }))}
+        subtitle={subtitle}
         index={viewer}
         onIndexChange={setViewer}
         onClose={() => setViewer(null)}

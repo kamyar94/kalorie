@@ -4,7 +4,9 @@ import {
   bulkReducer,
   checkMove,
   initBulk,
+  mealEdited,
   mealHasNoTime,
+  mealOfPhoto,
   shownPhotoIds,
   type BulkAction,
   type BulkState,
@@ -179,5 +181,66 @@ describe("note and time", () => {
     noTime = run(noTime, { type: "time", mealId: "m1", at: FALLBACK + MIN });
     expect(mealHasNoTime(noTime, noTime.meals[0]!)).toBe(false);
     expect(run(noTime, { type: "time", mealId: "m1", at: Number.NaN })).toBe(noTime);
+  });
+});
+
+describe("cover", () => {
+  it("puts the chosen cover first, so it is sent first, and Undo goes back", () => {
+    let state = run(start(), { type: "cover", mealId: "m2", id: "l3" });
+    expect(state.meals[1]!.photoIds).toEqual(["l3", "l1", "l2"]);
+    expect(shownPhotoIds(state).slice(2, 5)).toEqual(["l3", "l1", "l2"]);
+    // The meal keeps its time (its earliest photo), and counts as edited.
+    expect(state.meals[1]!.at).toBe(photos[2]!.takenAt);
+    expect(mealEdited(state.meals[1]!)).toBe(true);
+    expect(mealEdited(state.meals[0]!)).toBe(false);
+    expect(state.changed).toBe(false);
+    // Undo: back to the earliest photo, and no longer edited.
+    state = run(state, { type: "cover", mealId: "m2", id: null });
+    expect(state.meals[1]!.photoIds).toEqual(["l1", "l2", "l3"]);
+    expect(mealEdited(state.meals[1]!)).toBe(false);
+  });
+
+  it("keeps the cover first when photos come in, and drops it when it moves out", () => {
+    let state = run(start(), { type: "cover", mealId: "m1", id: "b2" });
+    expect(state.meals[0]!.photoIds).toEqual(["b2", "b1"]);
+    state = run(state, { type: "move", ids: ["s1"], to: "m1" });
+    expect(state.meals[0]!.photoIds).toEqual(["b2", "b1", "s1"]);
+    state = run(state, { type: "move", ids: ["b2"], to: "new" });
+    expect(state.meals[0]!.coverId).toBeNull();
+    expect(state.meals[0]!.photoIds).toEqual(["b1", "s1"]);
+  });
+
+  it("ignores a photo of another meal, an unknown meal and the same cover again", () => {
+    const state = run(start(), { type: "cover", mealId: "m1", id: "b2" });
+    expect(run(state, { type: "cover", mealId: "m1", id: "l1" })).toBe(state);
+    expect(run(state, { type: "cover", mealId: "m9", id: "b1" })).toBe(state);
+    expect(run(state, { type: "cover", mealId: "m1", id: "b2" })).toBe(state);
+    expect(mealOfPhoto(state, "b1")).toMatchObject({ number: 1, meal: { id: "m1" } });
+    expect(mealOfPhoto(state, "nope")).toBeNull();
+  });
+
+  it("marks meals edited by moves, removals, a note or a time, never by selecting", () => {
+    const edited = (state: BulkState) => state.meals.map(mealEdited);
+    expect(edited(run(start(), { type: "toggle", id: "l1" }))).toEqual([
+      false,
+      false,
+      false,
+      false,
+    ]);
+    expect(edited(run(start(), { type: "move", ids: ["l1"], to: "m3" }))).toEqual([
+      false,
+      true,
+      true,
+      false,
+    ]);
+    expect(edited(run(start(), { type: "remove", ids: ["d1"] }))).toEqual([
+      false,
+      false,
+      false,
+      true,
+    ]);
+    expect(edited(run(start(), { type: "note", mealId: "m3", note: "  " }))[2]).toBe(false);
+    expect(edited(run(start(), { type: "note", mealId: "m3", note: "An apple" }))[2]).toBe(true);
+    expect(edited(run(start(), { type: "time", mealId: "m1", at: BASE }))[0]).toBe(true);
   });
 });

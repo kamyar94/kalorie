@@ -8,6 +8,8 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import pg from "pg";
 
 import { runCommand } from "../../scripts/cal.mjs";
+import { fixtureFiles } from "./fixture-photos";
+import { holdOn, swipe } from "./helpers";
 
 const PASSWORD = "e2e password that is long";
 let pool: pg.Pool;
@@ -836,7 +838,7 @@ test("answer in your own words: the field grows over lines and Answer sits under
     .toBe(`${long} no sauce`);
 });
 
-test("meal photos: add from the gallery and the camera, choose the cover, remove one; the items stay", async ({
+test("meal photos: add from the gallery and the camera, hold for the cover with Undo, remove one; the items stay", async ({
   page,
 }, info) => {
   const userId = await signUp(page, info.project.name);
@@ -891,28 +893,59 @@ test("meal photos: add from the gallery and the camera, choose the cover, remove
     await expect(sheet).toBeHidden();
   };
   await addFrom("From the gallery");
-  await expect(count).toHaveText("1 of 3");
-  await expect(photos.getByRole("button", { name: "Photo 1, the cover" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(count).toHaveText("1 of 3 · tap to see larger");
+  await expect(
+    photos.getByRole("button", { name: "Photo 1, the cover: open it larger" }),
+  ).toBeVisible();
   await addFrom("Take a photo");
-  await expect(count).toHaveText("2 of 3 · tap to choose the cover");
+  await expect(count).toHaveText("2 of 3 · tap to see larger, hold to make the cover");
   // Off: only the photos changed.
   let stored = await state();
   expect(stored).toMatchObject({ status: "ready", source: "text", kcal: 232, items: 1, jobs: 0 });
   expect(stored.photos).toHaveLength(2);
   await expect(page.getByTestId("item-kcal")).toHaveText("232");
 
-  // Tap the second photo: it becomes the cover, also on Today's card.
-  await photos.getByRole("button", { name: "Photo 2, make it the cover" }).click();
+  // Touch and hold (press and hold) the second photo: the ring fills, then it is the cover, with
+  // Undo, which puts the old cover back.
+  const hold = () =>
+    holdOn(
+      page,
+      info.project.name,
+      photos.getByRole("button", { name: "Photo 2: open it larger" }),
+      {
+        during: async () => {
+          await expect(photos.getByTestId("hold-ring")).toHaveAttribute("data-held", "true");
+        },
+      },
+    );
+  await hold();
+  const toast = page.getByRole("status").filter({ hasText: "Cover changed" });
+  await expect(toast).toBeVisible();
   await expect(photos.getByRole("listitem").first()).toHaveAttribute(
     "data-photo-id",
     stored.photos[1]!,
   );
-  await expect(photos.getByRole("button", { name: "Photo 1, the cover" })).toBeVisible();
+  await expect(page.getByTestId("photo-viewer")).toHaveCount(0);
   expect((await state()).photos).toEqual([stored.photos[1], stored.photos[0]]);
   await expectAccessible(page);
+  await toast.getByRole("button", { name: "Undo" }).click();
+  await expect(photos.getByRole("listitem").first()).toHaveAttribute(
+    "data-photo-id",
+    stored.photos[0]!,
+  );
+  await expect.poll(async () => (await state()).photos).toEqual(stored.photos);
+  // Again, for good: also on Today's card.
+  await hold();
+  await expect(photos.getByRole("listitem").first()).toHaveAttribute(
+    "data-photo-id",
+    stored.photos[1]!,
+  );
+  await expect(
+    photos.getByRole("button", { name: "Photo 1, the cover: open it larger" }),
+  ).toBeVisible();
+  await expect
+    .poll(async () => (await state()).photos)
+    .toEqual([stored.photos[1], stored.photos[0]]);
   await page.goto("/today");
   await expect(page.locator(`article[data-meal-id="${mealId}"] img`)).toHaveAttribute(
     "src",
@@ -927,7 +960,7 @@ test("meal photos: add from the gallery and the camera, choose the cover, remove
   await expect(confirm).toContainText("The photo is deleted. Items and calories stay as they are.");
   await confirm.getByRole("button", { name: "Remove" }).click();
   await expect(confirm).toBeHidden();
-  await expect(count).toHaveText("1 of 3");
+  await expect(count).toHaveText("1 of 3 · tap to see larger");
   stored = await state();
   expect(stored).toMatchObject({ status: "ready", kcal: 232, items: 1, jobs: 0 });
   expect(stored.photos).toEqual([otherId]);
@@ -937,10 +970,99 @@ test("meal photos: add from the gallery and the camera, choose the cover, remove
   await update.click();
   await expect(update).toHaveAttribute("aria-checked", "true");
   await addFrom("From the gallery");
-  await expect(count).toHaveText("2 of 3 · tap to choose the cover");
+  await expect(count).toHaveText("2 of 3 · tap to see larger, hold to make the cover");
   await expect.poll(async () => (await state()).jobs).toBe(1);
   const job = await pool.query("select payload from jobs where payload->>'mealId' = $1", [mealId]);
   expect(job.rows[0].payload).toMatchObject({ reason: "retry", replaceEdits: false });
+});
+
+test("meal photos: a tap opens the photo larger; Make it the cover with Undo and Remove photo in the viewer", async ({
+  page,
+}, info) => {
+  const userId = await signUp(page, info.project.name);
+  const mealId = await meal(userId, { status: "ready", title: "Rice plate", source: "text" });
+  const order = async () =>
+    (
+      await pool.query("select id::text from meal_photos where meal_id = $1 order by position", [
+        mealId,
+      ])
+    ).rows.map((row: { id: string }) => row.id);
+
+  await page.goto(`/meals/${mealId}`);
+  const photos = page.getByRole("region", { name: "Photos", exact: true });
+  await photos.getByTestId("meal-gallery-input").setInputFiles(
+    await fixtureFiles([
+      { name: "plate", colours: ["#4a4436", "#a39a7c"] },
+      { name: "bowl", colours: ["#2f4a2a", "#6f9a4a"], shape: "ring" },
+    ]),
+  );
+  await expect(photos.getByTestId("photo-count")).toHaveText(
+    "2 of 3 · tap to see larger, hold to make the cover",
+  );
+  const [first, second] = await order();
+  const time = (
+    await pool.query(
+      "select to_char(eaten_at at time zone tz, 'HH24:MI') as t from meals where id = $1",
+      [mealId],
+    )
+  ).rows[0].t as string;
+
+  // A tap opens it larger: the full photo, the cover without "Make it the cover".
+  await photos.getByRole("button", { name: "Photo 1, the cover: open it larger" }).click();
+  const viewer = page.getByTestId("photo-viewer");
+  await expect(viewer.getByRole("heading", { name: "Photo 1 of 2" })).toBeVisible();
+  await expect(viewer).toContainText(`Rice plate · ${time}`);
+  await expect(viewer.getByRole("img", { name: "Photo 1 of 2" })).toHaveAttribute(
+    "src",
+    `/api/photos/${first}/original`,
+  );
+  await expect(viewer.getByRole("button", { name: "Make it the cover" })).toHaveCount(0);
+  await expect(viewer.getByRole("button", { name: "Remove photo" })).toBeVisible();
+  await expectAccessible(page);
+
+  // Next with the arrow key, then Make it the cover: it moves to the front, with Undo.
+  await page.keyboard.press("ArrowRight");
+  await expect(viewer.getByRole("heading", { name: "Photo 2 of 2" })).toBeVisible();
+  await viewer.getByRole("button", { name: "Make it the cover" }).click();
+  await expect(viewer.getByTestId("photo-viewer-status")).toContainText("Cover changed.");
+  await expect(viewer.getByRole("heading", { name: "Photo 1 of 2" })).toBeVisible();
+  await expect(viewer.getByRole("button", { name: "Make it the cover" })).toHaveCount(0);
+  await expect(viewer.getByRole("button", { name: "Remove photo" })).toBeFocused();
+  await expect.poll(order).toEqual([second, first]);
+  await viewer.getByRole("button", { name: "Undo" }).click();
+  await expect(viewer.getByTestId("photo-viewer-status")).toHaveText("The cover is as it was.");
+  await expect.poll(order).toEqual([first, second]);
+  await expect(viewer.getByRole("heading", { name: "Photo 2 of 2" })).toBeVisible();
+  await expect(viewer.getByRole("button", { name: "Previous photo" })).toBeEnabled();
+  await viewer.getByRole("button", { name: "Previous photo" }).click();
+  await expect(viewer.getByRole("heading", { name: "Photo 1 of 2" })).toBeVisible();
+
+  // Escape closes it; focus is back on the photo.
+  await page.keyboard.press("Escape");
+  await expect(viewer).toBeHidden();
+  await expect(
+    photos.getByRole("button", { name: "Photo 1, the cover: open it larger" }),
+  ).toBeFocused();
+
+  // Remove photo: the same question as the tile's ✕; the viewer then shows the photo left.
+  await photos.getByRole("button", { name: "Photo 2: open it larger" }).click();
+  await viewer.getByRole("button", { name: "Remove photo" }).click();
+  const confirm = page.getByRole("dialog", { name: "Remove photo 2?" });
+  await expect(confirm).toContainText("The photo is deleted. Items and calories stay as they are.");
+  await expectAccessible(page);
+  await confirm.getByRole("button", { name: "Remove" }).click();
+  await expect(confirm).toBeHidden();
+  await expect(viewer.getByRole("heading", { name: "Photo 1 of 1" })).toBeVisible();
+  await expect.poll(order).toEqual([first]);
+  if (info.project.name === "desktop") await page.keyboard.press("Escape");
+  else {
+    // A swipe down closes it on a phone.
+    const box = (await viewer.getByRole("img", { name: "Photo 1 of 1" }).boundingBox())!;
+    const from = { x: box.x + box.width / 2, y: box.y + box.height / 3 };
+    await swipe(page, from, { x: from.x, y: from.y + 200 });
+  }
+  await expect(viewer).toBeHidden();
+  await expect(photos.getByTestId("photo-count")).toHaveText("1 of 3 · tap to see larger");
 });
 
 test("favorites: star a meal, log it again from Today with Undo, on an earlier day, and on the Favorites page", async ({

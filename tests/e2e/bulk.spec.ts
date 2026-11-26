@@ -5,10 +5,14 @@
 // a drag onto a full meal refused and a drag to New meal (the mouse on the desktop, touch and
 // hold on the phones); "Add 7 meals" through the upload queue to the cards of that day, each
 // meal analysed once; and the camera's Gallery with more than 3 photos opening the same screen.
+// Board 48 to 50: "+ Add" on a meal (with photos that do not fit starting a new meal), "More
+// photos" for the batch (an edited meal only gains photos), a tap opening the photo larger
+// (next, previous, Escape), touch and hold making it the cover (Undo, and sent first), the
+// viewer's "Make it the cover" and "Select", and the circle that selects.
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { dayHeading } from "../../lib/bulk/times";
-import { expectAccessible, installE2eHooks, localDay, pool, signUp } from "./helpers";
+import { expectAccessible, holdOn, installE2eHooks, localDay, pool, signUp } from "./helpers";
 import { exifTime, fixtureFiles, type FixturePhoto } from "./fixture-photos";
 
 installE2eHooks();
@@ -45,8 +49,17 @@ const mealOf = (screen: Locator, n: number) =>
   screen.getByRole("region", { name: `Meal ${n}`, exact: true });
 const chipOf = (screen: Locator, n: number) =>
   mealOf(screen, n).getByRole("button", { name: new RegExp(`^Change the time of meal ${n}:`) });
+const photoName = (time: string) =>
+  new RegExp(`^Photo \\d(, the cover)?, taken ${time}: open it larger$`);
 const photoAt = (screen: Locator, time: string) =>
-  screen.getByRole("button", { name: `Photo taken at ${time}`, exact: true });
+  screen.getByRole("button", { name: photoName(time) });
+/** The circle on the photo's corner that selects it. */
+const selectAt = (screen: Locator, time: string) =>
+  screen
+    .getByRole("listitem")
+    // The inner locator is looked up inside each list item.
+    .filter({ has: screen.page().getByRole("button", { name: photoName(time) }) })
+    .getByRole("button", { name: /^Select photo \d$/ });
 
 /** The meals on the screen: each one's photo count and its chip. */
 const mealsShown = async (screen: Locator) => {
@@ -90,8 +103,8 @@ const dragTo = async (page: Page, project: string, photo: Locator, target: Locat
         touchPoints: point ? [{ x: Math.round(point.x), y: Math.round(point.y) }] : [],
       });
     await touch("touchStart", from);
-    // Touch and hold to lift it (a shorter touch selects, a swipe scrolls).
-    await page.waitForTimeout(550);
+    // Touch and hold to lift it (a shorter touch opens it larger, a swipe scrolls).
+    await page.waitForTimeout(700);
     for (let i = 1; i <= 12; i++)
       await touch("touchMove", {
         x: from.x + ((to.x - from.x) * i) / 12,
@@ -138,7 +151,7 @@ test("add photos from Today: meals found, a note and a time, Move to, drags, Add
     "No time on this photo, so the meal starts at 12:00 of this day. Check the time.",
   );
   await expect(
-    mealOf(screen, 4).getByRole("button", { name: "Photo with no time taken" }),
+    mealOf(screen, 4).getByRole("button", { name: "Photo 2, no time taken: open it larger" }),
   ).toBeVisible();
   await expectAccessible(page);
 
@@ -157,10 +170,10 @@ test("add photos from Today: meals found, a note and a time, Move to, drags, Add
   await expect(chipOf(screen, 2)).toBeFocused();
   await expect(mealOf(screen, 2)).not.toContainText("No time on this photo");
 
-  // Select two photos of the full lunch and move them to a new meal with Move to.
-  await photoAt(screen, "12:48").click();
-  await photoAt(screen, "12:51").click();
-  await expect(photoAt(screen, "12:48")).toHaveAttribute("aria-pressed", "true");
+  // Select two photos of the full lunch (the circles) and move them to a new meal with Move to.
+  await selectAt(screen, "12:48").click();
+  await selectAt(screen, "12:51").click();
+  await expect(selectAt(screen, "12:48")).toHaveAttribute("aria-pressed", "true");
   const bar = screen.getByRole("group", { name: "2 photos selected" });
   await expect(bar).toContainText("2 selected");
   await bar.getByRole("button", { name: "Move to…" }).click();
@@ -223,7 +236,7 @@ test("add photos from Today: meals found, a note and a time, Move to, drags, Add
     await expect(screen.getByTestId("bulk-ghost")).toBeHidden();
     await page.mouse.up();
     await expect(screen).toBeVisible();
-    await expect(photoAt(screen, "08:14")).toHaveAttribute("aria-pressed", "false");
+    await expect(selectAt(screen, "08:14")).toHaveAttribute("aria-pressed", "false");
   }
   await expectAccessible(page);
 
@@ -307,4 +320,204 @@ test("the camera's Gallery with more than 3 photos opens Add photos", async ({ p
   await confirm.getByRole("button", { name: "Close", exact: true }).last().click();
   await expect(screen).toBeHidden();
   await expect(page.locator("article[data-meal-id]")).toHaveCount(0);
+});
+
+test("more photos while sorting: + Add with a new meal after it, More photos, the photo larger, hold for the cover", async ({
+  page,
+}, info) => {
+  const project = info.project.name;
+  const userId = await signUp(page, project);
+  const day = localDay(-1);
+  await page.goto(`/today?date=${day}`);
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Add photos" }).click();
+  await (
+    await chooser
+  ).setFiles(
+    await fixtureFiles(
+      dayOfPhotos(day).filter((p) => ["oats", "coffee", "salad", "apple"].includes(p.name)),
+    ),
+  );
+
+  const screen = screenOf(page);
+  await expect(screen).toHaveAttribute("data-phase", "sorting", { timeout: 30_000 });
+  await expect(screen.getByTestId("bulk-found")).toHaveText("3 meals found");
+  await expect(screen.getByTestId("bulk-total")).toHaveText(" · 4 of 30 photos");
+  await expect(screen).toContainText(
+    "Tap a photo to see it larger. Touch and hold it to make it the meal’s cover, or hold and move to drag it. Tap the circle to select photos.",
+  );
+  await expectAccessible(page);
+
+  // + Add on the breakfast (room for one): the oldest goes in, the other two start a meal after it.
+  const more = page.waitForEvent("filechooser");
+  await mealOf(screen, 1)
+    .getByRole("button", { name: "Add photos to meal 1 from the gallery" })
+    .click();
+  await (
+    await more
+  ).setFiles(
+    await fixtureFiles([
+      {
+        name: "tea",
+        colours: ["#2a3a1e", "#7a9a4a"],
+        shape: "ring",
+        takenAt: exifTime(day, "08:25"),
+      },
+      { name: "banana", colours: ["#4a4416", "#b8a838"], takenAt: exifTime(day, "08:16") },
+      {
+        name: "toast",
+        colours: ["#4a3a22", "#a3804a"],
+        shape: "bar",
+        takenAt: exifTime(day, "08:20"),
+      },
+    ]),
+  );
+  await expect(screen.getByTestId("bulk-said")).toHaveText(
+    "1 photo added to Meal 1 (08:12). 2 did not fit, so they start a new meal after it: Meal 2.",
+  );
+  expect(await mealsShown(screen)).toEqual([
+    "3 of 3 photos · full | 08:12 · Breakfast",
+    "2 of 3 photos | 08:20 · Breakfast",
+    "1 of 3 photos | 12:47 · Lunch",
+    "1 of 3 photos | 16:05 · Snack",
+  ]);
+  // A full meal has no + Add.
+  await expect(mealOf(screen, 1).getByTestId("bulk-meal-add")).toHaveCount(0);
+  await expect(mealOf(screen, 2).getByTestId("bulk-meal-add")).toBeVisible();
+  await expect(screen.getByRole("heading", { level: 1, name: "Add 7 photos" })).toBeVisible();
+  await expect(screen.getByTestId("bulk-found")).toHaveText("4 meals");
+
+  // A note makes the lunch an edited meal; More photos then only adds to it.
+  await mealOf(screen, 3).getByLabel("Note for meal 3").fill("Salad with lemon");
+  const batch = page.waitForEvent("filechooser");
+  await screen.getByRole("button", { name: "More photos" }).click();
+  await (
+    await batch
+  ).setFiles(
+    await fixtureFiles([
+      // Four minutes after the salad: joins the lunch. Portrait, to find it in the database.
+      {
+        name: "lemon",
+        colours: ["#4a4a1e", "#b3a93a"],
+        takenAt: exifTime(day, "12:51"),
+        portrait: true,
+      },
+      { name: "apple again", colours: ["#4a1e1e", "#a8433a"], takenAt: exifTime(day, "16:07") },
+      {
+        name: "soup",
+        colours: ["#1e2f4a", "#5a86c8"],
+        shape: "ring",
+        takenAt: exifTime(day, "19:30"),
+      },
+    ]),
+  );
+  await expect(screen.getByTestId("bulk-said")).toHaveText(
+    "3 photos sorted: 2 joined meals already here, 1 started a new meal.",
+  );
+  expect(await mealsShown(screen)).toEqual([
+    "3 of 3 photos · full | 08:12 · Breakfast",
+    "2 of 3 photos | 08:20 · Breakfast",
+    "2 of 3 photos | 12:47 · Lunch",
+    "2 of 3 photos | 16:05 · Snack",
+    "1 of 3 photos | 19:30 · Dinner",
+  ]);
+  await expect(mealOf(screen, 3).getByLabel("Note for meal 3")).toHaveValue("Salad with lemon");
+  await expect(screen.getByTestId("bulk-total")).toHaveText(" · 10 of 30 photos");
+  await expectAccessible(page);
+
+  // A tap opens the photo larger: next, previous with the arrow key, Escape back to the photo.
+  await photoAt(screen, "12:47").click();
+  const viewer = page.getByTestId("photo-viewer");
+  await expect(viewer.getByRole("heading", { name: "Photo 1 of 2" })).toBeVisible();
+  await expect(viewer).toContainText("Lunch · taken 12:47");
+  await expect(viewer.getByRole("img", { name: "Photo 1 of 2, taken at 12:47" })).toBeVisible();
+  // The cover has no "Make it the cover".
+  await expect(viewer.getByRole("button", { name: "Make it the cover" })).toHaveCount(0);
+  await expectAccessible(page);
+  await viewer.getByRole("button", { name: "Next photo" }).click();
+  await expect(viewer.getByRole("heading", { name: "Photo 2 of 2" })).toBeVisible();
+  await expect(viewer).toContainText("Lunch · taken 12:51");
+  await expect(viewer.getByRole("button", { name: "Make it the cover" })).toBeVisible();
+  await page.keyboard.press("ArrowLeft");
+  await expect(viewer.getByRole("heading", { name: "Photo 1 of 2" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(viewer).toBeHidden();
+  await expect(screen).toBeVisible();
+  await expect(photoAt(screen, "12:47")).toBeFocused();
+
+  // Touch and hold (press and hold) the lemon: the ring fills, then it is the cover, with Undo.
+  await holdOn(page, project, photoAt(screen, "12:51"), {
+    during: async () => {
+      await expect(screen.getByTestId("hold-ring")).toHaveAttribute("data-held", "true");
+    },
+  });
+  await expect(screen.getByTestId("bulk-said")).toContainText("Cover changed.");
+  await expect(
+    mealOf(screen, 3).getByRole("button", {
+      name: "Photo 1, the cover, taken 12:51: open it larger",
+    }),
+  ).toBeVisible();
+  await expect(viewer).toBeHidden();
+  await screen.getByTestId("bulk-said").getByRole("button", { name: "Undo" }).click();
+  await expect(screen.getByTestId("bulk-said")).toHaveText("The cover is as it was.");
+  await expect(
+    mealOf(screen, 3).getByRole("button", {
+      name: "Photo 1, the cover, taken 12:47: open it larger",
+    }),
+  ).toBeVisible();
+
+  // The viewer's "Make it the cover" does the same without a gesture.
+  await photoAt(screen, "12:51").click();
+  await viewer.getByRole("button", { name: "Make it the cover" }).click();
+  await expect(viewer.getByTestId("photo-viewer-status")).toContainText("Cover changed.");
+  await expect(viewer.getByRole("heading", { name: "Photo 1 of 2" })).toBeVisible();
+  await expect(viewer.getByRole("button", { name: "Make it the cover" })).toHaveCount(0);
+  await expect(viewer.getByRole("button", { name: "Select" })).toBeFocused();
+  // "Select" there selects the photo.
+  await viewer.getByRole("button", { name: "Select" }).click();
+  await expect(viewer.getByRole("button", { name: "Select" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expectAccessible(page);
+  await viewer.getByRole("button", { name: "Close" }).click();
+  await expect(viewer).toBeHidden();
+  await expect(selectAt(screen, "12:51")).toHaveAttribute("aria-pressed", "true");
+
+  // The circle selects; on a computer Shift-click on the photo adds to the selection too.
+  await selectAt(screen, "08:14").click();
+  await expect(screen.getByRole("group", { name: "2 photos selected" })).toBeVisible();
+  if (project === "desktop") {
+    await photoAt(screen, "16:05").click({ modifiers: ["Shift"] });
+    await expect(screen.getByRole("group", { name: "3 photos selected" })).toBeVisible();
+    await expect(viewer).toBeHidden();
+  }
+  await screen.getByRole("button", { name: "Clear the selection" }).click();
+  await expect(screen.getByTestId("bulk-selection")).toHaveCount(0);
+
+  // Add: the lunch's first photo is the lemon (the cover is sent first).
+  await screen.getByRole("button", { name: "Add 5 meals" }).click();
+  await expect(screen).toBeHidden({ timeout: 30_000 });
+  await expect(page.locator("article[data-meal-id]")).toHaveCount(5);
+  const rows = await pool().query<{
+    local_time: string;
+    note: string | null;
+    photos: number;
+    portrait: boolean;
+  }>(
+    `select to_char(m.eaten_at at time zone m.tz, 'HH24:MI') as local_time, m.note,
+            (select count(*)::int from meal_photos p where p.meal_id = m.id) as photos,
+            (select p.width < p.height from meal_photos p where p.meal_id = m.id
+              order by p.position limit 1) as portrait
+       from meals m where m.user_id = $1 and m.local_date = $2 and m.deleted_at is null
+      order by m.eaten_at`,
+    [userId, day],
+  );
+  expect(rows.rows).toEqual([
+    { local_time: "08:12", note: null, photos: 3, portrait: false },
+    { local_time: "08:20", note: null, photos: 2, portrait: false },
+    { local_time: "12:47", note: "Salad with lemon", photos: 2, portrait: true },
+    { local_time: "16:05", note: null, photos: 2, portrait: false },
+    { local_time: "19:30", note: null, photos: 1, portrait: false },
+  ]);
 });

@@ -18,6 +18,8 @@ import { WhenSheet } from "@/components/capture/when-sheet";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
+import { PhotoViewer, viewerButton, type ViewerStatus } from "@/components/ui/photo-viewer";
+import { addToBatch, addToMeal, type AddResult } from "@/lib/bulk/add";
 import { groupPhotos, limitBatch, type SortPhoto } from "@/lib/bulk/group";
 import {
   bulkReducer,
@@ -25,6 +27,7 @@ import {
   earliestTaken,
   initBulk,
   mealHasNoTime,
+  mealOfPhoto,
   shownPhotoIds,
   type BulkAction,
   type BulkMeal,
@@ -67,7 +70,78 @@ export type BulkMealToAdd = {
 type Photo = BulkAsset & { blob: Blob; width: number; height: number; takenAt: number | null };
 type Phase = "reading" | "sorting" | "adding" | "empty";
 
+/** A file picked for the batch, with its time taken once read. */
+type Entry = { id: string; file: Blob; takenAt: number | null; prepared: boolean };
+
+/** More photos being read: for a meal ("+ Add") or for the whole batch ("More photos"). */
+type Job = { id: number; target: string; done: number; total: number };
+const BATCH = "batch";
+
 const mealCount = (n: number) => `${n} ${n === 1 ? "meal" : "meals"}`;
+
+/** "Meal 4", "Meals 4 and 5", "Meals 4, 5 and 6". */
+const mealNumbers = (numbers: number[]) =>
+  numbers.length === 1
+    ? `Meal ${numbers[0]}`
+    : `Meals ${numbers.slice(0, -1).join(", ")} and ${numbers.at(-1)}`;
+
+/** The EXIF time taken of each file (ms), null when it has none or cannot be read. */
+const readTimes = async (files: readonly Blob[]) =>
+  (await mapLimit(files, 4, (file) => readCaptureTime(file))).map((time) =>
+    time.status === "fulfilled" && time.value ? time.value.getTime() : null,
+  );
+
+/** Prepares the entries a few at a time (BULK.concurrency); a file that fails is left out. */
+const prepareEntries = (entries: readonly Entry[], onSettled: (done: number) => void) =>
+  mapLimit(
+    entries,
+    BULK.concurrency,
+    (entry) =>
+      prepareBatchPhoto(entry.file, {
+        capturedAt: entry.takenAt === null ? null : new Date(entry.takenAt),
+        alreadyPrepared: entry.prepared,
+      }),
+    onSettled,
+  );
+
+/** The prepared photos for the screen (object URLs kept in `made`) and for the sorting. */
+const toPhotos = (
+  entries: readonly Entry[],
+  results: Awaited<ReturnType<typeof prepareEntries>>,
+  tz: string,
+  made: string[],
+) => {
+  const ready: Record<string, Photo> = {};
+  const sorted: SortPhoto[] = [];
+  results.forEach((result, i) => {
+    const entry = entries[i]!;
+    if (result.status !== "fulfilled") return;
+    const url = URL.createObjectURL(result.value.preview);
+    const fullUrl = URL.createObjectURL(result.value.blob);
+    made.push(url, fullUrl);
+    ready[entry.id] = {
+      id: entry.id,
+      url,
+      fullUrl,
+      time: entry.takenAt === null ? null : localParts(new Date(entry.takenAt), tz).time,
+      blob: result.value.blob,
+      width: result.value.width,
+      height: result.value.height,
+      takenAt: entry.takenAt,
+    };
+    sorted.push({ id: entry.id, takenAt: entry.takenAt, signature: result.value.signature });
+  });
+  return { ready, sorted };
+};
+
+/** "2 photos left out: Kal sorts up to 30 at a time. 1 photo could not be opened." */
+const leftWords = (left: number, failed: number) =>
+  [
+    left > 0 ? `${photoCount(left)} left out: Kal sorts up to ${BULK.maxPhotos} at a time.` : "",
+    failed > 0 ? `${failed === 1 ? "1 photo" : `${failed} photos`} could not be opened.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
 /** A ref whose element is looked up when it is used (the element may have moved by then). */
 const lazyRef = (find: () => HTMLElement | null) =>
@@ -124,7 +198,22 @@ const BulkSession = ({
   const scroller = useRef<HTMLDivElement>(null);
   const urls = useRef<string[]>([]);
   const noticeTimer = useRef<number | null>(null);
+  const statusTimer = useRef<number | null>(null);
   const afterSheet = useRef<string | null>(null);
+  const moreInput = useRef<HTMLInputElement>(null);
+  const viewerSelect = useRef<HTMLButtonElement>(null);
+  /** The photo the viewer was opened from: the focus goes back to it. */
+  const viewerFrom = useRef<string | null>(null);
+  /** The meals as they are now, for work that ends later (reading more photos). */
+  const bulkRef = useRef<BulkState | null>(null);
+  const alive = useRef(true);
+  const photoSeq = useRef(0);
+  const jobSeq = useRef(0);
+  /** Room the readings still running have taken (the batch limit counts them). */
+  const reserved = useRef(0);
+  /** Readings run one after another, so a phone decodes only a few photos at a time. */
+  const chain = useRef<Promise<void>>(Promise.resolve());
+  const pickFor = useRef<string>(BATCH);
   const [phase, setPhase] = useState<Phase>("reading");
   const [progress, setProgress] = useState({
     done: 0,
@@ -144,6 +233,12 @@ const BulkSession = ({
   const [confirmClose, setConfirmClose] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [jobs, setJobs] = useState<Job[]>([]);
+  /** A line over Add after an action ("Cover changed"), with Undo when it can go back. */
+  const [status, setStatus] = useState<{ text: string; onUndo?: () => void } | null>(null);
+  /** The photo open larger (its id), and the viewer's own line. */
+  const [viewing, setViewing] = useState<string | null>(null);
+  const [viewerStatus, setViewerStatus] = useState<ViewerStatus>(null);
 
   // Read the photos: the time taken of each (to keep the first 30), then the photo itself, a few
   // at a time, then the meals Kal finds.
@@ -151,58 +246,26 @@ const BulkSession = ({
     let cancelled = false;
     const made = urls.current;
     const run = async () => {
-      const times = await mapLimit(request.files, 4, (file) => readCaptureTime(file));
+      const times = await readTimes(request.files);
       if (cancelled) return;
-      const entries = [
+      const entries: Entry[] = [
         ...request.shots.map((shot) => ({
           file: shot.blob,
           takenAt: shot.capturedAt.getTime() as number | null,
           prepared: true,
         })),
-        ...request.files.map((file, i) => {
-          const time = times[i];
-          return {
-            file,
-            takenAt: time?.status === "fulfilled" && time.value ? time.value.getTime() : null,
-            prepared: false,
-          };
-        }),
+        ...request.files.map((file, i) => ({ file, takenAt: times[i] ?? null, prepared: false })),
       ].map((entry, i) => ({ ...entry, id: `p${i + 1}` }));
+      photoSeq.current = entries.length;
       const { kept, left } = limitBatch(entries, BULK.maxPhotos);
       const keep = new Set(kept);
       const chosen = entries.filter((entry) => keep.has(entry.id));
       setProgress({ done: 0, total: chosen.length });
-      const results = await mapLimit(
-        chosen,
-        BULK.concurrency,
-        (entry) =>
-          prepareBatchPhoto(entry.file, {
-            capturedAt: entry.takenAt === null ? null : new Date(entry.takenAt),
-            alreadyPrepared: entry.prepared,
-          }),
-        (done) => {
-          if (!cancelled) setProgress({ done, total: chosen.length });
-        },
-      );
-      if (cancelled) return;
-      const ready: Record<string, Photo> = {};
-      const sorted: SortPhoto[] = [];
-      results.forEach((result, i) => {
-        const entry = chosen[i]!;
-        if (result.status !== "fulfilled") return;
-        const url = URL.createObjectURL(result.value.preview);
-        made.push(url);
-        ready[entry.id] = {
-          id: entry.id,
-          url,
-          time: entry.takenAt === null ? null : localParts(new Date(entry.takenAt), tz).time,
-          blob: result.value.blob,
-          width: result.value.width,
-          height: result.value.height,
-          takenAt: entry.takenAt,
-        };
-        sorted.push({ id: entry.id, takenAt: entry.takenAt, signature: result.value.signature });
+      const results = await prepareEntries(chosen, (done) => {
+        if (!cancelled) setProgress({ done, total: chosen.length });
       });
+      if (cancelled) return;
+      const { ready, sorted } = toPhotos(chosen, results, tz, made);
       setSkipped({
         picked: entries.length,
         over: left,
@@ -210,7 +273,9 @@ const BulkSession = ({
       });
       setPhotos(ready);
       if (!sorted.length) return setPhase("empty");
-      setBulk(initBulk(sorted, groupPhotos(sorted, tz), request.fallbackAt.getTime()));
+      const found = initBulk(sorted, groupPhotos(sorted, tz), request.fallbackAt.getTime());
+      bulkRef.current = found;
+      setBulk(found);
       setPhase("sorting");
     };
     void run();
@@ -221,17 +286,34 @@ const BulkSession = ({
 
   useEffect(() => {
     const made = urls.current;
+    alive.current = true;
     return () => {
+      alive.current = false;
       for (const url of made) URL.revokeObjectURL(url);
       if (noticeTimer.current !== null) window.clearTimeout(noticeTimer.current);
+      if (statusTimer.current !== null) window.clearTimeout(statusTimer.current);
     };
   }, []);
 
-  const apply = (action: BulkAction) => {
-    if (!bulk) return null;
-    const next = bulkReducer(bulk, action);
+  /** Sets the meals (state for the screen, the ref for work that ends later). */
+  function commit(next: BulkState) {
+    bulkRef.current = next;
     setBulk(next);
+  }
+
+  const apply = (action: BulkAction) => {
+    const current = bulkRef.current;
+    if (!current) return null;
+    const next = bulkReducer(current, action);
+    commit(next);
     return next;
+  };
+
+  /** The line over Add, for 8 seconds. */
+  const say = (text: string, onUndo?: () => void) => {
+    if (statusTimer.current !== null) window.clearTimeout(statusTimer.current);
+    setStatus({ text, onUndo });
+    statusTimer.current = window.setTimeout(() => setStatus(null), 8000);
   };
 
   const notify = (text: string | null) => {
@@ -248,8 +330,9 @@ const BulkSession = ({
 
   /** Moves photos to a meal or a new one, or says why not. */
   const move = (ids: string[], to: MoveTarget) => {
-    if (!bulk) return false;
-    const check = checkMove(bulk, ids, to);
+    const current = bulkRef.current;
+    if (!current) return false;
+    const check = checkMove(current, ids, to);
     if (!check.ok) {
       if (check.reason === "full")
         notify(
@@ -262,8 +345,8 @@ const BulkSession = ({
       else setAnnouncement("Not moved: the photos are in that meal already.");
       return false;
     }
-    const next = bulkReducer(bulk, { type: "move", ids, to });
-    setBulk(next);
+    const next = bulkReducer(current, { type: "move", ids, to });
+    commit(next);
     notify(null);
     const number = next.meals.findIndex((meal) => meal.photoIds.includes(check.ids[0]!)) + 1;
     setAnnouncement(
@@ -273,12 +356,37 @@ const BulkSession = ({
     return true;
   };
 
+  /** Makes a photo its meal's cover (a hold, or the viewer's button), with Undo. */
+  const makeCover = (photoId: string, from: "hold" | "viewer") => {
+    const current = bulkRef.current;
+    const found = current ? mealOfPhoto(current, photoId) : null;
+    if (!found) return;
+    const tell = from === "viewer" ? (text: string) => setViewerStatus({ text }) : say;
+    if (found.meal.photoIds[0] === photoId) return tell("That photo is the cover already.");
+    const { id: mealId, coverId: previous } = found.meal;
+    apply({ type: "cover", mealId, id: photoId });
+    const undo = () => {
+      apply({ type: "cover", mealId, id: previous });
+      tell("The cover is as it was.");
+      if (from === "hold") {
+        const first = bulkRef.current?.meals.find((m) => m.id === mealId)?.photoIds[0];
+        if (first) focusLater(`[data-photo-id="${first}"]`);
+      }
+    };
+    if (from === "viewer") {
+      setViewerStatus({ text: "Cover changed.", onUndo: undo });
+      requestAnimationFrame(() => viewerSelect.current?.focus());
+    } else say("Cover changed.", undo);
+  };
+
   const drag = usePhotoDrag({
     scroller,
+    onHold: (photoId) => makeCover(photoId, "hold"),
     liftIds: (photoId, additive) => {
-      if (!bulk) return [];
-      const order = shownPhotoIds(bulk);
-      let selected = bulk.selected;
+      const current = bulkRef.current;
+      if (!current) return [];
+      const order = shownPhotoIds(current);
+      let selected = current.selected;
       if (!selected.includes(photoId)) {
         if (!additive) return [photoId];
         selected = apply({ type: "select", id: photoId })?.selected ?? [photoId];
@@ -299,6 +407,108 @@ const BulkSession = ({
     onCancel: () => setAnnouncement("Not moved."),
   });
 
+  /** Room left in the batch, counting the photos being read. */
+  const roomLeft = () =>
+    BULK.maxPhotos - Object.keys(bulkRef.current?.photos ?? {}).length - reserved.current;
+  const batchFull = () =>
+    notify(
+      `Kal sorts up to ${BULK.maxPhotos} photos at a time. Add these meals first, then the others.`,
+    );
+
+  /** "+ Add" on a meal or "More photos": opens the gallery, unless the batch is full. */
+  const pickMore = (target: string) => {
+    if (roomLeft() <= 0) return batchFull();
+    pickFor.current = target;
+    moreInput.current?.click();
+  };
+
+  /** What a reading of more photos did, in words for the line over Add. */
+  const addedWords = (result: AddResult, target: string, failed: number) => {
+    const after = result.state.meals;
+    const numberOf = (id: string) => after.findIndex((meal) => meal.id === id) + 1;
+    const started = result.started.map(numberOf);
+    const extra = leftWords(result.left, failed);
+    if (!result.added) return extra || "No photos were added.";
+    let words: string;
+    if (target !== BATCH && result.into !== null) {
+      const meal = after.find((m) => m.id === target)!;
+      const name = `Meal ${numberOf(target)}`;
+      const over = result.added - result.into;
+      const into = result.into
+        ? `${photoCount(result.into)} added to ${name} (${timeOf(meal.at)}).`
+        : `${name} is full (a meal holds ${BULK.perMeal}).`;
+      const rest = over
+        ? ` ${result.into ? `${over} did not fit, so ${over === 1 ? "it starts" : "they start"}` : `${photoCount(over)} start`} ${
+            started.length === 1 ? "a new meal after it" : "new meals after it"
+          }: ${mealNumbers(started)}.`
+        : "";
+      words = into + rest;
+    } else {
+      const fresh = result.added - result.joined;
+      const newMeals = started.length === 1 ? "a new meal" : `${started.length} new meals`;
+      words =
+        result.joined && started.length
+          ? `${photoCount(result.added)} sorted: ${result.joined} joined meals already here, ${fresh} started ${newMeals}.`
+          : result.joined
+            ? `${photoCount(result.added)} sorted into meals already here.`
+            : `${photoCount(result.added)} sorted into ${newMeals}.`;
+    }
+    return extra ? `${words} ${extra}` : words;
+  };
+
+  /** Reads more photos (time taken, preview, look) and sorts them in; the screen stays open to use. */
+  const readMore = (files: File[], target: string) => {
+    const reserve = Math.min(files.length, roomLeft());
+    if (reserve <= 0) return batchFull();
+    const id = ++jobSeq.current;
+    reserved.current += reserve;
+    setJobs((all) => [...all, { id, target, done: 0, total: reserve }]);
+    const update = (change: Partial<Job>) =>
+      alive.current &&
+      setJobs((all) => all.map((job) => (job.id === id ? { ...job, ...change } : job)));
+    chain.current = chain.current.then(async () => {
+      try {
+        const times = await readTimes(files);
+        const entries: Entry[] = files.map((file, i) => ({
+          id: `p${++photoSeq.current}`,
+          file,
+          takenAt: times[i] ?? null,
+          prepared: false,
+        }));
+        const inBatch = Object.keys(bulkRef.current?.photos ?? {}).length;
+        const { kept, left } = limitBatch(
+          entries,
+          Math.max(0, Math.min(reserve, BULK.maxPhotos - inBatch)),
+        );
+        const keep = new Set(kept);
+        const chosen = entries.filter((entry) => keep.has(entry.id));
+        update({ total: chosen.length });
+        const results = await prepareEntries(chosen, (done) => update({ done }));
+        const current = bulkRef.current;
+        if (!alive.current || !current) return;
+        const { ready, sorted } = toPhotos(chosen, results, tz, urls.current);
+        setPhotos((all) => ({ ...all, ...ready }));
+        const result =
+          target === BATCH
+            ? addToBatch(current, sorted, tz)
+            : addToMeal(current, target, sorted, tz);
+        commit(result.state);
+        say(
+          addedWords(
+            { ...result, left: result.left + left },
+            target,
+            chosen.length - sorted.length,
+          ),
+        );
+      } catch {
+        if (alive.current) notify("These photos could not be read. Try again.");
+      } finally {
+        reserved.current -= reserve;
+        if (alive.current) setJobs((all) => all.filter((job) => job.id !== id));
+      }
+    });
+  };
+
   const whenReturn = useMemo(
     () => lazyRef(() => document.querySelector(`[data-time-chip="${whenLast}"]`)),
     [whenLast],
@@ -310,7 +520,7 @@ const BulkSession = ({
   };
 
   const add = async () => {
-    if (!bulk || adding || !bulk.meals.length) return;
+    if (!bulk || adding || !bulk.meals.length || jobs.length) return;
     const current = new Date();
     setNow(current);
     if (bulk.meals.some((meal) => timeProblem(new Date(meal.at), current, tz))) return;
@@ -379,6 +589,32 @@ const BulkSession = ({
   const moreMeal = meals.find((meal) => meal.id === moreFor) ?? null;
   const moreNumber = moreMeal ? meals.indexOf(moreMeal) + 1 : 0;
 
+  // Readings of more photos: on the meal's card, or in the header for the batch (and for a meal
+  // that is gone by now).
+  const readingFor = (mealId: string) => {
+    const mine = jobs.filter((job) => job.target === mealId);
+    return mine.length
+      ? {
+          done: mine.reduce((sum, job) => sum + job.done, 0),
+          total: mine.reduce((sum, job) => sum + job.total, 0),
+        }
+      : null;
+  };
+  const headerJobs = jobs.filter(
+    (job) => job.target === BATCH || !meals.some((meal) => meal.id === job.target),
+  );
+  const headerReading = headerJobs.length
+    ? {
+        done: headerJobs.reduce((sum, job) => sum + job.done, 0),
+        total: headerJobs.reduce((sum, job) => sum + job.total, 0),
+      }
+    : null;
+
+  // The photo open larger, in its meal.
+  const viewed = viewing && bulk ? mealOfPhoto(bulk, viewing) : null;
+  const viewedIndex = viewed && viewing ? viewed.meal.photoIds.indexOf(viewing) : -1;
+  const viewedPhoto = viewing ? photos[viewing] : undefined;
+
   const openWhen = (mealId: string) => {
     setWhenLast(mealId);
     setWhenFor(mealId);
@@ -423,13 +659,52 @@ const BulkSession = ({
                   </h1>
                 </Dialog.Title>
                 {phase === "sorting" && (
-                  <p className="text-caption text-muted" data-testid="bulk-found">
-                    {mealCount(meals.length)}
-                    {bulk?.changed ? "" : " found"}
+                  <p className="text-caption text-muted">
+                    <span data-testid="bulk-found">
+                      {mealCount(meals.length)}
+                      {bulk?.changed ? "" : " found"}
+                    </span>
+                    <span data-testid="bulk-total">
+                      {" "}
+                      · {count} of {BULK.maxPhotos} photos
+                    </span>
                   </p>
                 )}
               </div>
+              {phase === "sorting" && (
+                <button
+                  type="button"
+                  onClick={() => pickMore(BATCH)}
+                  className="bg-surface-2 hover:bg-surface-3 inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-bold"
+                  data-testid="bulk-more"
+                >
+                  <Plus aria-hidden className="size-4" /> More photos
+                </button>
+              )}
             </div>
+
+            {phase === "sorting" && headerReading && (
+              <div className="flex items-center gap-2.5" data-testid="bulk-more-reading">
+                <span className="text-caption text-muted shrink-0">
+                  Reading {photoCount(headerReading.total)}…
+                </span>
+                <div
+                  role="progressbar"
+                  aria-label={`Reading ${photoCount(headerReading.total)}`}
+                  aria-valuemin={0}
+                  aria-valuemax={headerReading.total}
+                  aria-valuenow={headerReading.done}
+                  className="bg-surface-2 h-1.5 min-w-0 flex-1 overflow-hidden rounded-full"
+                >
+                  <div
+                    className="bg-primary h-full transition-[width]"
+                    style={{
+                      width: `${headerReading.total ? (headerReading.done / headerReading.total) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
             {phase === "sorting" && bulk && bulk.selected.length > 0 && (
               <div
@@ -550,9 +825,10 @@ const BulkSession = ({
               {phase === "sorting" && bulk && (
                 <>
                   <p id={introId} className="text-caption text-muted">
-                    Grouped by when they were taken and how they look. Tap photos to select them,
-                    then drag them to another meal or to <b className="text-text">New meal</b>. Each
-                    meal is analysed by your AI after you add it.
+                    Tap a photo to see it larger. Touch and hold it to make it the meal&rsquo;s
+                    cover, or hold and move to drag it. Tap the circle to select photos.{" "}
+                    <b className="text-text">+ Add</b> puts more photos from the gallery in that
+                    meal; <b className="text-text">More photos</b> sorts new ones into the meals.
                   </p>
                   {skipped.over > 0 && (
                     <p className="bg-info-soft text-on-info-soft text-caption rounded-2xl px-3 py-2.5">
@@ -586,17 +862,26 @@ const BulkSession = ({
                           assets={photos}
                           selected={selected}
                           lifted={lifted}
+                          press={drag.press}
                           timeLabel={timeOf(meal.at)}
                           slotLabel={slotOf(meal)}
                           noTime={mealHasNoTime(bulk, meal)}
                           earlierDay={request.earlierDay}
                           problem={problems[number - 1] ?? null}
                           drop={dropFor(meal.id)}
+                          reading={readingFor(meal.id)}
                           onPhotoPointerDown={drag.onPointerDown}
-                          onPhotoClick={(id, additive) => {
+                          onOpen={(id) => {
+                            if (drag.ignoreClick()) return;
+                            viewerFrom.current = id;
+                            setViewerStatus(null);
+                            setViewing(id);
+                          }}
+                          onSelect={(id, additive) => {
                             if (drag.ignoreClick()) return;
                             apply(additive ? { type: "select", id } : { type: "toggle", id });
                           }}
+                          onAdd={() => pickMore(meal.id)}
                           onTime={() => openWhen(meal.id)}
                           onNote={(note) => apply({ type: "note", mealId: meal.id, note })}
                           onMore={() => setMoreFor(meal.id)}
@@ -671,16 +956,37 @@ const BulkSession = ({
           {phase === "sorting" && bulk && (
             <div className="border-border bg-bg border-t">
               <div className="mx-auto flex w-full max-w-2xl flex-col gap-1.5 px-4 pt-2.5 pb-[max(env(safe-area-inset-bottom),0.875rem)]">
+                <div aria-live="polite" className="empty:hidden">
+                  {status && (
+                    <div
+                      className="bg-text text-bg text-caption mb-1 flex items-center gap-2 rounded-2xl py-1 pr-1 pl-3.5 font-semibold"
+                      data-testid="bulk-said"
+                    >
+                      <span className="min-w-0 flex-1 py-2">{status.text}</span>
+                      {status.onUndo && (
+                        <button
+                          type="button"
+                          onClick={status.onUndo}
+                          className="min-h-11 shrink-0 rounded-xl px-3 underline underline-offset-2"
+                        >
+                          Undo
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <p className="text-caption text-muted text-center">
-                  {firstProblem >= 0
-                    ? `Change the time of meal ${firstProblem + 1} first.`
-                    : "Meals with a note are analysed with it."}
+                  {jobs.length
+                    ? "Kal is reading the photos you picked; add the meals after that."
+                    : firstProblem >= 0
+                      ? `Change the time of meal ${firstProblem + 1} first.`
+                      : "Meals with a note are analysed with it."}
                 </p>
                 <Button
                   size="lg"
                   fullWidth
                   loading={adding}
-                  disabled={!meals.length || firstProblem >= 0}
+                  disabled={!meals.length || firstProblem >= 0 || jobs.length > 0}
                   onClick={() => void add()}
                   data-testid="bulk-add"
                 >
@@ -717,6 +1023,93 @@ const BulkSession = ({
             </div>
           )}
 
+          <input
+            ref={moreInput}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            aria-label="More photos to add"
+            data-testid="bulk-more-input"
+            onChange={(event) => {
+              const files = Array.from(event.target.files ?? []);
+              event.target.value = "";
+              if (files.length) readMore(files, pickFor.current);
+            }}
+          />
+
+          <PhotoViewer
+            photos={
+              viewed
+                ? viewed.meal.photoIds.map((id, i) => ({
+                    id,
+                    src: photos[id]?.fullUrl ?? "",
+                    alt: `Photo ${i + 1} of ${viewed.meal.photoIds.length}, ${
+                      photos[id]?.time ? `taken at ${photos[id].time}` : "no time taken"
+                    }`,
+                  }))
+                : []
+            }
+            index={viewed && viewedIndex >= 0 ? viewedIndex : null}
+            onIndexChange={(index) => {
+              const next = viewed?.meal.photoIds[index];
+              if (!next) return;
+              setViewerStatus(null);
+              setViewing(next);
+            }}
+            onClose={() => {
+              setViewing(null);
+              setViewerStatus(null);
+            }}
+            onCloseAutoFocus={(event) => {
+              // Back to the photo it was opened from (a tap may not have focused it).
+              const photo = viewerFrom.current;
+              viewerFrom.current = null;
+              const button = photo
+                ? document.querySelector<HTMLElement>(`[data-photo-id="${photo}"]`)
+                : null;
+              if (!button) return;
+              event.preventDefault();
+              requestAnimationFrame(() => button.focus());
+            }}
+            subtitle={
+              viewed
+                ? `${slotOf(viewed.meal)} · ${
+                    viewedPhoto?.time ? `taken ${viewedPhoto.time}` : "no time taken"
+                  }`
+                : undefined
+            }
+            status={viewerStatus}
+            actions={
+              viewed &&
+              viewing && (
+                <>
+                  {viewedIndex > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => makeCover(viewing, "viewer")}
+                      className={viewerButton(true)}
+                    >
+                      Make it the cover
+                    </button>
+                  )}
+                  <button
+                    ref={viewerSelect}
+                    type="button"
+                    aria-pressed={selected.has(viewing)}
+                    onClick={() => apply({ type: "toggle", id: viewing })}
+                    className={viewerButton(viewedIndex === 0)}
+                  >
+                    {selected.has(viewing) && (
+                      <Check aria-hidden className="size-4" strokeWidth={3} />
+                    )}
+                    Select
+                  </button>
+                </>
+              )
+            }
+          />
+
           {bulk && (
             <MoveSheet
               open={moveOpen}
@@ -751,7 +1144,11 @@ const BulkSession = ({
               whenTaken !== null
                 ? `From the photo: taken ${whenSpoken(new Date(whenTaken), now, tz)}.`
                 : whenMeal
-                  ? noTimeWords(whenMeal.photoIds.length, request.earlierDay)
+                  ? noTimeWords(
+                      whenMeal.photoIds.length,
+                      request.earlierDay,
+                      whenMeal.anchorAt !== null,
+                    )
                   : ""
             }
             returnFocus={whenReturn}
@@ -797,14 +1194,14 @@ const BulkSession = ({
                   variant="secondary"
                   fullWidth
                   onClick={() => {
-                    setBulk((state) =>
-                      state
-                        ? moreMeal.photoIds.reduce<BulkState>(
-                            (s, id) => bulkReducer(s, { type: "select", id }),
-                            state,
-                          )
-                        : state,
-                    );
+                    const current = bulkRef.current;
+                    if (current)
+                      commit(
+                        moreMeal.photoIds.reduce<BulkState>(
+                          (state, id) => bulkReducer(state, { type: "select", id }),
+                          current,
+                        ),
+                      );
                     afterSheet.current = `[data-photo-id="${moreMeal.photoIds[0]}"]`;
                     setMoreFor(null);
                   }}

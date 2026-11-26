@@ -257,7 +257,11 @@ export const MealView = ({
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-start md:gap-6">
         <div className="flex flex-col gap-4">
-          <PhotoCarousel photos={meal.photos} title={title} />
+          <PhotoCarousel
+            photos={meal.photos}
+            title={title}
+            subtitle={`${title} · ${meal.localTime}`}
+          />
           {!meal.photos.length && (
             // Without a photo the meal is a plate with its foods on it.
             <Card className="flex items-center gap-4" data-testid="plate-header">
@@ -283,6 +287,7 @@ export const MealView = ({
 
           <MealPhotos
             meal={meal}
+            subtitle={`${title} · ${meal.localTime}`}
             onChange={(change) => {
               setMeal(change.meal);
               router.refresh();
